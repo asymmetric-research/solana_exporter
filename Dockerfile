@@ -3,7 +3,7 @@ FROM golang:1.13 as builder
 COPY . /opt
 WORKDIR /opt
 
-RUN go build -o /opt/bin/app github.com/certusone/solana_exporter/cmd/solana_exporter
+RUN CGO_ENABLED=0 go build -o /opt/bin/app github.com/certusone/solana_exporter/cmd/solana_exporter
 
 FROM scratch
 
