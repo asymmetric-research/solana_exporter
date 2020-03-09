@@ -124,7 +124,7 @@ func (collector solanaCollector) Collect(ch chan<- prometheus.Metric) {
 	)
 
 	req, err := http.NewRequest("POST", collector.rpcAddr,
-		bytes.NewBufferString(`{"jsonrpc":"2.0","id":1, "method":"getVoteAccounts"}`))
+		bytes.NewBufferString(`{"jsonrpc":"2.0","id":1, "method":"getVoteAccounts", "params":[{"commitment":"recent"}]}`))
 	if err != nil {
 		panic(err)
 	}
