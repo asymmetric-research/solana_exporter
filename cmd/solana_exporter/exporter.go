@@ -100,19 +100,19 @@ func (collector solanaCollector) mustEmitMetrics(ch chan<- prometheus.Metric, re
 
 	for _, account := range append(response.Result.Current, response.Result.Delinquent...) {
 		ch <- prometheus.MustNewConstMetric(collector.validatorActivatedStake, prometheus.GaugeValue,
-			float64(account.ActivatedStake), account.NodePubkey)
+			float64(account.ActivatedStake), account.VotePubkey)
 		ch <- prometheus.MustNewConstMetric(collector.validatorLastVote, prometheus.GaugeValue,
-			float64(account.LastVote), account.NodePubkey)
+			float64(account.LastVote), account.VotePubkey)
 		ch <- prometheus.MustNewConstMetric(collector.validatorRootSlot, prometheus.GaugeValue,
-			float64(account.RootSlot), account.NodePubkey)
+			float64(account.RootSlot), account.VotePubkey)
 	}
 	for _, account := range response.Result.Current {
 		ch <- prometheus.MustNewConstMetric(collector.validatorDelinquent, prometheus.GaugeValue,
-			0, account.NodePubkey)
+			0, account.VotePubkey)
 	}
 	for _, account := range response.Result.Delinquent {
 		ch <- prometheus.MustNewConstMetric(collector.validatorDelinquent, prometheus.GaugeValue,
-			1, account.NodePubkey)
+			1, account.VotePubkey)
 	}
 }
 
