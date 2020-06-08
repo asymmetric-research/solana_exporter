@@ -2,6 +2,8 @@
 
 solana_exporter exports basic monitoring data from a Solana node.
 
+<img src="https://i.imgur.com/2pIXLyU.png" width="550px" alt="" />
+
 Docker images are available on [Docker Hub](https://hub.docker.com/r/certusone/solana_exporter).
 
 ## Metrics
