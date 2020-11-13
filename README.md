@@ -16,6 +16,6 @@ Docker images are available on [Docker Hub](https://hub.docker.com/r/certusone/s
 
 ## Environment variables
 
-| Variable          | Description             |
-|-------------------|-------------------------|
-| `SOLANA_RPC_ADDR` | Your node's RPC URL     | 
+| Variable          | Description                                        |
+|-------------------|----------------------------------------------------|
+| `SOLANA_RPC_ADDR` | Your node's RPC URL (i.e. `http://your-node:8899`) | 
