@@ -39,7 +39,7 @@ type solanaCollector struct {
 	validatorDelinquent     *prometheus.Desc
 }
 
-func NewSolanaCollector(rpcAddr string) prometheus.Collector {
+func NewSolanaCollector(rpcAddr string) *solanaCollector {
 	return &solanaCollector{
 		rpcClient: rpc.NewRPCClient(rpcAddr),
 		totalValidatorsDesc: prometheus.NewDesc(
@@ -65,47 +65,47 @@ func NewSolanaCollector(rpcAddr string) prometheus.Collector {
 	}
 }
 
-func (collector solanaCollector) Describe(ch chan<- *prometheus.Desc) {
-	ch <- collector.totalValidatorsDesc
+func (c *solanaCollector) Describe(ch chan<- *prometheus.Desc) {
+	ch <- c.totalValidatorsDesc
 }
 
-func (collector solanaCollector) mustEmitMetrics(ch chan<- prometheus.Metric, response *rpc.GetVoteAccountsResponse) {
-	ch <- prometheus.MustNewConstMetric(collector.totalValidatorsDesc, prometheus.GaugeValue,
+func (c *solanaCollector) mustEmitMetrics(ch chan<- prometheus.Metric, response *rpc.GetVoteAccountsResponse) {
+	ch <- prometheus.MustNewConstMetric(c.totalValidatorsDesc, prometheus.GaugeValue,
 		float64(len(response.Result.Delinquent)), "delinquent")
-	ch <- prometheus.MustNewConstMetric(collector.totalValidatorsDesc, prometheus.GaugeValue,
+	ch <- prometheus.MustNewConstMetric(c.totalValidatorsDesc, prometheus.GaugeValue,
 		float64(len(response.Result.Current)), "current")
 
 	for _, account := range append(response.Result.Current, response.Result.Delinquent...) {
-		ch <- prometheus.MustNewConstMetric(collector.validatorActivatedStake, prometheus.GaugeValue,
+		ch <- prometheus.MustNewConstMetric(c.validatorActivatedStake, prometheus.GaugeValue,
 			float64(account.ActivatedStake), account.VotePubkey)
-		ch <- prometheus.MustNewConstMetric(collector.validatorLastVote, prometheus.GaugeValue,
+		ch <- prometheus.MustNewConstMetric(c.validatorLastVote, prometheus.GaugeValue,
 			float64(account.LastVote), account.VotePubkey)
-		ch <- prometheus.MustNewConstMetric(collector.validatorRootSlot, prometheus.GaugeValue,
+		ch <- prometheus.MustNewConstMetric(c.validatorRootSlot, prometheus.GaugeValue,
 			float64(account.RootSlot), account.VotePubkey)
 	}
 	for _, account := range response.Result.Current {
-		ch <- prometheus.MustNewConstMetric(collector.validatorDelinquent, prometheus.GaugeValue,
+		ch <- prometheus.MustNewConstMetric(c.validatorDelinquent, prometheus.GaugeValue,
 			0, account.VotePubkey)
 	}
 	for _, account := range response.Result.Delinquent {
-		ch <- prometheus.MustNewConstMetric(collector.validatorDelinquent, prometheus.GaugeValue,
+		ch <- prometheus.MustNewConstMetric(c.validatorDelinquent, prometheus.GaugeValue,
 			1, account.VotePubkey)
 	}
 }
 
-func (collector solanaCollector) Collect(ch chan<- prometheus.Metric) {
+func (c *solanaCollector) Collect(ch chan<- prometheus.Metric) {
 	ctx, cancel := context.WithTimeout(context.Background(), httpTimeout)
 	defer cancel()
 
-	accs, err := collector.rpcClient.GetVoteAccounts(ctx)
+	accs, err := c.rpcClient.GetVoteAccounts(ctx)
 	if err != nil {
-		ch <- prometheus.NewInvalidMetric(collector.totalValidatorsDesc, err)
-		ch <- prometheus.NewInvalidMetric(collector.validatorActivatedStake, err)
-		ch <- prometheus.NewInvalidMetric(collector.validatorLastVote, err)
-		ch <- prometheus.NewInvalidMetric(collector.validatorRootSlot, err)
-		ch <- prometheus.NewInvalidMetric(collector.validatorDelinquent, err)
+		ch <- prometheus.NewInvalidMetric(c.totalValidatorsDesc, err)
+		ch <- prometheus.NewInvalidMetric(c.validatorActivatedStake, err)
+		ch <- prometheus.NewInvalidMetric(c.validatorLastVote, err)
+		ch <- prometheus.NewInvalidMetric(c.validatorRootSlot, err)
+		ch <- prometheus.NewInvalidMetric(c.validatorDelinquent, err)
 	} else {
-		collector.mustEmitMetrics(ch, accs)
+		c.mustEmitMetrics(ch, accs)
 	}
 }
 
