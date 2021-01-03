@@ -2,13 +2,14 @@ package main
 
 import (
 	"context"
+	"flag"
 	"github.com/certusone/solana_exporter/pkg/rpc"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"log"
 	"net/http"
-	"os"
 	"time"
+
+	"k8s.io/klog/v2"
 )
 
 const (
@@ -16,21 +17,16 @@ const (
 )
 
 var (
-	listenAddr    = os.Getenv("LISTEN_ADDR")
-	solanaRPCAddr = os.Getenv("SOLANA_RPC_ADDR")
+	rpcAddr = flag.String("rpcURI", "", "Solana RPC URI (including protocol and path)")
+	addr    = flag.String("addr", ":8080", "Listen address")
 )
 
 func init() {
-	if solanaRPCAddr == "" {
-		log.Fatal("Please specify SOLANA_RPC_ADDR")
-	}
-	if listenAddr == "" {
-		listenAddr = ":8080"
-	}
+	klog.InitFlags(nil)
 }
 
 type solanaCollector struct {
-	rpcClient *rpc.RpcClient
+	rpcClient *rpc.RPCClient
 
 	totalValidatorsDesc     *prometheus.Desc
 	validatorActivatedStake *prometheus.Desc
@@ -97,7 +93,7 @@ func (c *solanaCollector) Collect(ch chan<- prometheus.Metric) {
 	ctx, cancel := context.WithTimeout(context.Background(), httpTimeout)
 	defer cancel()
 
-	accs, err := c.rpcClient.GetVoteAccounts(ctx)
+	accs, err := c.rpcClient.GetVoteAccounts(ctx, rpc.CommitmentRecent)
 	if err != nil {
 		ch <- prometheus.NewInvalidMetric(c.totalValidatorsDesc, err)
 		ch <- prometheus.NewInvalidMetric(c.validatorActivatedStake, err)
@@ -110,8 +106,19 @@ func (c *solanaCollector) Collect(ch chan<- prometheus.Metric) {
 }
 
 func main() {
-	collector := NewSolanaCollector(solanaRPCAddr)
+	flag.Parse()
+
+	if *rpcAddr == "" {
+		klog.Fatal("Please specify -rpcURI")
+	}
+
+	collector := NewSolanaCollector(*rpcAddr)
+
+	go collector.WatchSlots()
+
 	prometheus.MustRegister(collector)
 	http.Handle("/metrics", promhttp.Handler())
-	log.Fatal(http.ListenAndServe(listenAddr, nil))
+
+	klog.Infof("listening on %s", *addr)
+	klog.Fatal(http.ListenAndServe(*addr, nil))
 }

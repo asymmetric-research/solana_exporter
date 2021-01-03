@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"k8s.io/klog/v2"
 )
 
 type (
@@ -23,19 +24,27 @@ type (
 			Current    []VoteAccount `json:"current"`
 			Delinquent []VoteAccount `json:"delinquent"`
 		} `json:"result"`
+		Error rpcError `json:"error"`
 	}
 )
 
-func (c *RpcClient) GetVoteAccounts(ctx context.Context) (*GetVoteAccountsResponse, error) {
-	body, err := c.rpcRequest(ctx, []byte(`{"jsonrpc":"2.0","id":1, "method":"getVoteAccounts", "params":[{"commitment":"recent"}]}`))
+// https://docs.solana.com/developing/clients/jsonrpc-api#getvoteaccounts
+func (c *RPCClient) GetVoteAccounts(ctx context.Context, commitment Commitment) (*GetVoteAccountsResponse, error) {
+	body, err := c.rpcRequest(ctx, formatRPCRequest("getVoteAccounts", []interface{}{commitment}))
 	if err != nil {
 		return nil, fmt.Errorf("RPC call failed: %w", err)
 	}
 
-	var voteAccounts GetVoteAccountsResponse
-	if err = json.Unmarshal(body, &voteAccounts); err != nil {
+	klog.V(3).Infof("getVoteAccounts response: %v", string(body))
+
+	var resp GetVoteAccountsResponse
+	if err = json.Unmarshal(body, &resp); err != nil {
 		return nil, fmt.Errorf("failed to decode response body: %w", err)
 	}
 
-	return &voteAccounts, nil
+	if resp.Error.Code != 0 {
+		return nil, fmt.Errorf("RPC error: %d %v", resp.Error.Code, resp.Error.Message)
+	}
+
+	return &resp, nil
 }
