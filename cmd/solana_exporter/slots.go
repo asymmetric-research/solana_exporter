@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/certusone/solana_exporter/pkg/rpc"
+	"github.com/prometheus/client_golang/prometheus"
 	"k8s.io/klog/v2"
 	"time"
 )
@@ -11,6 +12,49 @@ import (
 const (
 	slotPacerSchedule = 1 * time.Second
 )
+
+var (
+	totalTransactionsTotal = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "solana_confirmed_transactions_total",
+		Help: "Total number of transactions processed since genesis (max confirmation)",
+	})
+
+	confirmedSlotHeight = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "solana_confirmed_slot_height",
+		Help: "Last confirmed slot height processed by watcher routine (max confirmation)",
+	})
+
+	currentEpochNumber = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "solana_confirmed_epoch_number",
+		Help: "Current epoch (max confirmation)",
+	})
+
+	epochFirstSlot = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "solana_confirmed_epoch_first_slot",
+		Help: "Current epoch's first slot (max confirmation)",
+	})
+
+	epochLastSlot = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "solana_confirmed_epoch_last_slot",
+		Help: "Current epoch's last slot (max confirmation)",
+	})
+
+	leaderSlotsTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "solana_leader_slots_total",
+			Help: "Number of leader slots per leader, grouped by skip status (max confirmation)",
+		},
+		[]string{"status", "nodekey"})
+)
+
+func init() {
+	prometheus.MustRegister(totalTransactionsTotal)
+	prometheus.MustRegister(confirmedSlotHeight)
+	prometheus.MustRegister(currentEpochNumber)
+	prometheus.MustRegister(epochFirstSlot)
+	prometheus.MustRegister(epochLastSlot)
+	prometheus.MustRegister(leaderSlotsTotal)
+}
 
 func (c *solanaCollector) WatchSlots() {
 	var (
@@ -40,6 +84,12 @@ func (c *solanaCollector) WatchSlots() {
 		// Calculate first and last slot in epoch.
 		firstSlot := info.AbsoluteSlot - info.SlotIndex
 		lastSlot := firstSlot + info.SlotsInEpoch
+
+		totalTransactionsTotal.Set(float64(info.TransactionCount))
+		confirmedSlotHeight.Set(float64(info.AbsoluteSlot))
+		currentEpochNumber.Set(float64(info.Epoch))
+		epochFirstSlot.Set(float64(firstSlot))
+		epochLastSlot.Set(float64(lastSlot))
 
 		// Check whether we need to fetch a new leader schedule
 		if epochNumber != info.Epoch {
@@ -101,12 +151,16 @@ func (c *solanaCollector) WatchSlots() {
 			}
 
 			var skipped string
+			var label string
 			if present {
 				skipped = "(valid)"
+				label = "valid"
 			} else {
 				skipped = "(SKIPPED)"
+				label = "skipped"
 			}
 
+			leaderSlotsTotal.With(prometheus.Labels{"status": label, "nodekey": leader}).Add(1)
 			klog.V(1).Infof("slot %d (offset %d) with leader %s %s", abs, i, leader, skipped)
 		}
 
