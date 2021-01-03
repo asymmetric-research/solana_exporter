@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	httpTimeout = 2 * time.Second
+	httpTimeout = 5 * time.Second
 )
 
 var (
@@ -45,19 +45,19 @@ func NewSolanaCollector(rpcAddr string) *solanaCollector {
 		validatorActivatedStake: prometheus.NewDesc(
 			"solana_validator_activated_stake",
 			"Activated stake per validator",
-			[]string{"pubkey"}, nil),
+			[]string{"pubkey", "nodekey"}, nil),
 		validatorLastVote: prometheus.NewDesc(
 			"solana_validator_last_vote",
 			"Last voted slot per validator",
-			[]string{"pubkey"}, nil),
+			[]string{"pubkey", "nodekey"}, nil),
 		validatorRootSlot: prometheus.NewDesc(
 			"solana_validator_root_slot",
 			"Root slot per validator",
-			[]string{"pubkey"}, nil),
+			[]string{"pubkey", "nodekey"}, nil),
 		validatorDelinquent: prometheus.NewDesc(
 			"solana_validator_delinquent",
 			"Whether a validator is delinquent",
-			[]string{"pubkey"}, nil),
+			[]string{"pubkey", "nodekey"}, nil),
 	}
 }
 
@@ -73,19 +73,19 @@ func (c *solanaCollector) mustEmitMetrics(ch chan<- prometheus.Metric, response 
 
 	for _, account := range append(response.Result.Current, response.Result.Delinquent...) {
 		ch <- prometheus.MustNewConstMetric(c.validatorActivatedStake, prometheus.GaugeValue,
-			float64(account.ActivatedStake), account.VotePubkey)
+			float64(account.ActivatedStake), account.VotePubkey, account.NodePubkey)
 		ch <- prometheus.MustNewConstMetric(c.validatorLastVote, prometheus.GaugeValue,
-			float64(account.LastVote), account.VotePubkey)
+			float64(account.LastVote), account.VotePubkey, account.NodePubkey)
 		ch <- prometheus.MustNewConstMetric(c.validatorRootSlot, prometheus.GaugeValue,
-			float64(account.RootSlot), account.VotePubkey)
+			float64(account.RootSlot), account.VotePubkey, account.NodePubkey)
 	}
 	for _, account := range response.Result.Current {
 		ch <- prometheus.MustNewConstMetric(c.validatorDelinquent, prometheus.GaugeValue,
-			0, account.VotePubkey)
+			0, account.VotePubkey, account.NodePubkey)
 	}
 	for _, account := range response.Result.Delinquent {
 		ch <- prometheus.MustNewConstMetric(c.validatorDelinquent, prometheus.GaugeValue,
-			1, account.VotePubkey)
+			1, account.VotePubkey, account.NodePubkey)
 	}
 }
 
