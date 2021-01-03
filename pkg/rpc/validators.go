@@ -1,15 +1,10 @@
 package rpc
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
-	"net/http"
 )
-
-var httpClient http.Client
 
 type (
 	VoteAccount struct {
@@ -31,31 +26,13 @@ type (
 	}
 )
 
-func GetVoteAccounts(ctx context.Context, rpcAddr string) (*GetVoteAccountsResponse, error) {
-	var (
-		voteAccounts GetVoteAccountsResponse
-		body         []byte
-		err          error
-	)
-
-	req, err := http.NewRequestWithContext(ctx, "POST", rpcAddr,
-		bytes.NewBufferString(`{"jsonrpc":"2.0","id":1, "method":"getVoteAccounts", "params":[{"commitment":"recent"}]}`))
-	if err != nil {
-		panic(err)
-	}
-	req.Header.Set("content-type", "application/json")
-
-	resp, err := httpClient.Do(req)
+func (c *RpcClient) GetVoteAccounts(ctx context.Context) (*GetVoteAccountsResponse, error) {
+	body, err := c.rpcRequest(ctx, []byte(`{"jsonrpc":"2.0","id":1, "method":"getVoteAccounts", "params":[{"commitment":"recent"}]}`))
 	if err != nil {
 		return nil, fmt.Errorf("RPC call failed: %w", err)
 	}
-	defer resp.Body.Close()
 
-	body, err = ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response: %w", err)
-	}
-
+	var voteAccounts GetVoteAccountsResponse
 	if err = json.Unmarshal(body, &voteAccounts); err != nil {
 		return nil, fmt.Errorf("failed to decode response body: %w", err)
 	}

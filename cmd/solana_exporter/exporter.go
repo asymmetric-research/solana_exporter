@@ -30,7 +30,7 @@ func init() {
 }
 
 type solanaCollector struct {
-	rpcAddr string
+	rpcClient *rpc.RpcClient
 
 	totalValidatorsDesc     *prometheus.Desc
 	validatorActivatedStake *prometheus.Desc
@@ -41,7 +41,7 @@ type solanaCollector struct {
 
 func NewSolanaCollector(rpcAddr string) prometheus.Collector {
 	return &solanaCollector{
-		rpcAddr: rpcAddr,
+		rpcClient: rpc.NewRPCClient(rpcAddr),
 		totalValidatorsDesc: prometheus.NewDesc(
 			"solana_active_validators",
 			"Total number of active validators by state",
@@ -97,7 +97,7 @@ func (collector solanaCollector) Collect(ch chan<- prometheus.Metric) {
 	ctx, cancel := context.WithTimeout(context.Background(), httpTimeout)
 	defer cancel()
 
-	accs, err := rpc.GetVoteAccounts(ctx, collector.rpcAddr)
+	accs, err := collector.rpcClient.GetVoteAccounts(ctx)
 	if err != nil {
 		ch <- prometheus.NewInvalidMetric(collector.totalValidatorsDesc, err)
 		ch <- prometheus.NewInvalidMetric(collector.validatorActivatedStake, err)
