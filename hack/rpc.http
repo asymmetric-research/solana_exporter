@@ -1,0 +1,109 @@
+// https://docs.solana.com/developing/clients/jsonrpc-api
+
+###
+
+POST https://tds-rpc.certus.one
+Content-Type: application/json
+
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "getVoteAccounts"
+}
+
+###
+
+POST https://tds-rpc.certus.one
+Content-Type: application/json
+
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "getLeaderSchedule",
+  "params": [56252256]
+}
+
+###
+
+POST https://tds-rpc.certus.one
+Content-Type: application/json
+
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "getSlotLeader"
+}
+
+###
+
+POST https://tds-rpc.certus.one
+Content-Type: application/json
+
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "getEpochInfo",
+  "params": ["max"]
+}
+
+###
+
+POST https://tds-rpc.certus.one
+Content-Type: application/json
+
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "getConfirmedBlocks",
+  "params": [56610214]
+}
+
+###
+
+POST https://testnet.solana.com
+Content-Type: application/json
+
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "getConfirmedBlock",
+  "params": [56600576, "jsonParsed"]
+}
+
+###
+
+POST https://testnet.solana.com
+Content-Type: application/json
+
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "getBlockTime",
+  "params": [56611148]
+}
+
+###
+
+POST https://tds-rpc.certus.one
+Content-Type: application/json
+
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "getSlot"
+}
+
+###
+
+POST https://tds-rpc.certus.one
+Content-Type: application/json
+
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "getConfirmedBlocks",
+  "params": [
+    5,
+    10
+  ]
+}
