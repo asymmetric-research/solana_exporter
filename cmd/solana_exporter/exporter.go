@@ -1,35 +1,14 @@
 package main
 
 import (
-	"bytes"
-	"encoding/json"
+	"context"
+	"github.com/certusone/solana_exporter/pkg/rpc"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 	"time"
-)
-
-type (
-	VoteAccount struct {
-		ActivatedStake   int64   `json:"activatedStake"`
-		Commission       int     `json:"commission"`
-		EpochCredits     [][]int `json:"epochCredits"`
-		EpochVoteAccount bool    `json:"epochVoteAccount"`
-		LastVote         int     `json:"lastVote"`
-		NodePubkey       string  `json:"nodePubkey"`
-		RootSlot         int     `json:"rootSlot"`
-		VotePubkey       string  `json:"votePubkey"`
-	}
-
-	GetVoteAccountsResponse struct {
-		Result struct {
-			Current    []VoteAccount `json:"current"`
-			Delinquent []VoteAccount `json:"delinquent"`
-		} `json:"result"`
-	}
 )
 
 const (
@@ -51,7 +30,6 @@ func init() {
 }
 
 type solanaCollector struct {
-	client  *http.Client
 	rpcAddr string
 
 	totalValidatorsDesc     *prometheus.Desc
@@ -63,7 +41,6 @@ type solanaCollector struct {
 
 func NewSolanaCollector(rpcAddr string) prometheus.Collector {
 	return &solanaCollector{
-		client:  &http.Client{Timeout: httpTimeout},
 		rpcAddr: rpcAddr,
 		totalValidatorsDesc: prometheus.NewDesc(
 			"solana_active_validators",
@@ -92,7 +69,7 @@ func (collector solanaCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- collector.totalValidatorsDesc
 }
 
-func (collector solanaCollector) mustEmitMetrics(ch chan<- prometheus.Metric, response *GetVoteAccountsResponse) {
+func (collector solanaCollector) mustEmitMetrics(ch chan<- prometheus.Metric, response *rpc.GetVoteAccountsResponse) {
 	ch <- prometheus.MustNewConstMetric(collector.totalValidatorsDesc, prometheus.GaugeValue,
 		float64(len(response.Result.Delinquent)), "delinquent")
 	ch <- prometheus.MustNewConstMetric(collector.totalValidatorsDesc, prometheus.GaugeValue,
@@ -117,48 +94,24 @@ func (collector solanaCollector) mustEmitMetrics(ch chan<- prometheus.Metric, re
 }
 
 func (collector solanaCollector) Collect(ch chan<- prometheus.Metric) {
-	var (
-		voteAccounts GetVoteAccountsResponse
-		body         []byte
-		err          error
-	)
+	ctx, cancel := context.WithTimeout(context.Background(), httpTimeout)
+	defer cancel()
 
-	req, err := http.NewRequest("POST", collector.rpcAddr,
-		bytes.NewBufferString(`{"jsonrpc":"2.0","id":1, "method":"getVoteAccounts", "params":[{"commitment":"recent"}]}`))
+	accs, err := rpc.GetVoteAccounts(ctx, collector.rpcAddr)
 	if err != nil {
-		panic(err)
+		ch <- prometheus.NewInvalidMetric(collector.totalValidatorsDesc, err)
+		ch <- prometheus.NewInvalidMetric(collector.validatorActivatedStake, err)
+		ch <- prometheus.NewInvalidMetric(collector.validatorLastVote, err)
+		ch <- prometheus.NewInvalidMetric(collector.validatorRootSlot, err)
+		ch <- prometheus.NewInvalidMetric(collector.validatorDelinquent, err)
+	} else {
+		collector.mustEmitMetrics(ch, accs)
 	}
-	req.Header.Set("content-type", "application/json")
-
-	resp, err := collector.client.Do(req)
-	if err != nil {
-		goto error
-	}
-	defer resp.Body.Close()
-
-	body, err = ioutil.ReadAll(resp.Body)
-	if err != nil {
-		goto error
-	}
-
-	if err = json.Unmarshal(body, &voteAccounts); err != nil {
-		goto error
-	}
-
-	collector.mustEmitMetrics(ch, &voteAccounts)
-	return
-
-error:
-	ch <- prometheus.NewInvalidMetric(collector.totalValidatorsDesc, err)
-	ch <- prometheus.NewInvalidMetric(collector.validatorActivatedStake, err)
-	ch <- prometheus.NewInvalidMetric(collector.validatorLastVote, err)
-	ch <- prometheus.NewInvalidMetric(collector.validatorRootSlot, err)
-	ch <- prometheus.NewInvalidMetric(collector.validatorDelinquent, err)
 }
 
 func main() {
 	collector := NewSolanaCollector(solanaRPCAddr)
 	prometheus.MustRegister(collector)
 	http.Handle("/metrics", promhttp.Handler())
-	panic(http.ListenAndServe(listenAddr, nil))
+	log.Fatal(http.ListenAndServe(listenAddr, nil))
 }
