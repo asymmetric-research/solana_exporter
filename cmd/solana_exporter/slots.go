@@ -130,7 +130,7 @@ func (c *solanaCollector) WatchSlots() {
 		}
 		cancel()
 
-		klog.Infof("confirmed blocks: %d -> %d: %v", rangeStart, rangeEnd, cfm)
+		klog.V(1).Infof("confirmed blocks: %d -> %d: %v", rangeStart, rangeEnd, cfm)
 
 		// Figure out leaders for each block in range
 		for i := watermark; i < info.SlotIndex; i++ {
