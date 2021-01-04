@@ -1,4 +1,4 @@
-FROM golang:1.13 as builder
+FROM golang:1.15 as builder
 
 COPY . /opt
 WORKDIR /opt
@@ -10,4 +10,4 @@ FROM scratch
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 COPY --from=builder /opt/bin/app /
 
-CMD ["/app"]
+ENTRYPOINT ["/app"]
