@@ -25,6 +25,14 @@ Metrics tracked with confirmation level `max`:
 - **solana_confirmed_slot_height** - Last confirmed slot height observed.
 - **solana_confirmed_transactions_total** - Total number of transactions processed since genesis.
 
+# Collector call this methods
+
+- **GetTransactionCount** -  https://docs.solana.com/developing/clients/jsonrpc-api#gettransactioncount
+- **GetRecentBlockhash** -   https://docs.solana.com/developing/clients/jsonrpc-api#getrecentblockhash
+- **GetConfirmedBlocks** -   https://docs.solana.com/developing/clients/jsonrpc-api#getconfirmedblocks
+- **GetBalance** -           https://docs.solana.com/developing/clients/jsonrpc-api#getbalance
+- **GetVoteAccounts** -      https://docs.solana.com/developing/clients/jsonrpc-api#getvoteaccounts 
+
 ## Command line arguments
 
 You typically only need to set the RPC URL, pointing to one of your own nodes:
