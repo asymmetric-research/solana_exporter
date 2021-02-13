@@ -1,13 +1,15 @@
 package main
 
+// ./prometheus --config.file=./prometheus.yml
 import (
 	"context"
 	"flag"
+	"net/http"
+	"time"
+
 	"github.com/certusone/solana_exporter/pkg/rpc"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"net/http"
-	"time"
 
 	"k8s.io/klog/v2"
 )
@@ -33,6 +35,7 @@ type solanaCollector struct {
 	validatorLastVote       *prometheus.Desc
 	validatorRootSlot       *prometheus.Desc
 	validatorDelinquent     *prometheus.Desc
+	transactionCount        *prometheus.Desc
 }
 
 func NewSolanaCollector(rpcAddr string) *solanaCollector {
@@ -58,6 +61,10 @@ func NewSolanaCollector(rpcAddr string) *solanaCollector {
 			"solana_validator_delinquent",
 			"Whether a validator is delinquent",
 			[]string{"pubkey", "nodekey"}, nil),
+		transactionCount: prometheus.NewDesc(
+			"solana_transaction_count",
+			"Whether solana_transaction_count",
+			[]string{"result"}, nil),
 	}
 }
 
@@ -103,13 +110,22 @@ func (c *solanaCollector) Collect(ch chan<- prometheus.Metric) {
 	} else {
 		c.mustEmitMetrics(ch, accs)
 	}
+
+	result, err := c.rpcClient.GetTransactionCount(ctx, rpc.CommitmentRecent)
+	if err != nil {
+		ch <- prometheus.NewInvalidMetric(c.transactionCount, err)
+	} else {
+		ch <- prometheus.MustNewConstMetric(c.transactionCount, prometheus.CounterValue, float64(*result), "result")
+	}
+
 }
 
 func main() {
 	flag.Parse()
 
 	if *rpcAddr == "" {
-		klog.Fatal("Please specify -rpcURI")
+		*rpcAddr = "http://localhost:8899"
+		klog.Warningln("Please specify -rpcURI use default http://localhost:8899")
 	}
 
 	collector := NewSolanaCollector(*rpcAddr)
