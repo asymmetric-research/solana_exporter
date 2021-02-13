@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+
 	"k8s.io/klog/v2"
 )
 
@@ -29,7 +30,7 @@ type (
 	}
 )
 
-// https://docs.solana.com/developing/clients/jsonrpc-api#getepochinfo
+// GetEpochInfo is https://docs.solana.com/developing/clients/jsonrpc-api#getepochinfo
 func (c *RPCClient) GetEpochInfo(ctx context.Context, commitment Commitment) (*EpochInfo, error) {
 	body, err := c.rpcRequest(ctx, formatRPCRequest("getEpochInfo", []interface{}{commitment}))
 	if err != nil {

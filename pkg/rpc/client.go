@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
-	"k8s.io/klog/v2"
 	"net/http"
+
+	"k8s.io/klog/v2"
 )
 
 type (
@@ -64,6 +66,7 @@ func formatRPCRequest(method string, params []interface{}) io.Reader {
 	}
 
 	b, err := json.Marshal(r)
+	fmt.Println(string(b))
 	if err != nil {
 		panic(err)
 	}

@@ -35,7 +35,15 @@ type solanaCollector struct {
 	validatorLastVote       *prometheus.Desc
 	validatorRootSlot       *prometheus.Desc
 	validatorDelinquent     *prometheus.Desc
-	transactionCount        *prometheus.Desc
+
+	//GetTransactionCountResponse
+	transactionCount *prometheus.Desc
+
+	// GetBalance
+	balanceValue *prometheus.Desc
+
+	// GetRecentBlockhash
+	recentBlockhashValueFeeCalculatorLamportsPerSignature *prometheus.Desc
 }
 
 func NewSolanaCollector(rpcAddr string) *solanaCollector {
@@ -64,6 +72,14 @@ func NewSolanaCollector(rpcAddr string) *solanaCollector {
 		transactionCount: prometheus.NewDesc(
 			"solana_transaction_count",
 			"Whether solana_transaction_count",
+			[]string{"result"}, nil),
+		balanceValue: prometheus.NewDesc(
+			"solana_balanceValue",
+			"Whether solana_balanceValue",
+			[]string{"result"}, nil),
+		recentBlockhashValueFeeCalculatorLamportsPerSignature: prometheus.NewDesc(
+			"solana_recentBlockhashValueFeeCalculatorLamportsPerSignature",
+			"Whether solana_recentBlockhashValueFeeCalculatorLamportsPerSignature",
 			[]string{"result"}, nil),
 	}
 }
@@ -111,11 +127,32 @@ func (c *solanaCollector) Collect(ch chan<- prometheus.Metric) {
 		c.mustEmitMetrics(ch, accs)
 	}
 
-	result, err := c.rpcClient.GetTransactionCount(ctx, rpc.CommitmentRecent)
+	transactionCount, err := c.rpcClient.GetTransactionCount(ctx, rpc.CommitmentRecent)
 	if err != nil {
 		ch <- prometheus.NewInvalidMetric(c.transactionCount, err)
 	} else {
-		ch <- prometheus.MustNewConstMetric(c.transactionCount, prometheus.CounterValue, float64(*result), "result")
+		ch <- prometheus.MustNewConstMetric(c.transactionCount, prometheus.CounterValue, float64(*transactionCount), "result")
+	}
+
+	clusterNodes, err := c.rpcClient.GetClusterNodes(ctx)
+	if err == nil {
+		for _, v := range clusterNodes {
+			balance, err := c.rpcClient.GetBalance(ctx, v.Pubkey)
+			if err != nil {
+				ch <- prometheus.NewInvalidMetric(c.balanceValue, err)
+				continue
+			}
+			ch <- prometheus.MustNewConstMetric(c.balanceValue, prometheus.CounterValue, float64(*&balance.Value), "balance_pub_key_"+v.Pubkey)
+		}
+	}
+
+	recentBlockhash, err := c.rpcClient.GetRecentBlockhash(ctx, rpc.CommitmentMax)
+	if err != nil {
+		ch <- prometheus.NewInvalidMetric(c.recentBlockhashValueFeeCalculatorLamportsPerSignature, err)
+	} else {
+		value := recentBlockhash.Value.FeeCalculator.LamportsPerSignature
+		ch <- prometheus.MustNewConstMetric(c.recentBlockhashValueFeeCalculatorLamportsPerSignature, prometheus.CounterValue, float64(value),
+			"lamportsPerSignature_blockhash"+recentBlockhash.Value.Blockhash)
 	}
 
 }

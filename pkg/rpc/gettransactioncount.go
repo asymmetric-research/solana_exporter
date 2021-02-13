@@ -15,7 +15,7 @@ type (
 	}
 )
 
-// https://docs.solana.com/developing/clients/jsonrpc-api#gettransactioncount
+// GetTransactionCount is https://docs.solana.com/developing/clients/jsonrpc-api#gettransactioncount
 func (c *RPCClient) GetTransactionCount(ctx context.Context, commitment Commitment) (*int64, error) {
 	body, err := c.rpcRequest(ctx, formatRPCRequest("getTransactionCount", []interface{}{commitment}))
 	if err != nil {
