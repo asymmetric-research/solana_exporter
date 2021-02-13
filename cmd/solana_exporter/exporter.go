@@ -5,6 +5,7 @@ import (
 	"context"
 	"flag"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/certusone/solana_exporter/pkg/rpc"
@@ -44,6 +45,9 @@ type solanaCollector struct {
 
 	// GetRecentBlockhash
 	recentBlockhashValueFeeCalculatorLamportsPerSignature *prometheus.Desc
+
+	// getConfirmedBlocks
+	confirmedBlocks *prometheus.Desc
 }
 
 func NewSolanaCollector(rpcAddr string) *solanaCollector {
@@ -81,6 +85,10 @@ func NewSolanaCollector(rpcAddr string) *solanaCollector {
 			"solana_recentBlockhashValueFeeCalculatorLamportsPerSignature",
 			"Whether solana_recentBlockhashValueFeeCalculatorLamportsPerSignature",
 			[]string{"attribute", "blockhash"}, nil),
+		confirmedBlocks: prometheus.NewDesc(
+			"solana_confirmedBlocks",
+			"Whether solana_confirmedBlocks",
+			[]string{"slot"}, nil),
 	}
 }
 
@@ -153,6 +161,19 @@ func (c *solanaCollector) Collect(ch chan<- prometheus.Metric) {
 		value := recentBlockhash.Value.FeeCalculator.LamportsPerSignature
 		ch <- prometheus.MustNewConstMetric(c.recentBlockhashValueFeeCalculatorLamportsPerSignature, prometheus.CounterValue, float64(value),
 			"lamportsPerSignature", recentBlockhash.Value.Blockhash)
+	}
+
+	slot, err := c.rpcClient.GetSlot(ctx)
+	if err == nil {
+		confirmedBlocks, err := c.rpcClient.GetConfirmedBlocks(ctx, (*slot - 20), *slot)
+		if err != nil {
+			ch <- prometheus.NewInvalidMetric(c.confirmedBlocks, err)
+		} else {
+			for _, s := range confirmedBlocks {
+				ch <- prometheus.MustNewConstMetric(c.confirmedBlocks, prometheus.CounterValue, float64(s), strconv.FormatInt(s, 10))
+			}
+		}
+
 	}
 
 }
