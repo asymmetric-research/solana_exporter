@@ -76,11 +76,11 @@ func NewSolanaCollector(rpcAddr string) *solanaCollector {
 		balanceValue: prometheus.NewDesc(
 			"solana_balanceValue",
 			"Whether solana_balanceValue",
-			[]string{"result"}, nil),
+			[]string{"attribute", "pubkey"}, nil),
 		recentBlockhashValueFeeCalculatorLamportsPerSignature: prometheus.NewDesc(
 			"solana_recentBlockhashValueFeeCalculatorLamportsPerSignature",
 			"Whether solana_recentBlockhashValueFeeCalculatorLamportsPerSignature",
-			[]string{"result"}, nil),
+			[]string{"attribute", "blockhash"}, nil),
 	}
 }
 
@@ -142,7 +142,7 @@ func (c *solanaCollector) Collect(ch chan<- prometheus.Metric) {
 				ch <- prometheus.NewInvalidMetric(c.balanceValue, err)
 				continue
 			}
-			ch <- prometheus.MustNewConstMetric(c.balanceValue, prometheus.CounterValue, float64(*&balance.Value), "balance_pub_key_"+v.Pubkey)
+			ch <- prometheus.MustNewConstMetric(c.balanceValue, prometheus.CounterValue, float64(*&balance.Value), "balance", v.Pubkey)
 		}
 	}
 
@@ -152,7 +152,7 @@ func (c *solanaCollector) Collect(ch chan<- prometheus.Metric) {
 	} else {
 		value := recentBlockhash.Value.FeeCalculator.LamportsPerSignature
 		ch <- prometheus.MustNewConstMetric(c.recentBlockhashValueFeeCalculatorLamportsPerSignature, prometheus.CounterValue, float64(value),
-			"lamportsPerSignature_blockhash"+recentBlockhash.Value.Blockhash)
+			"lamportsPerSignature", recentBlockhash.Value.Blockhash)
 	}
 
 }
