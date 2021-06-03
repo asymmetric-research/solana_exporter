@@ -6,6 +6,7 @@ import (
 	"github.com/certusone/solana_exporter/pkg/rpc"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"k8s.io/klog/v2"
 	"net/http"
 	"time"
 )
@@ -82,6 +83,8 @@ func (c *solanaCollector) mustEmitMetrics(ctx context.Context, ch chan<- prometh
 		if balanceResponse != nil {
 			ch <- prometheus.MustNewConstMetric(c.validatorBalance, prometheus.GaugeValue,
 				float64(balanceResponse.Result.Value), account.VotePubkey, account.NodePubkey)
+		} else {
+			klog.V(3).Infof("Can not get balance for %v", string(account.NodePubkey))
 		}
 
 		ch <- prometheus.MustNewConstMetric(c.validatorLastVote, prometheus.GaugeValue,
