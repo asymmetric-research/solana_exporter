@@ -8,8 +8,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"net/http"
 	"time"
-
-	"k8s.io/klog/v2"
 )
 
 const (
@@ -81,8 +79,10 @@ func (c *solanaCollector) mustEmitMetrics(ctx context.Context, ch chan<- prometh
 			float64(account.ActivatedStake), account.VotePubkey, account.NodePubkey)
 
 		balanceResponse, _ := c.rpcClient.GetBalance(ctx, account.NodePubkey)
-		ch <- prometheus.MustNewConstMetric(c.validatorBalance, prometheus.GaugeValue,
-			float64(balanceResponse.Result.Value), account.VotePubkey, account.NodePubkey)
+		if balanceResponse != nil {
+			ch <- prometheus.MustNewConstMetric(c.validatorBalance, prometheus.GaugeValue,
+				float64(balanceResponse.Result.Value), account.VotePubkey, account.NodePubkey)
+		}
 
 		ch <- prometheus.MustNewConstMetric(c.validatorLastVote, prometheus.GaugeValue,
 			float64(account.LastVote), account.VotePubkey, account.NodePubkey)
