@@ -66,4 +66,6 @@ Usage of solana_exporter:
         number for the log level verbosity
   -vmodule value
         comma-separated list of pattern=N settings for file-filtered logging
+  -votepubkey
+        Validator vote address (will only return results of this address)
 ```

@@ -17,8 +17,9 @@ const (
 )
 
 var (
-	rpcAddr = flag.String("rpcURI", "", "Solana RPC URI (including protocol and path)")
-	addr    = flag.String("addr", ":8080", "Listen address")
+	rpcAddr     = flag.String("rpcURI", "", "Solana RPC URI (including protocol and path)")
+	addr        = flag.String("addr", ":8080", "Listen address")
+	votePubkey  = flag.String("votepubkey", "", "Validator vote address (will only return results of this address)")
 )
 
 func init() {
@@ -93,7 +94,12 @@ func (c *solanaCollector) Collect(ch chan<- prometheus.Metric) {
 	ctx, cancel := context.WithTimeout(context.Background(), httpTimeout)
 	defer cancel()
 
-	accs, err := c.rpcClient.GetVoteAccounts(ctx, rpc.CommitmentRecent)
+	params := map[string]string{"commitment": string(rpc.CommitmentRecent)}
+	if *votePubkey != "" {
+		params = map[string]string{"commitment": string(rpc.CommitmentRecent), "votePubkey": *votePubkey}
+	}
+
+	accs, err := c.rpcClient.GetVoteAccounts(ctx, []interface{}{params})
 	if err != nil {
 		ch <- prometheus.NewInvalidMetric(c.totalValidatorsDesc, err)
 		ch <- prometheus.NewInvalidMetric(c.validatorActivatedStake, err)
