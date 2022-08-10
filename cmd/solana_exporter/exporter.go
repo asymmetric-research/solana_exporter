@@ -11,15 +11,14 @@ import (
 
 	"k8s.io/klog/v2"
 )
-
 const (
 	httpTimeout = 5 * time.Second
 )
 
 var (
-	rpcAddr     = flag.String("rpcURI", "", "Solana RPC URI (including protocol and path)")
-	addr        = flag.String("addr", ":8080", "Listen address")
-	votePubkey  = flag.String("votepubkey", "", "Validator vote address (will only return results of this address)")
+	rpcAddr    = flag.String("rpcURI", "", "Solana RPC URI (including protocol and path)")
+	addr       = flag.String("addr", ":8080", "Listen address")
+	votePubkey = flag.String("votepubkey", "", "Validator vote address (will only return results of this address)")
 )
 
 func init() {
@@ -34,6 +33,7 @@ type solanaCollector struct {
 	validatorLastVote       *prometheus.Desc
 	validatorRootSlot       *prometheus.Desc
 	validatorDelinquent     *prometheus.Desc
+	solanaVersion           *prometheus.Desc
 }
 
 func NewSolanaCollector(rpcAddr string) *solanaCollector {
@@ -59,11 +59,16 @@ func NewSolanaCollector(rpcAddr string) *solanaCollector {
 			"solana_validator_delinquent",
 			"Whether a validator is delinquent",
 			[]string{"pubkey", "nodekey"}, nil),
+		solanaVersion: prometheus.NewDesc(
+			"solana_node_version",
+			"Node version of solana",
+			[]string{"version"}, nil),
 	}
 }
 
 func (c *solanaCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.totalValidatorsDesc
+	ch <- c.solanaVersion
 }
 
 func (c *solanaCollector) mustEmitMetrics(ch chan<- prometheus.Metric, response *rpc.GetVoteAccountsResponse) {
@@ -108,6 +113,14 @@ func (c *solanaCollector) Collect(ch chan<- prometheus.Metric) {
 		ch <- prometheus.NewInvalidMetric(c.validatorDelinquent, err)
 	} else {
 		c.mustEmitMetrics(ch, accs)
+	}
+
+	version, err := c.rpcClient.GetVersion(ctx)
+
+	if err != nil {
+		ch <- prometheus.NewInvalidMetric(c.solanaVersion, err)
+	} else {
+		ch <- prometheus.MustNewConstMetric(c.solanaVersion, prometheus.GaugeValue, 1, *version)
 	}
 }
 
