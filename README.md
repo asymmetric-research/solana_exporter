@@ -25,6 +25,10 @@ Metrics tracked with confirmation level `max`:
 - **solana_confirmed_slot_height** - Last confirmed slot height observed.
 - **solana_confirmed_transactions_total** - Total number of transactions processed since genesis.
 
+Metrics with no confirmation level:
+
+- **solana_node_version** - Current solana-validator node version.
+
 ## Command line arguments
 
 You typically only need to set the RPC URL, pointing to one of your own nodes:
