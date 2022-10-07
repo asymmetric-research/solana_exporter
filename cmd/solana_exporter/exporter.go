@@ -36,6 +36,7 @@ type solanaCollector struct {
 	solanaVersion           *prometheus.Desc
 	totalLeaderSlots	*prometheus.Desc
 	totalProducedSlots	*prometheus.Desc
+	validatorBalance	*prometheus.Desc
 }
 
 func NewSolanaCollector(rpcAddr string) *solanaCollector {
@@ -73,6 +74,10 @@ func NewSolanaCollector(rpcAddr string) *solanaCollector {
 			"produced_slots_in_epoch",
 			"The number of produced slots in current epoch",
 			[]string{"pubkey", "nodekey"}, nil),
+		validatorBalance: prometheus.NewDesc(
+			"solana_validator_balance",
+			"The balance of the account of validator identity and vote pubkey",
+			[]string{"account"}, nil),
 
 	}
 }
@@ -82,6 +87,7 @@ func (c *solanaCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.solanaVersion
 	ch <- c.totalLeaderSlots
 	ch <- c.totalProducedSlots
+	ch <- c.validatorBalance
 }
 
 func (c *solanaCollector) mustEmitMetrics(ch chan<- prometheus.Metric, response *rpc.GetVoteAccountsResponse) {
@@ -156,6 +162,35 @@ func (c *solanaCollector) Collect(ch chan<- prometheus.Metric) {
 				ch <- prometheus.MustNewConstMetric(c.totalProducedSlots, prometheus.GaugeValue,
 					float64(val[1]), account.VotePubkey, account.NodePubkey)
 			}
+		}
+	}
+
+	// execute getBalance when the vote account provided by -votepubkey option
+	// we don't need to get balance for all validators accounts
+	if *votePubkey != "" {
+		var account rpc.VoteAccount
+		if len(accs.Result.Current) == 1 {
+			account = accs.Result.Current[0]
+		} else if len(accs.Result.Current) == 1 {
+			account = accs.Result.Delinquent[0]
+		} else {
+			klog.Errorf("Failed to get voteAccount: %s", *votePubkey)
+		}
+
+		nodebalance, err := c.rpcClient.GetBalance(ctx, []interface{}{account.NodePubkey})
+		if err != nil {
+			ch <- prometheus.NewInvalidMetric(c.validatorBalance, err)
+		} else {
+			ch <- prometheus.MustNewConstMetric(c.validatorBalance, prometheus.GaugeValue,
+				float64(nodebalance.Result.Value), "validator")
+		}
+
+		votebalance, err := c.rpcClient.GetBalance(ctx, []interface{}{account.VotePubkey})
+		if err != nil {
+			ch <- prometheus.NewInvalidMetric(c.validatorBalance, err)
+		} else {
+			ch <- prometheus.MustNewConstMetric(c.validatorBalance, prometheus.GaugeValue,
+				float64(votebalance.Result.Value), "vote")
 		}
 	}
 }
