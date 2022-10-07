@@ -34,6 +34,8 @@ type solanaCollector struct {
 	validatorRootSlot       *prometheus.Desc
 	validatorDelinquent     *prometheus.Desc
 	solanaVersion           *prometheus.Desc
+	totalLeaderSlots	*prometheus.Desc
+	totalProducedSlots	*prometheus.Desc
 }
 
 func NewSolanaCollector(rpcAddr string) *solanaCollector {
@@ -63,12 +65,23 @@ func NewSolanaCollector(rpcAddr string) *solanaCollector {
 			"solana_node_version",
 			"Node version of solana",
 			[]string{"version"}, nil),
+		totalLeaderSlots: prometheus.NewDesc(
+			"leader_slots_in_epoch",
+			"The number of leader slots in current epoch",
+			[]string{"pubkey", "nodekey"}, nil),
+		totalProducedSlots: prometheus.NewDesc(
+			"produced_slots_in_epoch",
+			"The number of produced slots in current epoch",
+			[]string{"pubkey", "nodekey"}, nil),
+
 	}
 }
 
 func (c *solanaCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.totalValidatorsDesc
 	ch <- c.solanaVersion
+	ch <- c.totalLeaderSlots
+	ch <- c.totalProducedSlots
 }
 
 func (c *solanaCollector) mustEmitMetrics(ch chan<- prometheus.Metric, response *rpc.GetVoteAccountsResponse) {
@@ -121,6 +134,29 @@ func (c *solanaCollector) Collect(ch chan<- prometheus.Metric) {
 		ch <- prometheus.NewInvalidMetric(c.solanaVersion, err)
 	} else {
 		ch <- prometheus.MustNewConstMetric(c.solanaVersion, prometheus.GaugeValue, 1, *version)
+	}
+
+	if *votePubkey != "" {
+		for _, account := range append(accs.Result.Current, accs.Result.Delinquent...) {
+			params = map[string]string{"identity": account.NodePubkey}
+		}
+	}
+
+	blockproduction, err := c.rpcClient.GetBlockProduction(ctx, []interface{}{params})
+
+	if err != nil {
+		ch <- prometheus.NewInvalidMetric(c.totalLeaderSlots, err)
+		ch <- prometheus.NewInvalidMetric(c.totalProducedSlots, err)
+	} else {
+		for _, account := range append(accs.Result.Current, accs.Result.Delinquent...) {
+			val, exist := blockproduction.Result.Value.ByIdentity[account.NodePubkey]
+			if exist {
+				ch <- prometheus.MustNewConstMetric(c.totalLeaderSlots, prometheus.GaugeValue,
+					float64(val[0]), account.VotePubkey, account.NodePubkey)
+				ch <- prometheus.MustNewConstMetric(c.totalProducedSlots, prometheus.GaugeValue,
+					float64(val[1]), account.VotePubkey, account.NodePubkey)
+			}
+		}
 	}
 }
 
