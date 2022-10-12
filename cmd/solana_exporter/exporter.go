@@ -171,7 +171,7 @@ func (c *solanaCollector) Collect(ch chan<- prometheus.Metric) {
 		var account rpc.VoteAccount
 		if len(accs.Result.Current) == 1 {
 			account = accs.Result.Current[0]
-		} else if len(accs.Result.Current) == 1 {
+		} else if len(accs.Result.Delinquent) == 1 {
 			account = accs.Result.Delinquent[0]
 		} else {
 			klog.Errorf("Failed to get voteAccount: %s", *votePubkey)
