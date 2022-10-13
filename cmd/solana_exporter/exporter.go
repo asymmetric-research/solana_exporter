@@ -39,6 +39,7 @@ type solanaCollector struct {
 	validatorBalance	*prometheus.Desc
 	validatorEpochCredits   *prometheus.Desc
 	validatorPctVote	*prometheus.Desc
+	validatorTotalCredits	*prometheus.Desc
 }
 
 func NewSolanaCollector(rpcAddr string) *solanaCollector {
@@ -88,6 +89,10 @@ func NewSolanaCollector(rpcAddr string) *solanaCollector {
 			"solana_validator_voting_percentage",
 			"The percentage of participate voting in current epoch",
 			[]string{"pubkey", "nodekey"}, nil),
+		validatorTotalCredits: prometheus.NewDesc(
+			"solana_validator_total_credits",
+			"Total credits earned by validator",
+			[]string{"pubkey", "nodekey"}, nil),
 	}
 }
 
@@ -99,6 +104,7 @@ func (c *solanaCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.validatorBalance
 	ch <- c.validatorEpochCredits
 	ch <- c.validatorPctVote
+	ch <- c.validatorTotalCredits
 }
 
 func (c *solanaCollector) calcEpochCredits(credits [][]int) int {
@@ -125,6 +131,8 @@ func (c *solanaCollector) mustEmitMetrics(ch chan<- prometheus.Metric, response 
 			float64(credits), account.VotePubkey, account.NodePubkey)
 		ch <- prometheus.MustNewConstMetric(c.validatorPctVote, prometheus.GaugeValue,
 			float64(credits) / float64(epoch.SlotIndex) * 100.0, account.VotePubkey, account.NodePubkey)
+		ch <- prometheus.MustNewConstMetric(c.validatorTotalCredits, prometheus.GaugeValue,
+			float64(account.EpochCredits[len(account.EpochCredits) - 1][1]), account.VotePubkey, account.NodePubkey)
 	}
 	for _, account := range response.Result.Current {
 		ch <- prometheus.MustNewConstMetric(c.validatorDelinquent, prometheus.GaugeValue,
@@ -159,6 +167,7 @@ func (c *solanaCollector) Collect(ch chan<- prometheus.Metric) {
 		ch <- prometheus.NewInvalidMetric(c.validatorDelinquent, err)
 		ch <- prometheus.NewInvalidMetric(c.validatorEpochCredits, err)
 		ch <- prometheus.NewInvalidMetric(c.validatorPctVote, err)
+		ch <- prometheus.NewInvalidMetric(c.validatorTotalCredits, err)
 	} else {
 		c.mustEmitMetrics(ch, accs, info)
 	}
