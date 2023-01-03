@@ -98,7 +98,7 @@ func NewSolanaCollector(rpcAddr string) *solanaCollector {
 		nodeHealth: prometheus.NewDesc(
 			"solana_health_check",
 			"Health status of solana node",
-			[]string{"health"}, nil),
+			[]string{"nodekey"}, nil),
 	}
 }
 
@@ -168,6 +168,7 @@ func (c *solanaCollector) Collect(ch chan<- prometheus.Metric) {
 		ch <- prometheus.MustNewConstMetric(c.solanaVersion, prometheus.GaugeValue, 1, *version)
 	}
 
+	identity, err := c.rpcClient.GetIdentity(ctx)
 	health, err := c.rpcClient.GetHealth(ctx)
 
 	var healthVar float64
@@ -178,7 +179,7 @@ func (c *solanaCollector) Collect(ch chan<- prometheus.Metric) {
 	if err != nil {
 		ch <- prometheus.NewInvalidMetric(c.nodeHealth, err)
 	} else {
-		ch <- prometheus.MustNewConstMetric(c.nodeHealth, prometheus.GaugeValue, healthVar, "getHealth")
+		ch <- prometheus.MustNewConstMetric(c.nodeHealth, prometheus.GaugeValue, healthVar, identity)
 	}
 
 	if *noVoting == true {
