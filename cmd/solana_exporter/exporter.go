@@ -44,12 +44,6 @@ type solanaCollector struct {
 	nodeHealth		*prometheus.Desc
 }
 
-//type solanaRPCCollector struct {
-//	rpcClient *rpc.RPCClient
-//
-//	nodeHealth   *prometheus.Desc
-//}
-
 func NewSolanaCollector(rpcAddr string) *solanaCollector {
 	return &solanaCollector{
 		rpcClient: rpc.NewRPCClient(rpcAddr),
@@ -107,15 +101,6 @@ func NewSolanaCollector(rpcAddr string) *solanaCollector {
 			[]string{"health"}, nil),
 	}
 }
-
-//func NewSolanaRPCCollector(rpcAddr string) *solanaRPCCollector {
-//	return &solanaRPCCollector{
-//		rpcClient: rpc.NewRPCClient(rpcAddr),
-//		nodeHealthDesc: prometheus.NewDesc(
-//			"solana_health_check",
-//			"Health status of solana node",
-//			[]string{"health"}, nil),
-//}
 
 func (c *solanaCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.totalValidatorsDesc
