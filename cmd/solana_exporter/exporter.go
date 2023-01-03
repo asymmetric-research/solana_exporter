@@ -198,90 +198,76 @@ func (c *solanaCollector) Collect(ch chan<- prometheus.Metric) {
 
 	if *noVoting == true {
 		klog.Info("set -no-voting, skip vote account metrics!")
-
-		ch <- prometheus.NewInvalidMetric(c.totalValidatorsDesc, err)
-		ch <- prometheus.NewInvalidMetric(c.validatorActivatedStake, err)
-		ch <- prometheus.NewInvalidMetric(c.validatorLastVote, err)
-		ch <- prometheus.NewInvalidMetric(c.validatorRootSlot, err)
-		ch <- prometheus.NewInvalidMetric(c.validatorDelinquent, err)
-		ch <- prometheus.NewInvalidMetric(c.validatorEpochCredits, err)
-		ch <- prometheus.NewInvalidMetric(c.validatorPctVote, err)
-		ch <- prometheus.NewInvalidMetric(c.validatorTotalCredits, err)
-		ch <- prometheus.NewInvalidMetric(c.totalLeaderSlots, err)
-		ch <- prometheus.NewInvalidMetric(c.totalProducedSlots, err)
-		ch <- prometheus.NewInvalidMetric(c.validatorBalance, err)
-
-		return
-	}
-
-	params := map[string]string{"commitment": string(rpc.CommitmentRecent)}
-	if *votePubkey != "" {
-		params = map[string]string{"commitment": string(rpc.CommitmentRecent), "votePubkey": *votePubkey}
-	}
-
-	accs, err := c.rpcClient.GetVoteAccounts(ctx, []interface{}{params})
-	if err != nil {
-		ch <- prometheus.NewInvalidMetric(c.totalValidatorsDesc, err)
-		ch <- prometheus.NewInvalidMetric(c.validatorActivatedStake, err)
-		ch <- prometheus.NewInvalidMetric(c.validatorLastVote, err)
-		ch <- prometheus.NewInvalidMetric(c.validatorRootSlot, err)
-		ch <- prometheus.NewInvalidMetric(c.validatorDelinquent, err)
-		ch <- prometheus.NewInvalidMetric(c.validatorEpochCredits, err)
-		ch <- prometheus.NewInvalidMetric(c.validatorPctVote, err)
-		ch <- prometheus.NewInvalidMetric(c.validatorTotalCredits, err)
 	} else {
-		c.mustEmitMetrics(ch, accs, info)
-	}
-
-	if *votePubkey != "" {
-		for _, account := range append(accs.Result.Current, accs.Result.Delinquent...) {
-			params = map[string]string{"identity": account.NodePubkey}
+		params := map[string]string{"commitment": string(rpc.CommitmentRecent)}
+		if *votePubkey != "" {
+			params = map[string]string{"commitment": string(rpc.CommitmentRecent), "votePubkey": *votePubkey}
 		}
-	}
 
-	blockproduction, err := c.rpcClient.GetBlockProduction(ctx, []interface{}{params})
+		accs, err := c.rpcClient.GetVoteAccounts(ctx, []interface{}{params})
+		if err != nil {
+			ch <- prometheus.NewInvalidMetric(c.totalValidatorsDesc, err)
+			ch <- prometheus.NewInvalidMetric(c.validatorActivatedStake, err)
+			ch <- prometheus.NewInvalidMetric(c.validatorLastVote, err)
+			ch <- prometheus.NewInvalidMetric(c.validatorRootSlot, err)
+			ch <- prometheus.NewInvalidMetric(c.validatorDelinquent, err)
+			ch <- prometheus.NewInvalidMetric(c.validatorEpochCredits, err)
+			ch <- prometheus.NewInvalidMetric(c.validatorPctVote, err)
+			ch <- prometheus.NewInvalidMetric(c.validatorTotalCredits, err)
+		} else {
+			c.mustEmitMetrics(ch, accs, info)
+		}
 
-	if err != nil {
-		ch <- prometheus.NewInvalidMetric(c.totalLeaderSlots, err)
-		ch <- prometheus.NewInvalidMetric(c.totalProducedSlots, err)
-	} else {
-		for _, account := range append(accs.Result.Current, accs.Result.Delinquent...) {
-			val, exist := blockproduction.Result.Value.ByIdentity[account.NodePubkey]
-			if exist {
-				ch <- prometheus.MustNewConstMetric(c.totalLeaderSlots, prometheus.GaugeValue,
-					float64(val[0]), account.VotePubkey, account.NodePubkey)
-				ch <- prometheus.MustNewConstMetric(c.totalProducedSlots, prometheus.GaugeValue,
-					float64(val[1]), account.VotePubkey, account.NodePubkey)
+		if *votePubkey != "" {
+			for _, account := range append(accs.Result.Current, accs.Result.Delinquent...) {
+				params = map[string]string{"identity": account.NodePubkey}
 			}
 		}
-	}
 
-	// execute getBalance when the vote account provided by -votepubkey option
-	// we don't need to get balance for all validators accounts
-	if *votePubkey != "" {
-		var account rpc.VoteAccount
-		if len(accs.Result.Current) == 1 {
-			account = accs.Result.Current[0]
-		} else if len(accs.Result.Delinquent) == 1 {
-			account = accs.Result.Delinquent[0]
+		blockproduction, err := c.rpcClient.GetBlockProduction(ctx, []interface{}{params})
+
+		if err != nil {
+			ch <- prometheus.NewInvalidMetric(c.totalLeaderSlots, err)
+			ch <- prometheus.NewInvalidMetric(c.totalProducedSlots, err)
 		} else {
-			klog.Errorf("Failed to get voteAccount: %s", *votePubkey)
+			for _, account := range append(accs.Result.Current, accs.Result.Delinquent...) {
+				val, exist := blockproduction.Result.Value.ByIdentity[account.NodePubkey]
+				if exist {
+					ch <- prometheus.MustNewConstMetric(c.totalLeaderSlots, prometheus.GaugeValue,
+						float64(val[0]), account.VotePubkey, account.NodePubkey)
+					ch <- prometheus.MustNewConstMetric(c.totalProducedSlots, prometheus.GaugeValue,
+						float64(val[1]), account.VotePubkey, account.NodePubkey)
+				}
+			}
 		}
 
-		nodebalance, err := c.rpcClient.GetBalance(ctx, []interface{}{account.NodePubkey})
-		if err != nil {
-			ch <- prometheus.NewInvalidMetric(c.validatorBalance, err)
-		} else {
-			ch <- prometheus.MustNewConstMetric(c.validatorBalance, prometheus.GaugeValue,
-				float64(nodebalance.Result.Value), "validator")
-		}
+		// execute getBalance when the vote account provided by -votepubkey option
+		// we don't need to get balance for all validators accounts
+		if *votePubkey != "" {
+			var account rpc.VoteAccount
+			if len(accs.Result.Current) == 1 {
+				account = accs.Result.Current[0]
+			} else if len(accs.Result.Delinquent) == 1 {
+				account = accs.Result.Delinquent[0]
+			} else {
+				klog.Errorf("Failed to get voteAccount: %s", *votePubkey)
+			}
 
-		votebalance, err := c.rpcClient.GetBalance(ctx, []interface{}{account.VotePubkey})
-		if err != nil {
-			ch <- prometheus.NewInvalidMetric(c.validatorBalance, err)
-		} else {
-			ch <- prometheus.MustNewConstMetric(c.validatorBalance, prometheus.GaugeValue,
-				float64(votebalance.Result.Value), "vote")
+			nodebalance, err := c.rpcClient.GetBalance(ctx, []interface{}{account.NodePubkey})
+			if err != nil {
+				ch <- prometheus.NewInvalidMetric(c.validatorBalance, err)
+			} else {
+				ch <- prometheus.MustNewConstMetric(c.validatorBalance, prometheus.GaugeValue,
+					float64(nodebalance.Result.Value), "validator")
+			}
+
+			votebalance, err := c.rpcClient.GetBalance(ctx, []interface{}{account.VotePubkey})
+			if err != nil {
+				ch <- prometheus.NewInvalidMetric(c.validatorBalance, err)
+			} else {
+				ch <- prometheus.MustNewConstMetric(c.validatorBalance, prometheus.GaugeValue,
+					float64(votebalance.Result.Value), "vote")
+			}
 		}
 	}
 }
