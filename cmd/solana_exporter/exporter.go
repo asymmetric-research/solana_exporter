@@ -19,6 +19,7 @@ var (
 	rpcAddr    = flag.String("rpcURI", "", "Solana RPC URI (including protocol and path)")
 	addr       = flag.String("addr", ":8080", "Listen address")
 	votePubkey = flag.String("votepubkey", "", "Validator vote address (will only return results of this address)")
+	noVoting   = flag.Bool("no-voting", false, "Specify for RPC node without voting")
 )
 
 func init() {
@@ -40,7 +41,14 @@ type solanaCollector struct {
 	validatorEpochCredits   *prometheus.Desc
 	validatorPctVote	*prometheus.Desc
 	validatorTotalCredits	*prometheus.Desc
+	nodeHealth		*prometheus.Desc
 }
+
+//type solanaRPCCollector struct {
+//	rpcClient *rpc.RPCClient
+//
+//	nodeHealth   *prometheus.Desc
+//}
 
 func NewSolanaCollector(rpcAddr string) *solanaCollector {
 	return &solanaCollector{
@@ -93,8 +101,21 @@ func NewSolanaCollector(rpcAddr string) *solanaCollector {
 			"solana_validator_total_credits",
 			"Total credits earned by validator",
 			[]string{"pubkey", "nodekey"}, nil),
+		nodeHealth: prometheus.NewDesc(
+			"solana_health_check",
+			"Health status of solana node",
+			[]string{"health"}, nil),
 	}
 }
+
+//func NewSolanaRPCCollector(rpcAddr string) *solanaRPCCollector {
+//	return &solanaRPCCollector{
+//		rpcClient: rpc.NewRPCClient(rpcAddr),
+//		nodeHealthDesc: prometheus.NewDesc(
+//			"solana_health_check",
+//			"Health status of solana node",
+//			[]string{"health"}, nil),
+//}
 
 func (c *solanaCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.totalValidatorsDesc
@@ -105,6 +126,7 @@ func (c *solanaCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.validatorEpochCredits
 	ch <- c.validatorPctVote
 	ch <- c.validatorTotalCredits
+	ch <- c.nodeHealth
 }
 
 func (c *solanaCollector) calcEpochCredits(credits [][]int) int {
@@ -153,6 +175,45 @@ func (c *solanaCollector) Collect(ch chan<- prometheus.Metric) {
 		klog.Infof("failed to fetch epoch info, err: %v", err)
 	}
 
+	version, err := c.rpcClient.GetVersion(ctx)
+
+	if err != nil {
+		ch <- prometheus.NewInvalidMetric(c.solanaVersion, err)
+	} else {
+		ch <- prometheus.MustNewConstMetric(c.solanaVersion, prometheus.GaugeValue, 1, *version)
+	}
+
+	health, err := c.rpcClient.GetHealth(ctx)
+
+	var healthVar float64
+	if health {
+		healthVar = 1
+	}
+
+	if err != nil {
+		ch <- prometheus.NewInvalidMetric(c.nodeHealth, err)
+	} else {
+		ch <- prometheus.MustNewConstMetric(c.nodeHealth, prometheus.GaugeValue, healthVar, "getHealth")
+	}
+
+	if *noVoting == true {
+		klog.Info("set -no-voting, skip vote account metrics!")
+
+		ch <- prometheus.NewInvalidMetric(c.totalValidatorsDesc, err)
+		ch <- prometheus.NewInvalidMetric(c.validatorActivatedStake, err)
+		ch <- prometheus.NewInvalidMetric(c.validatorLastVote, err)
+		ch <- prometheus.NewInvalidMetric(c.validatorRootSlot, err)
+		ch <- prometheus.NewInvalidMetric(c.validatorDelinquent, err)
+		ch <- prometheus.NewInvalidMetric(c.validatorEpochCredits, err)
+		ch <- prometheus.NewInvalidMetric(c.validatorPctVote, err)
+		ch <- prometheus.NewInvalidMetric(c.validatorTotalCredits, err)
+		ch <- prometheus.NewInvalidMetric(c.totalLeaderSlots, err)
+		ch <- prometheus.NewInvalidMetric(c.totalProducedSlots, err)
+		ch <- prometheus.NewInvalidMetric(c.validatorBalance, err)
+
+		return
+	}
+
 	params := map[string]string{"commitment": string(rpc.CommitmentRecent)}
 	if *votePubkey != "" {
 		params = map[string]string{"commitment": string(rpc.CommitmentRecent), "votePubkey": *votePubkey}
@@ -170,14 +231,6 @@ func (c *solanaCollector) Collect(ch chan<- prometheus.Metric) {
 		ch <- prometheus.NewInvalidMetric(c.validatorTotalCredits, err)
 	} else {
 		c.mustEmitMetrics(ch, accs, info)
-	}
-
-	version, err := c.rpcClient.GetVersion(ctx)
-
-	if err != nil {
-		ch <- prometheus.NewInvalidMetric(c.solanaVersion, err)
-	} else {
-		ch <- prometheus.MustNewConstMetric(c.solanaVersion, prometheus.GaugeValue, 1, *version)
 	}
 
 	if *votePubkey != "" {
@@ -238,6 +291,10 @@ func main() {
 
 	if *rpcAddr == "" {
 		klog.Fatal("Please specify -rpcURI")
+	}
+
+	if *noVoting == true {
+		klog.Info("set -no-voting, This node is not a validator!")
 	}
 
 	collector := NewSolanaCollector(*rpcAddr)
