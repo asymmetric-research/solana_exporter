@@ -10,8 +10,8 @@ import (
 
 type (
 	GetHealthResponse struct {
-		Result string `json:"result"`
-		Error rpcError `json:"error"`
+		Result string   `json:"result"`
+		Error  rpcError `json:"error"`
 	}
 )
 

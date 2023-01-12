@@ -11,21 +11,21 @@ type (
 
 	BlockProduction struct {
 		Context struct {
-			ApiVersion	string `json:"apiVersion"`
-			Slot		int `json:"slot"`
+			ApiVersion string `json:"apiVersion"`
+			Slot       int    `json:"slot"`
 		} `json:"context"`
 		Value struct {
 			ByIdentity BlockResult `json:"byIdentity"`
-			Range struct {
-				FirstSlot	int `json:"firstSlot"`
-				LastSlot	int `json:"lastSlot"`
+			Range      struct {
+				FirstSlot int `json:"firstSlot"`
+				LastSlot  int `json:"lastSlot"`
 			} `json:"range"`
 		} `json:"value"`
 	}
 
 	GetBlockProductionResponse struct {
 		Result BlockProduction `json:"result"`
-		Error rpcError `json:"error"`
+		Error  rpcError        `json:"error"`
 	}
 )
 

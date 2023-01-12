@@ -11,6 +11,7 @@ import (
 
 	"k8s.io/klog/v2"
 )
+
 const (
 	httpTimeout = 5 * time.Second
 )
@@ -35,14 +36,14 @@ type solanaCollector struct {
 	validatorRootSlot       *prometheus.Desc
 	validatorDelinquent     *prometheus.Desc
 	solanaVersion           *prometheus.Desc
-	totalLeaderSlots	*prometheus.Desc
-	totalProducedSlots	*prometheus.Desc
-	validatorBalance	*prometheus.Desc
+	totalLeaderSlots        *prometheus.Desc
+	totalProducedSlots      *prometheus.Desc
+	validatorBalance        *prometheus.Desc
 	validatorEpochCredits   *prometheus.Desc
-	validatorPctVote	*prometheus.Desc
-	validatorTotalCredits	*prometheus.Desc
-	nodeHealth		*prometheus.Desc
-	currentEpoch		*prometheus.Desc
+	validatorPctVote        *prometheus.Desc
+	validatorTotalCredits   *prometheus.Desc
+	nodeHealth              *prometheus.Desc
+	currentEpoch            *prometheus.Desc
 }
 
 func NewSolanaCollector(rpcAddr string) *solanaCollector {
@@ -123,7 +124,7 @@ func (c *solanaCollector) Describe(ch chan<- *prometheus.Desc) {
 func (c *solanaCollector) calcEpochCredits(credits [][]int) int {
 	size := len(credits)
 
-	return credits[size - 1][1] - credits[size - 1][2]
+	return credits[size-1][1] - credits[size-1][2]
 }
 
 func (c *solanaCollector) mustEmitMetrics(ch chan<- prometheus.Metric, response *rpc.GetVoteAccountsResponse, epoch *rpc.EpochInfo) {
@@ -143,9 +144,9 @@ func (c *solanaCollector) mustEmitMetrics(ch chan<- prometheus.Metric, response 
 		ch <- prometheus.MustNewConstMetric(c.validatorEpochCredits, prometheus.GaugeValue,
 			float64(credits), account.VotePubkey, account.NodePubkey)
 		ch <- prometheus.MustNewConstMetric(c.validatorPctVote, prometheus.GaugeValue,
-			float64(credits) / float64(epoch.SlotIndex) * 100.0, account.VotePubkey, account.NodePubkey)
+			float64(credits)/float64(epoch.SlotIndex)*100.0, account.VotePubkey, account.NodePubkey)
 		ch <- prometheus.MustNewConstMetric(c.validatorTotalCredits, prometheus.GaugeValue,
-			float64(account.EpochCredits[len(account.EpochCredits) - 1][1]), account.VotePubkey, account.NodePubkey)
+			float64(account.EpochCredits[len(account.EpochCredits)-1][1]), account.VotePubkey, account.NodePubkey)
 	}
 	for _, account := range response.Result.Current {
 		ch <- prometheus.MustNewConstMetric(c.validatorDelinquent, prometheus.GaugeValue,

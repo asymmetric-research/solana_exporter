@@ -9,15 +9,15 @@ import (
 type (
 	Balance struct {
 		Context struct {
-			ApiVersion	string `json:"apiVersion"`
-			Slot		int `json:"slot"`
+			ApiVersion string `json:"apiVersion"`
+			Slot       int    `json:"slot"`
 		} `json:"context"`
-		Value	int `json:"value"`
+		Value int `json:"value"`
 	}
 
 	GetBalanceResponse struct {
-		Result Balance `json:"result"`
-		Error rpcError `json:"error"`
+		Result Balance  `json:"result"`
+		Error  rpcError `json:"error"`
 	}
 )
 
