@@ -42,6 +42,7 @@ type solanaCollector struct {
 	validatorPctVote	*prometheus.Desc
 	validatorTotalCredits	*prometheus.Desc
 	nodeHealth		*prometheus.Desc
+	currentEpoch		*prometheus.Desc
 }
 
 func NewSolanaCollector(rpcAddr string) *solanaCollector {
@@ -99,6 +100,10 @@ func NewSolanaCollector(rpcAddr string) *solanaCollector {
 			"solana_health_check",
 			"Health status of solana node",
 			[]string{"nodekey"}, nil),
+		currentEpoch: prometheus.NewDesc(
+			"solana_current_epoch",
+			"Current epoch number",
+			[]string{"epoch"}, nil),
 	}
 }
 
@@ -112,6 +117,7 @@ func (c *solanaCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.validatorPctVote
 	ch <- c.validatorTotalCredits
 	ch <- c.nodeHealth
+	ch <- c.currentEpoch
 }
 
 func (c *solanaCollector) calcEpochCredits(credits [][]int) int {
@@ -158,6 +164,9 @@ func (c *solanaCollector) Collect(ch chan<- prometheus.Metric) {
 	info, err := c.rpcClient.GetEpochInfo(ctx, rpc.CommitmentRecent)
 	if err != nil {
 		klog.Infof("failed to fetch epoch info, err: %v", err)
+		ch <- prometheus.NewInvalidMetric(c.currentEpoch, err)
+	} else {
+		ch <- prometheus.MustNewConstMetric(c.currentEpoch, prometheus.GaugeValue, float64(info.Epoch), "epoch")
 	}
 
 	version, err := c.rpcClient.GetVersion(ctx)
