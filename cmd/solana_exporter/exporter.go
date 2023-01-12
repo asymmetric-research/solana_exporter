@@ -271,7 +271,9 @@ func main() {
 
 	collector := NewSolanaCollector(*rpcAddr)
 
-	go collector.WatchSlots()
+	if *votePubkey == "" {
+		go collector.WatchSlots()
+	}
 
 	prometheus.MustRegister(collector)
 	http.Handle("/metrics", promhttp.Handler())
