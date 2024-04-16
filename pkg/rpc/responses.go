@@ -1,6 +1,11 @@
 package rpc
 
 type (
+	rpcError struct {
+		Message string `json:"message"`
+		Code    int64  `json:"id"`
+	}
+
 	GetBlockTimeResponse struct {
 		Result int64    `json:"result"`
 		Error  rpcError `json:"error"`
