@@ -7,27 +7,6 @@ import (
 	"k8s.io/klog/v2"
 )
 
-type (
-	VoteAccount struct {
-		ActivatedStake   int64   `json:"activatedStake"`
-		Commission       int     `json:"commission"`
-		EpochCredits     [][]int `json:"epochCredits"`
-		EpochVoteAccount bool    `json:"epochVoteAccount"`
-		LastVote         int     `json:"lastVote"`
-		NodePubkey       string  `json:"nodePubkey"`
-		RootSlot         int     `json:"rootSlot"`
-		VotePubkey       string  `json:"votePubkey"`
-	}
-
-	GetVoteAccountsResponse struct {
-		Result struct {
-			Current    []VoteAccount `json:"current"`
-			Delinquent []VoteAccount `json:"delinquent"`
-		} `json:"result"`
-		Error rpcError `json:"error"`
-	}
-)
-
 // https://docs.solana.com/developing/clients/jsonrpc-api#getvoteaccounts
 func (c *RPCClient) GetVoteAccounts(ctx context.Context, params []interface{}) (*GetVoteAccountsResponse, error) {
 	body, err := c.rpcRequest(ctx, formatRPCRequest("getVoteAccounts", params))

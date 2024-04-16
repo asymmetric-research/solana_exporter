@@ -7,13 +7,6 @@ import (
 	"k8s.io/klog/v2"
 )
 
-type (
-	GetBlockTimeResponse struct {
-		Result int64    `json:"result"`
-		Error  rpcError `json:"error"`
-	}
-)
-
 // https://docs.solana.com/developing/clients/jsonrpc-api#getblocktime
 func (c *RPCClient) GetBlockTime(ctx context.Context, slot int64) (int64, error) {
 	body, err := c.rpcRequest(ctx, formatRPCRequest("getBlockTime", []interface{}{slot}))

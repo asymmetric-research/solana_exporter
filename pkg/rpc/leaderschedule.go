@@ -7,15 +7,6 @@ import (
 	"k8s.io/klog/v2"
 )
 
-type (
-	LeaderSchedule map[string][]int64
-
-	GetLeaderScheduleResponse struct {
-		Result LeaderSchedule `json:"result"`
-		Error  rpcError       `json:"error"`
-	}
-)
-
 // https://docs.solana.com/developing/clients/jsonrpc-api#getleaderschedule
 func (c *RPCClient) GetLeaderSchedule(ctx context.Context, epochSlot int64) (LeaderSchedule, error) {
 	body, err := c.rpcRequest(ctx, formatRPCRequest("getLeaderSchedule", []interface{}{epochSlot}))

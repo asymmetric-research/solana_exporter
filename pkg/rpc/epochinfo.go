@@ -7,28 +7,6 @@ import (
 	"k8s.io/klog/v2"
 )
 
-type (
-	EpochInfo struct {
-		// Current absolute slot in epoch
-		AbsoluteSlot int64 `json:"absoluteSlot"`
-		// Current block height
-		BlockHeight int64 `json:"blockHeight"`
-		// Current epoch number
-		Epoch int64 `json:"epoch"`
-		// Current slot relative to the start of the current epoch
-		SlotIndex int64 `json:"slotIndex"`
-		// Number of slots in this epoch
-		SlotsInEpoch int64 `json:"slotsInEpoch"`
-		// Total number of transactions ever (?)
-		TransactionCount int64 `json:"transactionCount"`
-	}
-
-	GetEpochInfoResponse struct {
-		Result EpochInfo `json:"result"`
-		Error  rpcError  `json:"error"`
-	}
-)
-
 // https://docs.solana.com/developing/clients/jsonrpc-api#getepochinfo
 func (c *RPCClient) GetEpochInfo(ctx context.Context, commitment Commitment) (*EpochInfo, error) {
 	body, err := c.rpcRequest(ctx, formatRPCRequest("getEpochInfo", []interface{}{commitment}))

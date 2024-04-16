@@ -7,13 +7,6 @@ import (
 	"k8s.io/klog/v2"
 )
 
-type (
-	GetConfirmedBlocksResponse struct {
-		Result []int64  `json:"result"`
-		Error  rpcError `json:"error"`
-	}
-)
-
 // https://docs.solana.com/developing/clients/jsonrpc-api#getconfirmedblocks
 func (c *RPCClient) GetConfirmedBlocks(ctx context.Context, startSlot, endSlot int64) ([]int64, error) {
 	body, err := c.rpcRequest(ctx, formatRPCRequest("getConfirmedBlocks", []interface{}{startSlot, endSlot}))

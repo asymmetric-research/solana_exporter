@@ -8,15 +8,6 @@ import (
 	"k8s.io/klog/v2"
 )
 
-type (
-	GetVersionResponse struct {
-		Result struct {
-			Version string `json:"solana-core"`
-		} `json:"result"`
-		Error rpcError `json:"error"`
-	}
-)
-
 func (c *RPCClient) GetVersion(ctx context.Context) (*string, error) {
 	body, err := c.rpcRequest(ctx, formatRPCRequest("getVersion", []interface{}{}))
 
