@@ -48,3 +48,11 @@ type (
 		Version string `json:"solana-core"`
 	}
 )
+
+func (r Response[T]) getError() rpcError {
+	return r.Error
+}
+
+type HasRPCError interface {
+	getError() rpcError
+}

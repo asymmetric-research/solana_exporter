@@ -89,111 +89,63 @@ func (c *RPCClient) rpcRequest(ctx context.Context, data io.Reader) ([]byte, err
 	return body, nil
 }
 
-// https://docs.solana.com/developing/clients/jsonrpc-api#getconfirmedblocks
-func (c *RPCClient) GetConfirmedBlocks(ctx context.Context, startSlot, endSlot int64) ([]int64, error) {
-	body, err := c.rpcRequest(ctx, formatRPCRequest("getConfirmedBlocks", []interface{}{startSlot, endSlot}))
+func (c *RPCClient) rpcCall(ctx context.Context, method string, params []interface{}, result HasRPCError) error {
+	body, err := c.rpcRequest(ctx, formatRPCRequest(method, params))
+	// check if there was an error making the request:
 	if err != nil {
-		return nil, fmt.Errorf("RPC call failed: %w", err)
+		return fmt.Errorf("%s RPC call failed: %w", method, err)
+	}
+	// log response:
+	klog.V(2).Infof("%s response: %v", method, string(body))
+
+	// unmarshal the response into the predicted format
+	if err = json.Unmarshal(body, result); err != nil {
+		return fmt.Errorf("failed to decode %s response body: %w", method, err)
 	}
 
-	klog.V(2).Infof("getBlockTime response: %v", string(body))
+	if result.getError().Code != 0 {
+		return fmt.Errorf("RPC error: %d %v", result.getError().Code, result.getError().Message)
+	}
 
+	return nil
+}
+
+func (c *RPCClient) GetConfirmedBlocks(ctx context.Context, startSlot, endSlot int64) ([]int64, error) {
 	var resp Response[[]int64]
-	if err = json.Unmarshal(body, &resp); err != nil {
-		return nil, fmt.Errorf("failed to decode response body: %w", err)
+	if err := c.rpcCall(ctx, "getConfirmedBlocks", []interface{}{startSlot, endSlot}, &resp); err != nil {
+		return nil, err
 	}
-
-	if resp.Error.Code != 0 {
-		return nil, fmt.Errorf("RPC error: %d %v", resp.Error.Code, resp.Error.Message)
-	}
-
 	return resp.Result, nil
 }
 
-// https://docs.solana.com/developing/clients/jsonrpc-api#getepochinfo
 func (c *RPCClient) GetEpochInfo(ctx context.Context, commitment Commitment) (*EpochInfo, error) {
-	body, err := c.rpcRequest(ctx, formatRPCRequest("getEpochInfo", []interface{}{commitment}))
-	if err != nil {
-		return nil, fmt.Errorf("RPC call failed: %w", err)
-	}
-
-	klog.V(2).Infof("epoch info response: %v", string(body))
-
 	var resp Response[EpochInfo]
-	if err = json.Unmarshal(body, &resp); err != nil {
-		return nil, fmt.Errorf("failed to decode response body: %w", err)
+	if err := c.rpcCall(ctx, "getEpochInfo", []interface{}{commitment}, &resp); err != nil {
+		return nil, err
 	}
-
-	if resp.Error.Code != 0 {
-		return nil, fmt.Errorf("RPC error: %d %v", resp.Error.Code, resp.Error.Message)
-	}
-
 	return &resp.Result, nil
 }
 
-// https://docs.solana.com/developing/clients/jsonrpc-api#getleaderschedule
 func (c *RPCClient) GetLeaderSchedule(ctx context.Context, epochSlot int64) (LeaderSchedule, error) {
-	body, err := c.rpcRequest(ctx, formatRPCRequest("getLeaderSchedule", []interface{}{epochSlot}))
-	if err != nil {
-		return nil, fmt.Errorf("RPC call failed: %w", err)
-	}
-
-	klog.V(3).Infof("getLeaderSchedule response: %v", string(body))
-
 	var resp Response[LeaderSchedule]
-	if err = json.Unmarshal(body, &resp); err != nil {
-		return nil, fmt.Errorf("failed to decode response body: %w", err)
+	if err := c.rpcCall(ctx, "getLeaderSchedule", []interface{}{epochSlot}, &resp); err != nil {
+		return nil, err
 	}
-
-	if resp.Error.Code != 0 {
-		return nil, fmt.Errorf("RPC error: %d %v", resp.Error.Code, resp.Error.Message)
-	}
-
 	return resp.Result, nil
 }
 
-// https://docs.solana.com/developing/clients/jsonrpc-api#getvoteaccounts
 func (c *RPCClient) GetVoteAccounts(ctx context.Context, params []interface{}) (*VoteAccounts, error) {
-	body, err := c.rpcRequest(ctx, formatRPCRequest("getVoteAccounts", params))
-	if err != nil {
-		return nil, fmt.Errorf("RPC call failed: %w", err)
-	}
-
-	klog.V(3).Infof("getVoteAccounts response: %v", string(body))
-
 	var resp Response[VoteAccounts]
-	if err = json.Unmarshal(body, &resp); err != nil {
-		return nil, fmt.Errorf("failed to decode response body: %w", err)
+	if err := c.rpcCall(ctx, "getVoteAccounts", params, &resp); err != nil {
+		return nil, err
 	}
-
-	if resp.Error.Code != 0 {
-		return nil, fmt.Errorf("RPC error: %d %v", resp.Error.Code, resp.Error.Message)
-	}
-
 	return &resp.Result, nil
 }
 
 func (c *RPCClient) GetVersion(ctx context.Context) (*string, error) {
-	body, err := c.rpcRequest(ctx, formatRPCRequest("getVersion", []interface{}{}))
-
-	if body == nil {
-		return nil, fmt.Errorf("RPC call failed: Body empty")
-	}
-
-	if err != nil {
-		return nil, fmt.Errorf("RPC call failed: %w", err)
-	}
-
-	klog.V(2).Infof("version response: %v", string(body))
-
 	var resp Response[VersionInfo]
-	if err = json.Unmarshal(body, &resp); err != nil {
-		return nil, fmt.Errorf("failed to decode response body: %w", err)
+	if err := c.rpcCall(ctx, "getVersion", []interface{}{}, &resp); err != nil {
+		return nil, err
 	}
-
-	if resp.Error.Code != 0 {
-		return nil, fmt.Errorf("RPC error: %d %v", resp.Error.Code, resp.Error.Message)
-	}
-
 	return &resp.Result.Version, nil
 }
