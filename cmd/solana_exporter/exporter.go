@@ -27,7 +27,7 @@ func init() {
 }
 
 type solanaCollector struct {
-	rpcClient *rpc.RPCClient
+	rpcClient *rpc.Client
 
 	totalValidatorsDesc     *prometheus.Desc
 	validatorActivatedStake *prometheus.Desc

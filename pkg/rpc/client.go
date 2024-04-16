@@ -12,7 +12,7 @@ import (
 )
 
 type (
-	RPCClient struct {
+	Client struct {
 		httpClient http.Client
 		rpcAddr    string
 	}
@@ -42,8 +42,8 @@ const (
 	CommitmentRecent Commitment = "recent"
 )
 
-func NewRPCClient(rpcAddr string) *RPCClient {
-	c := &RPCClient{
+func NewRPCClient(rpcAddr string) *Client {
+	c := &Client{
 		httpClient: http.Client{},
 		rpcAddr:    rpcAddr,
 	}
@@ -68,7 +68,7 @@ func formatRPCRequest(method string, params []interface{}) io.Reader {
 	return bytes.NewBuffer(b)
 }
 
-func (c *RPCClient) rpcRequest(ctx context.Context, data io.Reader) ([]byte, error) {
+func (c *Client) rpcRequest(ctx context.Context, data io.Reader) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, "POST", c.rpcAddr, data)
 	if err != nil {
 		panic(err)
@@ -89,7 +89,7 @@ func (c *RPCClient) rpcRequest(ctx context.Context, data io.Reader) ([]byte, err
 	return body, nil
 }
 
-func (c *RPCClient) rpcCall(ctx context.Context, method string, params []interface{}, result HasRPCError) error {
+func (c *Client) rpcCall(ctx context.Context, method string, params []interface{}, result HasRPCError) error {
 	body, err := c.rpcRequest(ctx, formatRPCRequest(method, params))
 	// check if there was an error making the request:
 	if err != nil {
@@ -110,7 +110,7 @@ func (c *RPCClient) rpcCall(ctx context.Context, method string, params []interfa
 	return nil
 }
 
-func (c *RPCClient) GetConfirmedBlocks(ctx context.Context, startSlot, endSlot int64) ([]int64, error) {
+func (c *Client) GetConfirmedBlocks(ctx context.Context, startSlot, endSlot int64) ([]int64, error) {
 	var resp Response[[]int64]
 	if err := c.rpcCall(ctx, "getConfirmedBlocks", []interface{}{startSlot, endSlot}, &resp); err != nil {
 		return nil, err
@@ -118,7 +118,7 @@ func (c *RPCClient) GetConfirmedBlocks(ctx context.Context, startSlot, endSlot i
 	return resp.Result, nil
 }
 
-func (c *RPCClient) GetEpochInfo(ctx context.Context, commitment Commitment) (*EpochInfo, error) {
+func (c *Client) GetEpochInfo(ctx context.Context, commitment Commitment) (*EpochInfo, error) {
 	var resp Response[EpochInfo]
 	if err := c.rpcCall(ctx, "getEpochInfo", []interface{}{commitment}, &resp); err != nil {
 		return nil, err
@@ -126,7 +126,7 @@ func (c *RPCClient) GetEpochInfo(ctx context.Context, commitment Commitment) (*E
 	return &resp.Result, nil
 }
 
-func (c *RPCClient) GetLeaderSchedule(ctx context.Context, epochSlot int64) (LeaderSchedule, error) {
+func (c *Client) GetLeaderSchedule(ctx context.Context, epochSlot int64) (LeaderSchedule, error) {
 	var resp Response[LeaderSchedule]
 	if err := c.rpcCall(ctx, "getLeaderSchedule", []interface{}{epochSlot}, &resp); err != nil {
 		return nil, err
@@ -134,7 +134,7 @@ func (c *RPCClient) GetLeaderSchedule(ctx context.Context, epochSlot int64) (Lea
 	return resp.Result, nil
 }
 
-func (c *RPCClient) GetVoteAccounts(ctx context.Context, params []interface{}) (*VoteAccounts, error) {
+func (c *Client) GetVoteAccounts(ctx context.Context, params []interface{}) (*VoteAccounts, error) {
 	var resp Response[VoteAccounts]
 	if err := c.rpcCall(ctx, "getVoteAccounts", params, &resp); err != nil {
 		return nil, err
@@ -142,7 +142,7 @@ func (c *RPCClient) GetVoteAccounts(ctx context.Context, params []interface{}) (
 	return &resp.Result, nil
 }
 
-func (c *RPCClient) GetVersion(ctx context.Context) (*string, error) {
+func (c *Client) GetVersion(ctx context.Context) (*string, error) {
 	var resp Response[VersionInfo]
 	if err := c.rpcCall(ctx, "getVersion", []interface{}{}, &resp); err != nil {
 		return nil, err
