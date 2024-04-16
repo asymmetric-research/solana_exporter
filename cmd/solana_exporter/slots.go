@@ -14,37 +14,43 @@ const (
 )
 
 var (
-	totalTransactionsTotal = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "solana_confirmed_transactions_total",
-		Help: "Total number of transactions processed since genesis (max confirmation)",
-	})
-
-	confirmedSlotHeight = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "solana_confirmed_slot_height",
-		Help: "Last confirmed slot height processed by watcher routine (max confirmation)",
-	})
-
-	currentEpochNumber = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "solana_confirmed_epoch_number",
-		Help: "Current epoch (max confirmation)",
-	})
-
-	epochFirstSlot = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "solana_confirmed_epoch_first_slot",
-		Help: "Current epoch's first slot (max confirmation)",
-	})
-
-	epochLastSlot = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "solana_confirmed_epoch_last_slot",
-		Help: "Current epoch's last slot (max confirmation)",
-	})
-
+	totalTransactionsTotal = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "solana_confirmed_transactions_total",
+			Help: "Total number of transactions processed since genesis (max confirmation)",
+		},
+	)
+	confirmedSlotHeight = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "solana_confirmed_slot_height",
+			Help: "Last confirmed slot height processed by watcher routine (max confirmation)",
+		},
+	)
+	currentEpochNumber = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "solana_confirmed_epoch_number",
+			Help: "Current epoch (max confirmation)",
+		},
+	)
+	epochFirstSlot = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "solana_confirmed_epoch_first_slot",
+			Help: "Current epoch's first slot (max confirmation)",
+		},
+	)
+	epochLastSlot = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "solana_confirmed_epoch_last_slot",
+			Help: "Current epoch's last slot (max confirmation)",
+		},
+	)
 	leaderSlotsTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "solana_leader_slots_total",
 			Help: "Number of leader slots per leader, grouped by skip status (max confirmation)",
 		},
-		[]string{"status", "nodekey"})
+		[]string{"status", "nodekey"},
+	)
 )
 
 func init() {
@@ -56,7 +62,7 @@ func init() {
 	prometheus.MustRegister(leaderSlotsTotal)
 }
 
-func (c *solanaCollector) WatchSlots() {
+func (c *SolanaCollector) WatchSlots() {
 	var (
 		// Current mapping of relative slot numbers to leader public keys.
 		epochSlots map[int64]string
@@ -73,7 +79,7 @@ func (c *solanaCollector) WatchSlots() {
 
 		// Get current slot height and epoch info
 		ctx, cancel := context.WithTimeout(context.Background(), httpTimeout)
-		info, err := c.rpcClient.GetEpochInfo(ctx, rpc.CommitmentFinalized)
+		epochInfo, err := c.rpcClient.GetEpochInfo(ctx, rpc.CommitmentFinalized)
 		if err != nil {
 			klog.Infof("failed to fetch info info, retrying: %v", err)
 			cancel()
@@ -82,18 +88,18 @@ func (c *solanaCollector) WatchSlots() {
 		cancel()
 
 		// Calculate first and last slot in epoch.
-		firstSlot := info.AbsoluteSlot - info.SlotIndex
-		lastSlot := firstSlot + info.SlotsInEpoch
+		firstSlot := epochInfo.AbsoluteSlot - epochInfo.SlotIndex
+		lastSlot := firstSlot + epochInfo.SlotsInEpoch
 
-		totalTransactionsTotal.Set(float64(info.TransactionCount))
-		confirmedSlotHeight.Set(float64(info.AbsoluteSlot))
-		currentEpochNumber.Set(float64(info.Epoch))
+		totalTransactionsTotal.Set(float64(epochInfo.TransactionCount))
+		confirmedSlotHeight.Set(float64(epochInfo.AbsoluteSlot))
+		currentEpochNumber.Set(float64(epochInfo.Epoch))
 		epochFirstSlot.Set(float64(firstSlot))
 		epochLastSlot.Set(float64(lastSlot))
 
 		// Check whether we need to fetch a new leader schedule
-		if epochNumber != info.Epoch {
-			klog.Infof("new epoch at slot %d: %d (previous: %d)", firstSlot, info.Epoch, epochNumber)
+		if epochNumber != epochInfo.Epoch {
+			klog.Infof("new epoch at slot %d: %d (previous: %d)", firstSlot, epochInfo.Epoch, epochNumber)
 
 			epochSlots, err = c.fetchLeaderSlots(firstSlot)
 			if err != nil {
@@ -101,28 +107,36 @@ func (c *solanaCollector) WatchSlots() {
 				continue
 			}
 
-			klog.V(1).Infof("%d leader slots in epoch %d", len(epochSlots), info.Epoch)
+			klog.V(1).Infof("%d leader slots in epoch %d", len(epochSlots), epochInfo.Epoch)
 
-			epochNumber = info.Epoch
-			klog.V(1).Infof("we're still in epoch %d, not fetching leader schedule", info.Epoch)
+			epochNumber = epochInfo.Epoch
+			klog.V(1).Infof("we're still in epoch %d, not fetching leader schedule", epochInfo.Epoch)
 
 			// Reset watermark to current offset on new epoch (we do not backfill slots we missed at startup)
-			watermark = info.SlotIndex
-		} else if watermark == info.SlotIndex {
-			klog.Infof("slot has not advanced at %d, skipping", info.AbsoluteSlot)
+			watermark = epochInfo.SlotIndex
+		} else if watermark == epochInfo.SlotIndex {
+			klog.Infof("slot has not advanced at %d, skipping", epochInfo.AbsoluteSlot)
 			continue
 		}
 
-		klog.Infof("confirmed slot %d (offset %d, +%d), epoch %d (from slot %d to %d, %d remaining)",
-			info.AbsoluteSlot, info.SlotIndex, info.SlotIndex-watermark, info.Epoch, firstSlot, lastSlot, lastSlot-info.AbsoluteSlot)
+		klog.Infof(
+			"confirmed slot %d (offset %d, +%d), epoch %d (from slot %d to %d, %d remaining)",
+			epochInfo.AbsoluteSlot,
+			epochInfo.SlotIndex,
+			epochInfo.SlotIndex-watermark,
+			epochInfo.Epoch,
+			firstSlot,
+			lastSlot,
+			lastSlot-epochInfo.AbsoluteSlot,
+		)
 
 		// Get list of confirmed blocks since the last request. This is totally undocumented, but the result won't
 		// contain missed blocks, allowing us to figure out block production success rate.
 		rangeStart := firstSlot + watermark
-		rangeEnd := firstSlot + info.SlotIndex - 1
+		rangeEnd := firstSlot + epochInfo.SlotIndex - 1
 
 		ctx, cancel = context.WithTimeout(context.Background(), httpTimeout)
-		cfm, err := c.rpcClient.GetConfirmedBlocks(ctx, rangeStart, rangeEnd)
+		confirmedBlocks, err := c.rpcClient.GetConfirmedBlocks(ctx, rangeStart, rangeEnd)
 		if err != nil {
 			klog.Errorf("failed to request confirmed blocks at %d, retrying: %v", watermark, err)
 			cancel()
@@ -130,22 +144,26 @@ func (c *solanaCollector) WatchSlots() {
 		}
 		cancel()
 
-		klog.V(1).Infof("confirmed blocks: %d -> %d: %v", rangeStart, rangeEnd, cfm)
+		klog.V(1).Infof("confirmed blocks: %d -> %d: %v", rangeStart, rangeEnd, confirmedBlocks)
 
 		// Figure out leaders for each block in range
-		for i := watermark; i < info.SlotIndex; i++ {
+		for i := watermark; i < epochInfo.SlotIndex; i++ {
 			leader, ok := epochSlots[i]
 			abs := firstSlot + i
 			if !ok {
 				// This cannot happen with a well-behaved node and is a programming error in either Solana or the exporter.
-				klog.Fatalf("slot %d (offset %d) missing from epoch %d leader schedule",
-					abs, i, info.Epoch)
+				klog.Fatalf(
+					"slot %d (offset %d) missing from epoch %d leader schedule",
+					abs,
+					i,
+					epochInfo.Epoch,
+				)
 			}
 
 			// Check if block was included in getConfirmedBlocks output, otherwise, it was skipped.
 			var present bool
-			for _, s := range cfm {
-				if abs == s {
+			for _, slot := range confirmedBlocks {
+				if abs == slot {
 					present = true
 				}
 			}
@@ -164,21 +182,21 @@ func (c *solanaCollector) WatchSlots() {
 			klog.V(1).Infof("slot %d (offset %d) with leader %s %s", abs, i, leader, skipped)
 		}
 
-		watermark = info.SlotIndex
+		watermark = epochInfo.SlotIndex
 	}
 }
 
-func (c *solanaCollector) fetchLeaderSlots(epochSlot int64) (map[int64]string, error) {
-	sch, err := c.rpcClient.GetLeaderSchedule(context.Background(), epochSlot)
+func (c *SolanaCollector) fetchLeaderSlots(epochSlot int64) (map[int64]string, error) {
+	schedule, err := c.rpcClient.GetLeaderSchedule(context.Background(), epochSlot)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get leader schedule: %w", err)
 	}
 
 	slots := make(map[int64]string)
 
-	for pk, sch := range sch {
-		for _, i := range sch {
-			slots[int64(i)] = pk
+	for validatorAddress, validatorSlots := range schedule {
+		for _, i := range validatorSlots {
+			slots[i] = validatorAddress
 		}
 	}
 
