@@ -98,7 +98,7 @@ func (c *RPCClient) GetConfirmedBlocks(ctx context.Context, startSlot, endSlot i
 
 	klog.V(2).Infof("getBlockTime response: %v", string(body))
 
-	var resp GetConfirmedBlocksResponse
+	var resp Response[[]int64]
 	if err = json.Unmarshal(body, &resp); err != nil {
 		return nil, fmt.Errorf("failed to decode response body: %w", err)
 	}
@@ -119,7 +119,7 @@ func (c *RPCClient) GetEpochInfo(ctx context.Context, commitment Commitment) (*E
 
 	klog.V(2).Infof("epoch info response: %v", string(body))
 
-	var resp GetEpochInfoResponse
+	var resp Response[EpochInfo]
 	if err = json.Unmarshal(body, &resp); err != nil {
 		return nil, fmt.Errorf("failed to decode response body: %w", err)
 	}
@@ -140,7 +140,7 @@ func (c *RPCClient) GetLeaderSchedule(ctx context.Context, epochSlot int64) (Lea
 
 	klog.V(3).Infof("getLeaderSchedule response: %v", string(body))
 
-	var resp GetLeaderScheduleResponse
+	var resp Response[LeaderSchedule]
 	if err = json.Unmarshal(body, &resp); err != nil {
 		return nil, fmt.Errorf("failed to decode response body: %w", err)
 	}
@@ -153,7 +153,7 @@ func (c *RPCClient) GetLeaderSchedule(ctx context.Context, epochSlot int64) (Lea
 }
 
 // https://docs.solana.com/developing/clients/jsonrpc-api#getvoteaccounts
-func (c *RPCClient) GetVoteAccounts(ctx context.Context, params []interface{}) (*GetVoteAccountsResponse, error) {
+func (c *RPCClient) GetVoteAccounts(ctx context.Context, params []interface{}) (*VoteAccounts, error) {
 	body, err := c.rpcRequest(ctx, formatRPCRequest("getVoteAccounts", params))
 	if err != nil {
 		return nil, fmt.Errorf("RPC call failed: %w", err)
@@ -161,7 +161,7 @@ func (c *RPCClient) GetVoteAccounts(ctx context.Context, params []interface{}) (
 
 	klog.V(3).Infof("getVoteAccounts response: %v", string(body))
 
-	var resp GetVoteAccountsResponse
+	var resp Response[VoteAccounts]
 	if err = json.Unmarshal(body, &resp); err != nil {
 		return nil, fmt.Errorf("failed to decode response body: %w", err)
 	}
@@ -170,7 +170,7 @@ func (c *RPCClient) GetVoteAccounts(ctx context.Context, params []interface{}) (
 		return nil, fmt.Errorf("RPC error: %d %v", resp.Error.Code, resp.Error.Message)
 	}
 
-	return &resp, nil
+	return &resp.Result, nil
 }
 
 func (c *RPCClient) GetVersion(ctx context.Context) (*string, error) {
@@ -186,7 +186,7 @@ func (c *RPCClient) GetVersion(ctx context.Context) (*string, error) {
 
 	klog.V(2).Infof("version response: %v", string(body))
 
-	var resp GetVersionResponse
+	var resp Response[VersionInfo]
 	if err = json.Unmarshal(body, &resp); err != nil {
 		return nil, fmt.Errorf("failed to decode response body: %w", err)
 	}

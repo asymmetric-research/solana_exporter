@@ -11,6 +11,7 @@ import (
 
 	"k8s.io/klog/v2"
 )
+
 const (
 	httpTimeout = 5 * time.Second
 )
@@ -71,13 +72,13 @@ func (c *solanaCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.solanaVersion
 }
 
-func (c *solanaCollector) mustEmitMetrics(ch chan<- prometheus.Metric, response *rpc.GetVoteAccountsResponse) {
+func (c *solanaCollector) mustEmitMetrics(ch chan<- prometheus.Metric, response *rpc.VoteAccounts) {
 	ch <- prometheus.MustNewConstMetric(c.totalValidatorsDesc, prometheus.GaugeValue,
-		float64(len(response.Result.Delinquent)), "delinquent")
+		float64(len(response.Delinquent)), "delinquent")
 	ch <- prometheus.MustNewConstMetric(c.totalValidatorsDesc, prometheus.GaugeValue,
-		float64(len(response.Result.Current)), "current")
+		float64(len(response.Current)), "current")
 
-	for _, account := range append(response.Result.Current, response.Result.Delinquent...) {
+	for _, account := range append(response.Current, response.Delinquent...) {
 		ch <- prometheus.MustNewConstMetric(c.validatorActivatedStake, prometheus.GaugeValue,
 			float64(account.ActivatedStake), account.VotePubkey, account.NodePubkey)
 		ch <- prometheus.MustNewConstMetric(c.validatorLastVote, prometheus.GaugeValue,
@@ -85,11 +86,11 @@ func (c *solanaCollector) mustEmitMetrics(ch chan<- prometheus.Metric, response 
 		ch <- prometheus.MustNewConstMetric(c.validatorRootSlot, prometheus.GaugeValue,
 			float64(account.RootSlot), account.VotePubkey, account.NodePubkey)
 	}
-	for _, account := range response.Result.Current {
+	for _, account := range response.Current {
 		ch <- prometheus.MustNewConstMetric(c.validatorDelinquent, prometheus.GaugeValue,
 			0, account.VotePubkey, account.NodePubkey)
 	}
-	for _, account := range response.Result.Delinquent {
+	for _, account := range response.Delinquent {
 		ch <- prometheus.MustNewConstMetric(c.validatorDelinquent, prometheus.GaugeValue,
 			1, account.VotePubkey, account.NodePubkey)
 	}

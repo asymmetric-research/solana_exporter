@@ -6,13 +6,8 @@ type (
 		Code    int64  `json:"id"`
 	}
 
-	GetBlockTimeResponse struct {
-		Result int64    `json:"result"`
-		Error  rpcError `json:"error"`
-	}
-
-	GetConfirmedBlocksResponse struct {
-		Result []int64  `json:"result"`
+	Response[T any] struct {
+		Result T        `json:"result"`
 		Error  rpcError `json:"error"`
 	}
 
@@ -31,17 +26,7 @@ type (
 		TransactionCount int64 `json:"transactionCount"`
 	}
 
-	GetEpochInfoResponse struct {
-		Result EpochInfo `json:"result"`
-		Error  rpcError  `json:"error"`
-	}
-
 	LeaderSchedule map[string][]int64
-
-	GetLeaderScheduleResponse struct {
-		Result LeaderSchedule `json:"result"`
-		Error  rpcError       `json:"error"`
-	}
 
 	VoteAccount struct {
 		ActivatedStake   int64   `json:"activatedStake"`
@@ -54,18 +39,12 @@ type (
 		VotePubkey       string  `json:"votePubkey"`
 	}
 
-	GetVoteAccountsResponse struct {
-		Result struct {
-			Current    []VoteAccount `json:"current"`
-			Delinquent []VoteAccount `json:"delinquent"`
-		} `json:"result"`
-		Error rpcError `json:"error"`
+	VoteAccounts struct {
+		Current    []VoteAccount `json:"current"`
+		Delinquent []VoteAccount `json:"delinquent"`
 	}
 
-	GetVersionResponse struct {
-		Result struct {
-			Version string `json:"solana-core"`
-		} `json:"result"`
-		Error rpcError `json:"error"`
+	VersionInfo struct {
+		Version string `json:"solana-core"`
 	}
 )
