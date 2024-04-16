@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"k8s.io/klog/v2"
 	"net/http"
 )
@@ -32,14 +31,9 @@ func (c Commitment) MarshalJSON() ([]byte, error) {
 }
 
 const (
-	// Most recent block confirmed by supermajority of the cluster as having reached maximum lockout.
-	CommitmentMax Commitment = "max"
-	// Most recent block having reached maximum lockout on this node.
-	CommitmentRoot Commitment = "root"
-	// Most recent block that has been voted on by supermajority of the cluster (optimistic confirmation).
-	CommitmentSingleGossip Commitment = "singleGossip"
-	// The node will query its most recent block. Note that the block may not be complete.
-	CommitmentRecent Commitment = "recent"
+	CommitmentFinalized Commitment = "FINALIZED"
+	CommitmentConfirmed Commitment = "CONFIRMED"
+	CommitmentProcessed Commitment = "PROCESSED"
 )
 
 func NewRPCClient(rpcAddr string) *Client {
@@ -81,7 +75,7 @@ func (c *Client) rpcRequest(ctx context.Context, data io.Reader) ([]byte, error)
 	}
 	defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}

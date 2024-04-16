@@ -100,9 +100,9 @@ func (c *solanaCollector) Collect(ch chan<- prometheus.Metric) {
 	ctx, cancel := context.WithTimeout(context.Background(), httpTimeout)
 	defer cancel()
 
-	params := map[string]string{"commitment": string(rpc.CommitmentRecent)}
+	params := map[string]string{"commitment": string(rpc.CommitmentProcessed)}
 	if *votePubkey != "" {
-		params = map[string]string{"commitment": string(rpc.CommitmentRecent), "votePubkey": *votePubkey}
+		params = map[string]string{"commitment": string(rpc.CommitmentProcessed), "votePubkey": *votePubkey}
 	}
 
 	accs, err := c.rpcClient.GetVoteAccounts(ctx, []interface{}{params})
