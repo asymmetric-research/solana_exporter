@@ -21,6 +21,11 @@ type (
 		Code    int64  `json:"id"`
 	}
 
+	rpcError2 struct {
+		Message string `json:"message"`
+		Code    int64  `json:"code"`
+	}
+
 	rpcRequest struct {
 		Version string        `json:"jsonrpc"`
 		ID      int           `json:"id"`
