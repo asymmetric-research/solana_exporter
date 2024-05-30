@@ -100,7 +100,7 @@ func (c *solanaCollector) WatchSlots() {
 		epochFirstSlot.Set(float64(firstSlot))
 		epochLastSlot.Set(float64(lastSlot))
 
-		if watermark == info.SlotIndex {
+		if watermark == info.AbsoluteSlot {
 			klog.Infof("slot has not advanced at %d, skipping", info.AbsoluteSlot)
 			continue
 		}
