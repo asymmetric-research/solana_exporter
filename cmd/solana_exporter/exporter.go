@@ -11,14 +11,13 @@ import (
 
 	"k8s.io/klog/v2"
 )
-const (
-	httpTimeout = 5 * time.Second
-)
 
 var (
-	rpcAddr    = flag.String("rpcURI", "", "Solana RPC URI (including protocol and path)")
-	addr       = flag.String("addr", ":8080", "Listen address")
-	votePubkey = flag.String("votepubkey", "", "Validator vote address (will only return results of this address)")
+	httpTimeout     = 60 * time.Second
+	rpcAddr         = flag.String("rpcURI", "", "Solana RPC URI (including protocol and path)")
+	addr            = flag.String("addr", ":8080", "Listen address")
+	votePubkey      = flag.String("votepubkey", "", "Validator vote address (will only return results of this address)")
+	httpTimeoutSecs = flag.Int("http_timeout", 60, "HTTP timeout in seconds")
 )
 
 func init() {
@@ -130,6 +129,8 @@ func main() {
 	if *rpcAddr == "" {
 		klog.Fatal("Please specify -rpcURI")
 	}
+
+	httpTimeout = time.Duration(*httpTimeoutSecs) * time.Second
 
 	collector := NewSolanaCollector(*rpcAddr)
 

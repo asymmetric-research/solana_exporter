@@ -88,7 +88,7 @@ func (c *solanaCollector) WatchSlots() {
 		<-ticker.C
 
 		// Get current slot height and epoch info
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		ctx, cancel := context.WithTimeout(context.Background(), httpTimeout)
 		info, err := c.rpcClient.GetEpochInfo(ctx, rpc.CommitmentMax)
 		if err != nil {
 			klog.Infof("failed to fetch epoch info, retrying: %v", err)
@@ -98,7 +98,7 @@ func (c *solanaCollector) WatchSlots() {
 		cancel()
 
 		if currentEpoch != info.Epoch {
-			last, err := updateCounters(c, currentEpoch, watermark, &lastSlot)
+			last, err := updateCounters(c.rpcClient, currentEpoch, watermark, &lastSlot)
 			if err != nil {
 				klog.Info(err)
 				continue
@@ -125,7 +125,7 @@ func (c *solanaCollector) WatchSlots() {
 		klog.Infof("confirmed slot %d (offset %d, +%d), epoch %d (from slot %d to %d, %d remaining)",
 			info.AbsoluteSlot, info.SlotIndex, info.AbsoluteSlot-watermark, info.Epoch, firstSlot, lastSlot, lastSlot-info.AbsoluteSlot)
 
-		last, err := updateCounters(c, currentEpoch, watermark, nil)
+		last, err := updateCounters(c.rpcClient, currentEpoch, watermark, nil)
 		if err != nil {
 			klog.Info(err)
 			continue
@@ -134,7 +134,7 @@ func (c *solanaCollector) WatchSlots() {
 	}
 }
 
-func updateCounters(c *solanaCollector, epoch, firstSlot int64, lastSlotOpt *int64) (int64, error) {
+func updateCounters(c *rpc.RPCClient, epoch, firstSlot int64, lastSlotOpt *int64) (int64, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 
 	var lastSlot int64
@@ -142,7 +142,7 @@ func updateCounters(c *solanaCollector, epoch, firstSlot int64, lastSlotOpt *int
 
 	if lastSlotOpt == nil {
 		klog.V(2).Info("LastSlot is nil, getting last published slot")
-		lastSlot, err = c.rpcClient.GetSlot(ctx)
+		lastSlot, err = c.GetSlot(ctx)
 
 		if err != nil {
 			cancel()
@@ -164,7 +164,7 @@ func updateCounters(c *solanaCollector, epoch, firstSlot int64, lastSlotOpt *int
 	}
 
 	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Minute)
-	blockProduction, err := c.rpcClient.GetBlockProduction(ctx, &firstSlot, &lastSlot)
+	blockProduction, err := c.GetBlockProduction(ctx, &firstSlot, &lastSlot)
 	if err != nil {
 		cancel()
 		return 0, fmt.Errorf("failed to fetch block production, retrying: %v", err)
