@@ -144,7 +144,7 @@ func (c *solanaCollector) WatchSlots() {
 		}
 
 		klog.Infof(
-			"counters updated to slot %d (offset %d, +%d), epoch %d (from slot %d to %d, %d remaining)",
+			"counters updated to slot %d (offset %d, +%d), epoch %d (slots %d-%d, %d remaining)",
 			last,
 			info.SlotIndex,
 			last-watermark,
