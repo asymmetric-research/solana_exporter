@@ -78,9 +78,7 @@ func (c *solanaCollector) WatchSlots() {
 
 	// watermark is the last slot number we generated ticks for. Set it to the current offset on startup (we do not backfill slots we missed at startup)
 	watermark := info.AbsoluteSlot
-	currentEpoch := info.Epoch
-	firstSlot := info.AbsoluteSlot - info.SlotIndex
-	lastSlot := firstSlot + info.SlotsInEpoch
+	firstSlot, lastSlot, currentEpoch := getEpochBounds(info)
 
 	ticker := time.NewTicker(slotPacerSchedule)
 
@@ -97,41 +95,74 @@ func (c *solanaCollector) WatchSlots() {
 		}
 		cancel()
 
-		if currentEpoch != info.Epoch {
-			last, err := updateCounters(c.rpcClient, currentEpoch, watermark, &lastSlot)
-			if err != nil {
-				klog.Info(err)
-				continue
-			}
-			watermark = last
-		}
-
-		currentEpoch = info.Epoch
-		// Calculate first and last slot in epoch.
-		firstSlot = info.AbsoluteSlot - info.SlotIndex
-		lastSlot := firstSlot + info.SlotsInEpoch
-
-		totalTransactionsTotal.Set(float64(info.TransactionCount))
-		confirmedSlotHeight.Set(float64(info.AbsoluteSlot))
-		currentEpochNumber.Set(float64(info.Epoch))
-		epochFirstSlot.Set(float64(firstSlot))
-		epochLastSlot.Set(float64(lastSlot))
-
 		if watermark == info.AbsoluteSlot {
 			klog.Infof("slot has not advanced at %d, skipping", info.AbsoluteSlot)
 			continue
 		}
 
-		klog.Infof("confirmed slot %d (offset %d, +%d), epoch %d (from slot %d to %d, %d remaining)",
-			info.AbsoluteSlot, info.SlotIndex, info.AbsoluteSlot-watermark, info.Epoch, firstSlot, lastSlot, lastSlot-info.AbsoluteSlot)
+		if currentEpoch != info.Epoch {
+			klog.Infof(
+				"changing epoch from %d to %d. Watermark: %d, lastSlot: %d",
+				currentEpoch,
+				info.Epoch,
+				watermark,
+				lastSlot,
+			)
+
+			last, err := updateCounters(c.rpcClient, currentEpoch, watermark, &lastSlot)
+			if err != nil {
+				klog.Info(err)
+				continue
+			}
+
+			klog.Infof(
+				"counters updated to slot %d (+%d), epoch %d (from slot %d to %d, %d remaining)",
+				last,
+				last-watermark,
+				currentEpoch,
+				firstSlot,
+				lastSlot,
+				lastSlot-last,
+			)
+
+			watermark = last
+			firstSlot, lastSlot, currentEpoch = getEpochBounds(info)
+
+			currentEpochNumber.Set(float64(currentEpoch))
+			epochFirstSlot.Set(float64(firstSlot))
+			epochLastSlot.Set(float64(lastSlot))
+		}
+
+		totalTransactionsTotal.Set(float64(info.TransactionCount))
+		confirmedSlotHeight.Set(float64(info.AbsoluteSlot))
 
 		last, err := updateCounters(c.rpcClient, currentEpoch, watermark, nil)
 		if err != nil {
 			klog.Info(err)
 			continue
 		}
+
+		klog.Infof(
+			"counters updated to slot %d (offset %d, +%d), epoch %d (from slot %d to %d, %d remaining)",
+			last,
+			info.SlotIndex,
+			last-watermark,
+			currentEpoch,
+			firstSlot,
+			lastSlot,
+			lastSlot-last,
+		)
+
 		watermark = last
 	}
+}
+
+// getEpochBounds returns the epoch, first slot and last slot given an EpochInfo struct
+func getEpochBounds(info *rpc.EpochInfo) (int64, int64, int64) {
+	firstSlot := info.AbsoluteSlot - info.SlotIndex
+	lastSlot := firstSlot + info.SlotsInEpoch
+
+	return info.Epoch, firstSlot, lastSlot
 }
 
 func updateCounters(c *rpc.RPCClient, epoch, firstSlot int64, lastSlotOpt *int64) (int64, error) {
@@ -141,18 +172,18 @@ func updateCounters(c *rpc.RPCClient, epoch, firstSlot int64, lastSlotOpt *int64
 	var err error
 
 	if lastSlotOpt == nil {
-		klog.V(2).Info("LastSlot is nil, getting last published slot")
 		lastSlot, err = c.GetSlot(ctx)
 
 		if err != nil {
 			cancel()
 			return 0, fmt.Errorf("Error while getting the last slot: %v", err)
 		}
+		klog.V(2).Infof("Setting lastSlot to %d", lastSlot)
 		cancel()
 	} else {
 		lastSlot = *lastSlotOpt
+		klog.Infof("Got lastSlot: %d", lastSlot)
 	}
-	klog.V(2).Infof("LastSlot is %d", lastSlot)
 
 	if firstSlot > lastSlot {
 		return 0, fmt.Errorf(
@@ -163,7 +194,7 @@ func updateCounters(c *rpc.RPCClient, epoch, firstSlot int64, lastSlotOpt *int64
 		)
 	}
 
-	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Minute)
+	ctx, cancel = context.WithTimeout(context.Background(), httpTimeout)
 	blockProduction, err := c.GetBlockProduction(ctx, &firstSlot, &lastSlot)
 	if err != nil {
 		cancel()
