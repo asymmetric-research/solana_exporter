@@ -78,8 +78,9 @@ func (c *solanaCollector) WatchSlots() {
 
 	// watermark is the last slot number we generated ticks for. Set it to the current offset on startup (we do not backfill slots we missed at startup)
 	watermark := info.AbsoluteSlot
-	firstSlot, lastSlot, currentEpoch := getEpochBounds(info)
+	currentEpoch, firstSlot, lastSlot := getEpochBounds(info)
 
+	klog.Infof("Starting at slot %d in epoch %d (%d-%d)", firstSlot, currentEpoch, firstSlot, lastSlot)
 	ticker := time.NewTicker(slotPacerSchedule)
 
 	for {
@@ -116,7 +117,7 @@ func (c *solanaCollector) WatchSlots() {
 			}
 
 			klog.Infof(
-				"counters updated to slot %d (+%d), epoch %d (from slot %d to %d, %d remaining)",
+				"counters updated to slot %d (+%d), epoch %d (slots %d-%d, %d remaining)",
 				last,
 				last-watermark,
 				currentEpoch,
@@ -126,7 +127,7 @@ func (c *solanaCollector) WatchSlots() {
 			)
 
 			watermark = last
-			firstSlot, lastSlot, currentEpoch = getEpochBounds(info)
+			currentEpoch, firstSlot, lastSlot = getEpochBounds(info)
 
 			currentEpochNumber.Set(float64(currentEpoch))
 			epochFirstSlot.Set(float64(firstSlot))
