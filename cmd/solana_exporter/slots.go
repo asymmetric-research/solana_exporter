@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/certusone/solana_exporter/pkg/rpc"
@@ -71,8 +70,7 @@ func (c *solanaCollector) WatchSlots() {
 	ctx, cancel := context.WithTimeout(context.Background(), httpTimeout)
 	info, err := c.rpcClient.GetEpochInfo(ctx, rpc.CommitmentMax)
 	if err != nil {
-		klog.Infof("failed to fetch epoch info, bailing out: %v", err)
-		os.Exit(1)
+		klog.Fatalf("failed to fetch epoch info, bailing out: %v", err)
 	}
 	cancel()
 
@@ -112,7 +110,7 @@ func (c *solanaCollector) WatchSlots() {
 
 			last, err := updateCounters(c.rpcClient, currentEpoch, watermark, &lastSlot)
 			if err != nil {
-				klog.Info(err)
+				klog.Error(err)
 				continue
 			}
 
@@ -167,7 +165,8 @@ func getEpochBounds(info *rpc.EpochInfo) (int64, int64, int64) {
 }
 
 func updateCounters(c *rpc.RPCClient, epoch, firstSlot int64, lastSlotOpt *int64) (int64, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), httpTimeout)
+	defer cancel()
 
 	var lastSlot int64
 	var err error
@@ -176,11 +175,9 @@ func updateCounters(c *rpc.RPCClient, epoch, firstSlot int64, lastSlotOpt *int64
 		lastSlot, err = c.GetSlot(ctx)
 
 		if err != nil {
-			cancel()
 			return 0, fmt.Errorf("Error while getting the last slot: %v", err)
 		}
 		klog.V(2).Infof("Setting lastSlot to %d", lastSlot)
-		cancel()
 	} else {
 		lastSlot = *lastSlotOpt
 		klog.Infof("Got lastSlot: %d", lastSlot)
@@ -196,12 +193,12 @@ func updateCounters(c *rpc.RPCClient, epoch, firstSlot int64, lastSlotOpt *int64
 	}
 
 	ctx, cancel = context.WithTimeout(context.Background(), httpTimeout)
+	defer cancel()
+
 	blockProduction, err := c.GetBlockProduction(ctx, &firstSlot, &lastSlot)
 	if err != nil {
-		cancel()
 		return 0, fmt.Errorf("failed to fetch block production, retrying: %v", err)
 	}
-	cancel()
 
 	for host, prod := range blockProduction.Hosts {
 		valid := float64(prod.BlocksProduced)
