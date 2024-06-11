@@ -13,7 +13,7 @@ type getSlotResponse struct {
 }
 
 // https://solana.com/docs/rpc/http/getslot
-func (c *RPCClient) GetSlot(ctx context.Context) (int64, error) {
+func (c *Client) GetSlot(ctx context.Context) (int64, error) {
 	body, err := c.rpcRequest(ctx, formatRPCRequest("getSlot", []interface{}{}))
 	if err != nil {
 		return 0, fmt.Errorf("RPC call failed: %w", err)

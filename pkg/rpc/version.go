@@ -17,7 +17,7 @@ type (
 	}
 )
 
-func (c *RPCClient) GetVersion(ctx context.Context) (*string, error) {
+func (c *Client) GetVersion(ctx context.Context) (*string, error) {
 	body, err := c.rpcRequest(ctx, formatRPCRequest("getVersion", []interface{}{}))
 
 	if body == nil {
