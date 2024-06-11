@@ -45,7 +45,7 @@ type (
 )
 
 // https://solana.com/docs/rpc/http/getblockproduction
-func (c *RPCClient) GetBlockProduction(ctx context.Context, firstSlot *int64, lastSlot *int64) (BlockProduction, error) {
+func (c *Client) GetBlockProduction(ctx context.Context, firstSlot *int64, lastSlot *int64) (BlockProduction, error) {
 	config := make([]interface{}, 0, 1)
 	if firstSlot != nil {
 		config = append(config,

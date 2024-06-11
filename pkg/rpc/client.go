@@ -5,13 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	"io/ioutil"
 	"k8s.io/klog/v2"
 	"net/http"
 )
 
 type (
-	RPCClient struct {
+	Client struct {
 		httpClient http.Client
 		rpcAddr    string
 	}
@@ -43,7 +42,7 @@ func (c Commitment) MarshalJSON() ([]byte, error) {
 const (
 	// Most recent block confirmed by supermajority of the cluster as having reached maximum lockout.
 	CommitmentMax Commitment = "max"
-	// Most recent block having reached maximum lockout on this node.
+	// CommitmentRoot Most recent block having reached maximum lockout on this node.
 	CommitmentRoot Commitment = "root"
 	// Most recent block that has been voted on by supermajority of the cluster (optimistic confirmation).
 	CommitmentSingleGossip Commitment = "singleGossip"
@@ -51,8 +50,8 @@ const (
 	CommitmentRecent Commitment = "recent"
 )
 
-func NewRPCClient(rpcAddr string) *RPCClient {
-	c := &RPCClient{
+func NewRPCClient(rpcAddr string) *Client {
+	c := &Client{
 		httpClient: http.Client{},
 		rpcAddr:    rpcAddr,
 	}
@@ -77,7 +76,7 @@ func formatRPCRequest(method string, params []interface{}) io.Reader {
 	return bytes.NewBuffer(b)
 }
 
-func (c *RPCClient) rpcRequest(ctx context.Context, data io.Reader) ([]byte, error) {
+func (c *Client) rpcRequest(ctx context.Context, data io.Reader) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, "POST", c.rpcAddr, data)
 	if err != nil {
 		panic(err)
@@ -88,9 +87,10 @@ func (c *RPCClient) rpcRequest(ctx context.Context, data io.Reader) ([]byte, err
 	if err != nil {
 		return nil, err
 	}
+	//goland:noinspection GoUnhandledErrorResult
 	defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}
