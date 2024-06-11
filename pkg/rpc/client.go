@@ -87,11 +87,8 @@ func (c *Client) rpcRequest(ctx context.Context, data io.Reader) ([]byte, error)
 	if err != nil {
 		return nil, err
 	}
-	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			klog.Errorf("could not close response body: %v", err)
-		}
-	}()
+	//goland:noinspection GoUnhandledErrorResult
+	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
