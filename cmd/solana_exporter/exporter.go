@@ -35,7 +35,7 @@ type solanaCollector struct {
 	solanaVersion           *prometheus.Desc
 }
 
-func NewSolanaCollector(rpcAddr string) *solanaCollector {
+func newSolanaCollector(rpcAddr string) *solanaCollector {
 	return &solanaCollector{
 		rpcClient: rpc.NewRPCClient(rpcAddr),
 		totalValidatorsDesc: prometheus.NewDesc(
@@ -132,7 +132,7 @@ func main() {
 
 	httpTimeout = time.Duration(*httpTimeoutSecs) * time.Second
 
-	collector := NewSolanaCollector(*rpcAddr)
+	collector := newSolanaCollector(*rpcAddr)
 
 	go collector.WatchSlots()
 
