@@ -35,6 +35,14 @@ type (
 	Commitment string
 )
 
+type Provider interface {
+	GetBlockProduction(ctx context.Context, firstSlot *int64, lastSlot *int64) (BlockProduction, error)
+	GetEpochInfo(ctx context.Context, commitment Commitment) (*EpochInfo, error)
+	GetSlot(ctx context.Context) (int64, error)
+	GetVoteAccounts(ctx context.Context, params []interface{}) (*GetVoteAccountsResponse, error)
+	GetVersion(ctx context.Context) (*string, error)
+}
+
 func (c Commitment) MarshalJSON() ([]byte, error) {
 	return json.Marshal(map[string]string{"commitment": string(c)})
 }

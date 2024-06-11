@@ -25,7 +25,7 @@ func init() {
 }
 
 type solanaCollector struct {
-	rpcClient *rpc.Client
+	rpcClient rpc.Provider
 
 	totalValidatorsDesc     *prometheus.Desc
 	validatorActivatedStake *prometheus.Desc
@@ -35,9 +35,9 @@ type solanaCollector struct {
 	solanaVersion           *prometheus.Desc
 }
 
-func NewSolanaCollector(rpcAddr string) *solanaCollector {
+func createSolanaCollector(provider rpc.Provider) *solanaCollector {
 	return &solanaCollector{
-		rpcClient: rpc.NewRPCClient(rpcAddr),
+		rpcClient: provider,
 		totalValidatorsDesc: prometheus.NewDesc(
 			"solana_active_validators",
 			"Total number of active validators by state",
@@ -63,6 +63,10 @@ func NewSolanaCollector(rpcAddr string) *solanaCollector {
 			"Node version of solana",
 			[]string{"version"}, nil),
 	}
+}
+
+func NewSolanaCollector(rpcAddr string) *solanaCollector {
+	return createSolanaCollector(rpc.NewRPCClient(rpcAddr))
 }
 
 func (c *solanaCollector) Describe(ch chan<- *prometheus.Desc) {
