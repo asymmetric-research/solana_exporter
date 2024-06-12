@@ -13,7 +13,7 @@ type (
 		Result struct {
 			Version string `json:"solana-core"`
 		} `json:"result"`
-		Error rpcError `json:"error"`
+		Error rpcError1 `json:"error"`
 	}
 )
 
