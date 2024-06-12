@@ -21,6 +21,24 @@ var (
 		SlotsInEpoch:     8192,
 		TransactionCount: 22661093,
 	}
+	staticBlockProduction = rpc.BlockProduction{
+		FirstSlot: 1000,
+		LastSlot:  2000,
+		Hosts: map[string]rpc.BlockProductionPerHost{
+			"B97CCUW3AEZFGy6uUg6zUdnNYvnVq5VG8PUtb2HayTDD": {
+				LeaderSlots:    400,
+				BlocksProduced: 360,
+			},
+			"C97CCUW3AEZFGy6uUg6zUdnNYvnVq5VG8PUtb2HayTDD": {
+				LeaderSlots:    300,
+				BlocksProduced: 296,
+			},
+			"4MUdt8D2CadJKeJ8Fv2sz4jXU9xv4t2aBPpTf6TN8bae": {
+				LeaderSlots:    300,
+				BlocksProduced: 0,
+			},
+		},
+	}
 )
 
 //goland:noinspection GoUnusedParameter
@@ -98,24 +116,7 @@ func (c *staticRPCClient) GetBlockProduction(
 	firstSlot *int64,
 	lastSlot *int64,
 ) (rpc.BlockProduction, error) {
-	return rpc.BlockProduction{
-		FirstSlot: 1000,
-		LastSlot:  2000,
-		Hosts: map[string]rpc.BlockProductionPerHost{
-			"B97CCUW3AEZFGy6uUg6zUdnNYvnVq5VG8PUtb2HayTDD": {
-				LeaderSlots:    400,
-				BlocksProduced: 360,
-			},
-			"C97CCUW3AEZFGy6uUg6zUdnNYvnVq5VG8PUtb2HayTDD": {
-				LeaderSlots:    300,
-				BlocksProduced: 296,
-			},
-			"4MUdt8D2CadJKeJ8Fv2sz4jXU9xv4t2aBPpTf6TN8bae": {
-				LeaderSlots:    300,
-				BlocksProduced: 0,
-			},
-		},
-	}, nil
+	return staticBlockProduction, nil
 }
 
 // extractName takes a Prometheus descriptor and returns its name
