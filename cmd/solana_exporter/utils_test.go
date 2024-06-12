@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"github.com/certusone/solana_exporter/pkg/rpc"
+	"github.com/prometheus/client_golang/prometheus"
+	"regexp"
 )
 
 type (
@@ -114,4 +116,22 @@ func (c *staticRPCClient) GetBlockProduction(
 			},
 		},
 	}, nil
+}
+
+// extractName takes a Prometheus descriptor and returns its name
+func extractName(desc *prometheus.Desc) string {
+	// Get the string representation of the descriptor
+	descString := desc.String()
+
+	// Use regex to extract the metric name and help message from the descriptor string
+	reName := regexp.MustCompile(`fqName: "([^"]+)"`)
+
+	nameMatch := reName.FindStringSubmatch(descString)
+
+	var name string
+	if len(nameMatch) > 1 {
+		name = nameMatch[1]
+	}
+
+	return name
 }
