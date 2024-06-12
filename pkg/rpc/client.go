@@ -35,6 +35,37 @@ type (
 	Commitment string
 )
 
+// Provider is an interface that defines the methods required to interact with the Solana blockchain.
+// It provides methods to retrieve block production information, epoch info, slot info, vote accounts, and node version.
+type Provider interface {
+
+	// GetBlockProduction retrieves the block production information for the specified slot range.
+	// The method takes a context for cancellation, and pointers to the first and last slots of the range.
+	// It returns a BlockProduction struct containing the block production details, or an error if the operation fails.
+	GetBlockProduction(ctx context.Context, firstSlot *int64, lastSlot *int64) (BlockProduction, error)
+
+	// GetEpochInfo retrieves the information regarding the current epoch.
+	// The method takes a context for cancellation and a commitment level to specify the desired state.
+	// It returns a pointer to an EpochInfo struct containing the epoch details, or an error if the operation fails.
+	GetEpochInfo(ctx context.Context, commitment Commitment) (*EpochInfo, error)
+
+	// GetSlot retrieves the current slot number.
+	// The method takes a context for cancellation.
+	// It returns the current slot number as an int64, or an error if the operation fails.
+	GetSlot(ctx context.Context) (int64, error)
+
+	// GetVoteAccounts retrieves the vote accounts information.
+	// The method takes a context for cancellation and a slice of parameters to filter the vote accounts.
+	// It returns a pointer to a GetVoteAccountsResponse struct containing the vote accounts details,
+	// or an error if the operation fails.
+	GetVoteAccounts(ctx context.Context, params []interface{}) (*GetVoteAccountsResponse, error)
+
+	// GetVersion retrieves the version of the Solana node.
+	// The method takes a context for cancellation.
+	// It returns a pointer to a string containing the version information, or an error if the operation fails.
+	GetVersion(ctx context.Context) (*string, error)
+}
+
 func (c Commitment) MarshalJSON() ([]byte, error) {
 	return json.Marshal(map[string]string{"commitment": string(c)})
 }

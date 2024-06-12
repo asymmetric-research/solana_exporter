@@ -3,4 +3,4 @@
 
 # builds:
 .builds
-solana_exporter
+/solana_exporter

@@ -164,7 +164,7 @@ func getEpochBounds(info *rpc.EpochInfo) (int64, int64, int64) {
 	return info.Epoch, firstSlot, lastSlot
 }
 
-func updateCounters(c *rpc.Client, epoch, firstSlot int64, lastSlotOpt *int64) (int64, error) {
+func updateCounters(c rpc.Provider, epoch, firstSlot int64, lastSlotOpt *int64) (int64, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), httpTimeout)
 	defer cancel()
 
