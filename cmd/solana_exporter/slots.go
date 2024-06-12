@@ -68,7 +68,7 @@ func init() {
 func (c *solanaCollector) WatchSlots() {
 	// Get current slot height and epoch info
 	ctx, cancel := context.WithTimeout(context.Background(), httpTimeout)
-	info, err := c.rpcClient.GetEpochInfo(ctx, rpc.CommitmentMax)
+	info, err := c.rpcClient.GetEpochInfo(ctx, rpc.CommitmentFinalized)
 	if err != nil {
 		klog.Fatalf("failed to fetch epoch info, bailing out: %v", err)
 	}
@@ -86,7 +86,7 @@ func (c *solanaCollector) WatchSlots() {
 
 		// Get current slot height and epoch info
 		ctx, cancel := context.WithTimeout(context.Background(), httpTimeout)
-		info, err := c.rpcClient.GetEpochInfo(ctx, rpc.CommitmentMax)
+		info, err := c.rpcClient.GetEpochInfo(ctx, rpc.CommitmentFinalized)
 		if err != nil {
 			klog.Infof("failed to fetch epoch info, retrying: %v", err)
 			cancel()

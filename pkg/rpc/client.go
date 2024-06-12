@@ -40,14 +40,10 @@ func (c Commitment) MarshalJSON() ([]byte, error) {
 }
 
 const (
-	// Most recent block confirmed by supermajority of the cluster as having reached maximum lockout.
-	CommitmentMax Commitment = "max"
-	// CommitmentRoot Most recent block having reached maximum lockout on this node.
-	CommitmentRoot Commitment = "root"
-	// Most recent block that has been voted on by supermajority of the cluster (optimistic confirmation).
-	CommitmentSingleGossip Commitment = "singleGossip"
-	// The node will query its most recent block. Note that the block may not be complete.
-	CommitmentRecent Commitment = "recent"
+	// CommitmentFinalized refers to the most recent block confirmed by cluster super-majority as having reached maximum lockout.
+	CommitmentFinalized Commitment = "finalized"
+	// CommitmentProcessed refers to the most recent processed block.
+	CommitmentProcessed Commitment = "recent"
 )
 
 func NewRPCClient(rpcAddr string) *Client {
