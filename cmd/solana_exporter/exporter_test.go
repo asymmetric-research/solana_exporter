@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
@@ -111,4 +112,52 @@ func TestSolanaCollector_WatchSlots(t *testing.T) {
 			},
 		)
 	}
+
+	hosts := []string{
+		"B97CCUW3AEZFGy6uUg6zUdnNYvnVq5VG8PUtb2HayTDD",
+		"C97CCUW3AEZFGy6uUg6zUdnNYvnVq5VG8PUtb2HayTDD",
+		"4MUdt8D2CadJKeJ8Fv2sz4jXU9xv4t2aBPpTf6TN8bae",
+	}
+	metrics := map[string]*prometheus.CounterVec{
+		"solana_leader_slots_total":    leaderSlotsTotal,
+		"solana_leader_slots_by_epoch": leaderSlotsByEpoch,
+	}
+	statuses := []string{"valid", "skipped"}
+	for name, metric := range metrics {
+		// subtest for each metric:
+		t.Run(name, func(t *testing.T) {
+			for _, status := range statuses {
+				// sub subtest for each status (as each one requires a different calc)
+				t.Run(status, func(t *testing.T) {
+					for _, host := range hosts {
+						testBlockProductionMetric(t, metric, host, status)
+					}
+				})
+			}
+		})
+	}
+}
+
+func testBlockProductionMetric(
+	t *testing.T,
+	metric *prometheus.CounterVec,
+	host string,
+	status string,
+) {
+	hostInfo := staticBlockProduction.Hosts[host]
+	// get expected value depending on status:
+	var expectedValue float64
+	switch status {
+	case "valid":
+		expectedValue = float64(hostInfo.BlocksProduced)
+	case "skipped":
+		expectedValue = float64(hostInfo.LeaderSlots - hostInfo.BlocksProduced)
+	}
+	// get labels (leaderSlotsByEpoch requires an extra one)
+	labels := []string{status, host}
+	if metric == leaderSlotsByEpoch {
+		labels = append(labels, fmt.Sprintf("%d", staticEpochInfo.Epoch))
+	}
+	// now we can do the assertion:
+	assert.Equal(t, expectedValue, testutil.ToFloat64(metric.WithLabelValues(labels...)))
 }
