@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/certusone/solana_exporter/pkg/rpc"
@@ -85,6 +86,10 @@ func (c *solanaCollector) WatchSlots() {
 	epochLastSlot.Set(float64(lastSlot))
 
 	klog.Infof("Starting at slot %d in epoch %d (%d-%d)", firstSlot, currentEpoch, firstSlot, lastSlot)
+	_, err = updateCounters(c.rpcClient, currentEpoch, watermark, &lastSlot)
+	if err != nil {
+		klog.Error(err)
+	}
 	ticker := time.NewTicker(slotPacerSchedule)
 
 	for {
@@ -207,6 +212,7 @@ func updateCounters(c rpc.Provider, epoch, firstSlot int64, lastSlotOpt *int64) 
 	}
 
 	for host, prod := range blockProduction.Hosts {
+		log.Print(host)
 		valid := float64(prod.BlocksProduced)
 		skipped := float64(prod.LeaderSlots - prod.BlocksProduced)
 
