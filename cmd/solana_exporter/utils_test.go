@@ -10,21 +10,25 @@ type (
 	// TODO: create dynamicRPCClient + according tests!
 )
 
-//goland:noinspection GoUnusedParameter
-func (c *staticRPCClient) GetEpochInfo(ctx context.Context, commitment rpc.Commitment) (*rpc.EpochInfo, error) {
-	return &rpc.EpochInfo{
+var (
+	staticEpochInfo = rpc.EpochInfo{
 		AbsoluteSlot:     166598,
 		BlockHeight:      166500,
 		Epoch:            27,
 		SlotIndex:        2790,
 		SlotsInEpoch:     8192,
 		TransactionCount: 22661093,
-	}, nil
+	}
+)
+
+//goland:noinspection GoUnusedParameter
+func (c *staticRPCClient) GetEpochInfo(ctx context.Context, commitment rpc.Commitment) (*rpc.EpochInfo, error) {
+	return &staticEpochInfo, nil
 }
 
 //goland:noinspection GoUnusedParameter
 func (c *staticRPCClient) GetSlot(ctx context.Context) (int64, error) {
-	return 166598, nil
+	return staticEpochInfo.AbsoluteSlot, nil
 }
 
 //goland:noinspection GoUnusedParameter

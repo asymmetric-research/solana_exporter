@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
+	"github.com/stretchr/testify/assert"
 	"testing"
+	"time"
 )
 
 var staticCollector = createSolanaCollector(&staticRPCClient{})
@@ -118,7 +120,6 @@ solana_validator_delinquent{nodekey="C97CCUW3AEZFGy6uUg6zUdnNYvnVq5VG8PUtb2HayTD
 # HELP solana_node_version Node version of solana
 # TYPE solana_node_version gauge
 solana_node_version{version="1.16.7"} 1
-
 `
 			if err := testutil.CollectAndCompare(
 				staticCollector,
@@ -129,4 +130,44 @@ solana_node_version{version="1.16.7"} 1
 			}
 		},
 	)
+}
+
+func TestSolanaCollector_WatchSlots(t *testing.T) {
+	go staticCollector.WatchSlots()
+	time.Sleep(1 * time.Second)
+
+	tests := map[string]struct {
+		expectedValue float64
+		metric        prometheus.Collector
+	}{
+		"ConfirmedSlotHeight": {
+			expectedValue: float64(staticEpochInfo.AbsoluteSlot),
+			metric:        confirmedSlotHeight,
+		},
+		"TotalTransactions": {
+			expectedValue: float64(staticEpochInfo.TransactionCount),
+			metric:        totalTransactionsTotal,
+		},
+		"CurrentEpochNumber": {
+			expectedValue: float64(staticEpochInfo.Epoch),
+			metric:        currentEpochNumber,
+		},
+		"EpochFirstSlot": {
+			expectedValue: float64(staticEpochInfo.AbsoluteSlot - staticEpochInfo.SlotIndex),
+			metric:        epochFirstSlot,
+		},
+		"EpochLastSlot": {
+			expectedValue: float64(staticEpochInfo.AbsoluteSlot - staticEpochInfo.SlotIndex + staticEpochInfo.SlotsInEpoch),
+			metric:        epochLastSlot,
+		},
+	}
+
+	for name, testCase := range tests {
+		t.Run(
+			name,
+			func(t *testing.T) {
+				assert.Equal(t, testCase.expectedValue, testutil.ToFloat64(testCase.metric))
+			},
+		)
+	}
 }
