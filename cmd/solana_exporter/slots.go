@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/certusone/solana_exporter/pkg/rpc"
@@ -212,7 +211,6 @@ func updateCounters(c rpc.Provider, epoch, firstSlot int64, lastSlotOpt *int64) 
 	}
 
 	for host, prod := range blockProduction.Hosts {
-		log.Print(host)
 		valid := float64(prod.BlocksProduced)
 		skipped := float64(prod.LeaderSlots - prod.BlocksProduced)
 
