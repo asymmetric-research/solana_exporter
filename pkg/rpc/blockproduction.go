@@ -32,7 +32,7 @@ type (
 		Error  rpcError2                `json:"error"`
 	}
 
-	blockProductionPerHost struct {
+	BlockProductionPerHost struct {
 		LeaderSlots    int64
 		BlocksProduced int64
 	}
@@ -40,7 +40,7 @@ type (
 	BlockProduction struct {
 		FirstSlot int64
 		LastSlot  int64
-		Hosts     map[string]blockProductionPerHost
+		Hosts     map[string]BlockProductionPerHost
 	}
 )
 
@@ -81,10 +81,10 @@ func (c *Client) GetBlockProduction(ctx context.Context, firstSlot *int64, lastS
 
 	ret.FirstSlot = resp.Result.Value.Range.FirstSlot
 	ret.LastSlot = *resp.Result.Value.Range.LastSlot
-	ret.Hosts = make(map[string]blockProductionPerHost)
+	ret.Hosts = make(map[string]BlockProductionPerHost)
 
 	for id, arr := range resp.Result.Value.ByIdentity {
-		ret.Hosts[id] = blockProductionPerHost{
+		ret.Hosts[id] = BlockProductionPerHost{
 			LeaderSlots:    arr[0],
 			BlocksProduced: arr[1],
 		}
