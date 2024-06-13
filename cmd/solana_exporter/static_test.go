@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
@@ -10,71 +9,83 @@ import (
 	"time"
 )
 
-var staticCollector = createSolanaCollector(&staticRPCClient{})
+func TestSolanaCollector_Collect_Static(t *testing.T) {
+	collector := createSolanaCollector(
+		&staticRPCClient{},
+		slotPacerSchedule,
+	)
+	prometheus.NewPedanticRegistry().MustRegister(collector)
 
-func TestSolanaCollector_Collect(t *testing.T) {
-	prometheus.NewPedanticRegistry().MustRegister(staticCollector)
-
-	testCases := map[string]string{
-		"solana_active_validators": `
+	testCases := []collectionTest{
+		{
+			Name: "solana_active_validators",
+			ExpectedResponse: `
 # HELP solana_active_validators Total number of active validators by state
 # TYPE solana_active_validators gauge
 solana_active_validators{state="current"} 2
 solana_active_validators{state="delinquent"} 1
 `,
-		"solana_validator_activated_stake": `
+		},
+		{
+			Name: "solana_validator_activated_stake",
+			ExpectedResponse: `
 # HELP solana_validator_activated_stake Activated stake per validator
 # TYPE solana_validator_activated_stake gauge
-solana_validator_activated_stake{nodekey="4MUdt8D2CadJKeJ8Fv2sz4jXU9xv4t2aBPpTf6TN8bae",pubkey="xKUz6fZ79SXnjGYaYhhYTYQBoRUBoCyuDMkBa1tL3zU"} 49
-solana_validator_activated_stake{nodekey="B97CCUW3AEZFGy6uUg6zUdnNYvnVq5VG8PUtb2HayTDD",pubkey="3ZT31jkAGhUaw8jsy4bTknwBMP8i4Eueh52By4zXcsVw"} 42
-solana_validator_activated_stake{nodekey="C97CCUW3AEZFGy6uUg6zUdnNYvnVq5VG8PUtb2HayTDD",pubkey="4ZT31jkAGhUaw8jsy4bTknwBMP8i4Eueh52By4zXcsVw"} 43
+solana_validator_activated_stake{nodekey="aaa",pubkey="AAA"} 49
+solana_validator_activated_stake{nodekey="bbb",pubkey="BBB"} 42
+solana_validator_activated_stake{nodekey="ccc",pubkey="CCC"} 43
 `,
-		"solana_validator_last_vote": `
+		},
+		{
+			Name: "solana_validator_last_vote",
+			ExpectedResponse: `
 # HELP solana_validator_last_vote Last voted slot per validator
 # TYPE solana_validator_last_vote gauge
-solana_validator_last_vote{nodekey="4MUdt8D2CadJKeJ8Fv2sz4jXU9xv4t2aBPpTf6TN8bae",pubkey="xKUz6fZ79SXnjGYaYhhYTYQBoRUBoCyuDMkBa1tL3zU"} 92
-solana_validator_last_vote{nodekey="B97CCUW3AEZFGy6uUg6zUdnNYvnVq5VG8PUtb2HayTDD",pubkey="3ZT31jkAGhUaw8jsy4bTknwBMP8i4Eueh52By4zXcsVw"} 147
-solana_validator_last_vote{nodekey="C97CCUW3AEZFGy6uUg6zUdnNYvnVq5VG8PUtb2HayTDD",pubkey="4ZT31jkAGhUaw8jsy4bTknwBMP8i4Eueh52By4zXcsVw"} 148
+solana_validator_last_vote{nodekey="aaa",pubkey="AAA"} 92
+solana_validator_last_vote{nodekey="bbb",pubkey="BBB"} 147
+solana_validator_last_vote{nodekey="ccc",pubkey="CCC"} 148
 `,
-		"solana_validator_root_slot": `
+		},
+		{
+			Name: "solana_validator_root_slot",
+			ExpectedResponse: `
 # HELP solana_validator_root_slot Root slot per validator
 # TYPE solana_validator_root_slot gauge
-solana_validator_root_slot{nodekey="4MUdt8D2CadJKeJ8Fv2sz4jXU9xv4t2aBPpTf6TN8bae",pubkey="xKUz6fZ79SXnjGYaYhhYTYQBoRUBoCyuDMkBa1tL3zU"} 3
-solana_validator_root_slot{nodekey="B97CCUW3AEZFGy6uUg6zUdnNYvnVq5VG8PUtb2HayTDD",pubkey="3ZT31jkAGhUaw8jsy4bTknwBMP8i4Eueh52By4zXcsVw"} 18
-solana_validator_root_slot{nodekey="C97CCUW3AEZFGy6uUg6zUdnNYvnVq5VG8PUtb2HayTDD",pubkey="4ZT31jkAGhUaw8jsy4bTknwBMP8i4Eueh52By4zXcsVw"} 19
+solana_validator_root_slot{nodekey="aaa",pubkey="AAA"} 3
+solana_validator_root_slot{nodekey="bbb",pubkey="BBB"} 18
+solana_validator_root_slot{nodekey="ccc",pubkey="CCC"} 19
 `,
-		"solana_validator_delinquent": `
+		},
+		{
+			Name: "solana_validator_delinquent",
+			ExpectedResponse: `
 # HELP solana_validator_delinquent Whether a validator is delinquent
 # TYPE solana_validator_delinquent gauge
-solana_validator_delinquent{nodekey="4MUdt8D2CadJKeJ8Fv2sz4jXU9xv4t2aBPpTf6TN8bae",pubkey="xKUz6fZ79SXnjGYaYhhYTYQBoRUBoCyuDMkBa1tL3zU"} 1
-solana_validator_delinquent{nodekey="B97CCUW3AEZFGy6uUg6zUdnNYvnVq5VG8PUtb2HayTDD",pubkey="3ZT31jkAGhUaw8jsy4bTknwBMP8i4Eueh52By4zXcsVw"} 0
-solana_validator_delinquent{nodekey="C97CCUW3AEZFGy6uUg6zUdnNYvnVq5VG8PUtb2HayTDD",pubkey="4ZT31jkAGhUaw8jsy4bTknwBMP8i4Eueh52By4zXcsVw"} 0
+solana_validator_delinquent{nodekey="aaa",pubkey="AAA"} 1
+solana_validator_delinquent{nodekey="bbb",pubkey="BBB"} 0
+solana_validator_delinquent{nodekey="ccc",pubkey="CCC"} 0
 `,
-		"solana_node_version": `
+		},
+		{
+			Name: "solana_node_version",
+			ExpectedResponse: `
 # HELP solana_node_version Node version of solana
 # TYPE solana_node_version gauge
 solana_node_version{version="1.16.7"} 1
 `,
+		},
 	}
 
-	for testName, expectedValue := range testCases {
-		t.Run(
-			testName,
-			func(t *testing.T) {
-				if err := testutil.CollectAndCompare(
-					staticCollector,
-					bytes.NewBufferString(expectedValue),
-					testName,
-				); err != nil {
-					t.Errorf("unexpected collecting result for %s: \n%s", testName, err)
-				}
-			},
-		)
-	}
+	runCollectionTests(t, collector, testCases)
 }
 
-func TestSolanaCollector_WatchSlots(t *testing.T) {
-	go staticCollector.WatchSlots()
+func TestSolanaCollector_WatchSlots_Static(t *testing.T) {
+	collector := createSolanaCollector(
+		&staticRPCClient{},
+		100*time.Millisecond,
+	)
+	prometheus.NewPedanticRegistry().MustRegister(collector)
+	go collector.WatchSlots()
 	time.Sleep(1 * time.Second)
 
 	tests := []struct {
@@ -124,8 +135,8 @@ func TestSolanaCollector_WatchSlots(t *testing.T) {
 			for _, status := range statuses {
 				// sub subtest for each status (as each one requires a different calc)
 				t.Run(status, func(t *testing.T) {
-					for _, testValidator := range testValidators {
-						testBlockProductionMetric(t, metric, testValidator.identity, status)
+					for _, identity := range identities {
+						testBlockProductionMetric(t, metric, identity, status)
 					}
 				})
 			}
@@ -154,5 +165,11 @@ func testBlockProductionMetric(
 		labels = append(labels, fmt.Sprintf("%d", staticEpochInfo.Epoch))
 	}
 	// now we can do the assertion:
-	assert.Equal(t, expectedValue, testutil.ToFloat64(metric.WithLabelValues(labels...)))
+	assert.Equalf(
+		t,
+		expectedValue,
+		testutil.ToFloat64(metric.WithLabelValues(labels...)),
+		"wrong value for block-production metric with labels: %s",
+		labels,
+	)
 }

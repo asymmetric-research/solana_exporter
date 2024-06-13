@@ -89,7 +89,7 @@ func (c *solanaCollector) WatchSlots() {
 	if err != nil {
 		klog.Error(err)
 	}
-	ticker := time.NewTicker(slotPacerSchedule)
+	ticker := time.NewTicker(c.slotPace)
 
 	for {
 		<-ticker.C
