@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
@@ -148,12 +149,9 @@ func getSlotMetricValues() slotMetricValues {
 }
 
 func TestSolanaCollector_WatchSlots_Dynamic(t *testing.T) {
-	// this test passes, however, it seems to cause the static tests to fail (after this test runs,
-	// the static tests fail to set their correct values to the prometheus metrics). So, putting this
-	// here while I debug
-	if testing.Short() {
-		t.Skip()
-	}
+	// reset metrics before running tests:
+	leaderSlotsTotal.Reset()
+	leaderSlotsByEpoch.Reset()
 
 	// create clients:
 	client := newDynamicRPCClient()
@@ -165,9 +163,10 @@ func TestSolanaCollector_WatchSlots_Dynamic(t *testing.T) {
 
 	// start client/collector and wait a bit:
 	go client.Run()
-	time.Sleep(1 * time.Second)
-	go collector.WatchSlots()
-	time.Sleep(1 * time.Second)
+	time.Sleep(time.Second)
+	ctx, cancel := context.WithCancel(context.Background())
+	go collector.WatchSlots(ctx)
+	time.Sleep(time.Second)
 
 	initial := getSlotMetricValues()
 
@@ -175,7 +174,7 @@ func TestSolanaCollector_WatchSlots_Dynamic(t *testing.T) {
 	var epochChanged bool
 	for i := 0; i < 5; i++ {
 		// wait a bit then get new metrics
-		time.Sleep(1 * time.Second)
+		time.Sleep(time.Second)
 		final := getSlotMetricValues()
 
 		// make sure that things have increased
@@ -203,10 +202,16 @@ func TestSolanaCollector_WatchSlots_Dynamic(t *testing.T) {
 			initial.EpochNumber,
 			final.EpochNumber,
 		)
+		if final.EpochNumber > initial.EpochNumber {
+			epochChanged = true
+		}
 
 		// make current final the new initial (for next iteration)
 		initial = final
 	}
 
-	assert.True(t, epochChanged)
+	assert.Truef(t, epochChanged, "Epoch has not changed!")
+	// cancel and wait for cancellation:
+	cancel()
+	time.Sleep(time.Second)
 }

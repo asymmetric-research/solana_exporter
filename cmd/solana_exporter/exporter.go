@@ -144,7 +144,7 @@ func main() {
 
 	collector := NewSolanaCollector(*rpcAddr)
 
-	go collector.WatchSlots()
+	go collector.WatchSlots(context.Background())
 
 	prometheus.MustRegister(collector)
 	http.Handle("/metrics", promhttp.Handler())

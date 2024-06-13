@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
@@ -80,12 +81,17 @@ solana_node_version{version="1.16.7"} 1
 }
 
 func TestSolanaCollector_WatchSlots_Static(t *testing.T) {
+	// reset metrics before running tests:
+	leaderSlotsTotal.Reset()
+	leaderSlotsByEpoch.Reset()
+
 	collector := createSolanaCollector(
 		&staticRPCClient{},
 		100*time.Millisecond,
 	)
 	prometheus.NewPedanticRegistry().MustRegister(collector)
-	go collector.WatchSlots()
+	ctx, cancel := context.WithCancel(context.Background())
+	go collector.WatchSlots(ctx)
 	time.Sleep(1 * time.Second)
 
 	tests := []struct {
@@ -142,6 +148,9 @@ func TestSolanaCollector_WatchSlots_Static(t *testing.T) {
 			}
 		})
 	}
+	// cancel and wait for cancellation:
+	cancel()
+	time.Sleep(time.Second)
 }
 
 func testBlockProductionMetric(
