@@ -113,11 +113,6 @@ func TestSolanaCollector_WatchSlots(t *testing.T) {
 		)
 	}
 
-	hosts := []string{
-		"B97CCUW3AEZFGy6uUg6zUdnNYvnVq5VG8PUtb2HayTDD",
-		"C97CCUW3AEZFGy6uUg6zUdnNYvnVq5VG8PUtb2HayTDD",
-		"4MUdt8D2CadJKeJ8Fv2sz4jXU9xv4t2aBPpTf6TN8bae",
-	}
 	metrics := map[string]*prometheus.CounterVec{
 		"solana_leader_slots_total":    leaderSlotsTotal,
 		"solana_leader_slots_by_epoch": leaderSlotsByEpoch,
@@ -129,8 +124,8 @@ func TestSolanaCollector_WatchSlots(t *testing.T) {
 			for _, status := range statuses {
 				// sub subtest for each status (as each one requires a different calc)
 				t.Run(status, func(t *testing.T) {
-					for _, host := range hosts {
-						testBlockProductionMetric(t, metric, host, status)
+					for _, testValidator := range testValidators {
+						testBlockProductionMetric(t, metric, testValidator.identity, status)
 					}
 				})
 			}

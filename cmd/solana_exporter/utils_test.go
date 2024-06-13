@@ -4,7 +4,9 @@ import (
 	"context"
 	"github.com/certusone/solana_exporter/pkg/rpc"
 	"github.com/prometheus/client_golang/prometheus"
+	"math/rand"
 	"regexp"
+	"time"
 )
 
 type (
@@ -13,6 +15,15 @@ type (
 )
 
 var (
+	testValidators = []struct {
+		identity string
+		vote     string
+	}{
+		{"B97CCUW3AEZFGy6uUg6zUdnNYvnVq5VG8PUtb2HayTDD", "3ZT31jkAGhUaw8jsy4bTknwBMP8i4Eueh52By4zXcsVw"},
+		{"C97CCUW3AEZFGy6uUg6zUdnNYvnVq5VG8PUtb2HayTDD", "4ZT31jkAGhUaw8jsy4bTknwBMP8i4Eueh52By4zXcsVw"},
+		{"4MUdt8D2CadJKeJ8Fv2sz4jXU9xv4t2aBPpTf6TN8bae", "xKUz6fZ79SXnjGYaYhhYTYQBoRUBoCyuDMkBa1tL3zU"},
+	}
+	n               = len(testValidators)
 	staticEpochInfo = rpc.EpochInfo{
 		AbsoluteSlot:     166598,
 		BlockHeight:      166500,
@@ -135,4 +146,112 @@ func extractName(desc *prometheus.Desc) string {
 	}
 
 	return name
+}
+
+type (
+	slotInfo struct {
+		leader        string
+		blockProduced bool
+		votes         []string
+	}
+	dynamicRPCClient struct {
+		slot             int
+		blockHeight      int
+		epoch            int
+		epochSize        int
+		transactionCount int
+		version          string
+		slotsInfo        map[int]slotInfo
+		leaderIndex      int
+	}
+)
+
+func (c *dynamicRPCClient) run() {
+	ticker := time.NewTicker(100 * time.Millisecond)
+	for {
+		<-ticker.C
+
+		c.newSlot()
+	}
+}
+
+func (c *dynamicRPCClient) newSlot() {
+	c.slot++
+
+	// leader changes every 4 slots
+	if c.slot%4 == 0 {
+		c.leaderIndex = (c.leaderIndex + 1) % n
+	}
+
+	if c.slot%c.epochSize == 0 {
+		c.epoch++
+	}
+
+	// assume 90% chance of block produced:
+	blockProduced := rand.Intn(100) > 90
+	if blockProduced {
+		c.blockHeight++
+		// only add some transactions if a block was produced
+		c.transactionCount += rand.Intn(10)
+	}
+
+	// add slot info:
+	c.slotsInfo[c.slot] = slotInfo{
+		leader:        testValidators[c.leaderIndex].identity,
+		blockProduced: blockProduced,
+		// assume the other 2 validators voted:
+		votes: []string{
+			testValidators[(c.leaderIndex+1)%n].identity,
+			testValidators[(c.leaderIndex+2)%n].identity,
+		},
+	}
+}
+
+//goland:noinspection GoUnusedParameter
+func (c *dynamicRPCClient) GetEpochInfo(ctx context.Context, commitment rpc.Commitment) (*rpc.EpochInfo, error) {
+	return &rpc.EpochInfo{
+		AbsoluteSlot:     int64(c.slot),
+		BlockHeight:      int64(c.blockHeight),
+		Epoch:            int64(c.epoch),
+		SlotIndex:        int64(c.slot % c.epochSize),
+		SlotsInEpoch:     int64(c.epochSize),
+		TransactionCount: int64(c.transactionCount),
+	}, nil
+}
+
+//goland:noinspection GoUnusedParameter
+func (c *dynamicRPCClient) GetSlot(ctx context.Context) (int64, error) {
+	return int64(c.slot), nil
+}
+
+//goland:noinspection GoUnusedParameter
+func (c *dynamicRPCClient) GetVersion(ctx context.Context) (*string, error) {
+	return &c.version, nil
+}
+
+//goland:noinspection GoUnusedParameter
+func (c *dynamicRPCClient) GetBlockProduction(
+	ctx context.Context,
+	firstSlot *int64,
+	lastSlot *int64,
+) (rpc.BlockProduction, error) {
+	hostProduction := map[string]rpc.BlockProductionPerHost{
+		testValidators[0].identity: {0, 0},
+		testValidators[1].identity: {0, 0},
+		testValidators[2].identity: {0, 0},
+	}
+	for i := *firstSlot; i <= *lastSlot; i++ {
+		slotInfo := c.slotsInfo[int(i)]
+		hp := hostProduction[slotInfo.leader]
+		hp.LeaderSlots++
+		if slotInfo.blockProduced {
+			hp.BlocksProduced++
+		}
+		hostProduction[slotInfo.leader] = hp
+	}
+	return rpc.BlockProduction{
+		FirstSlot: *firstSlot,
+		LastSlot:  *lastSlot,
+		Hosts:     hostProduction,
+	}, nil
 }
