@@ -17,27 +17,27 @@ type (
 	}
 )
 
-func (c *Client) GetVersion(ctx context.Context) (*string, error) {
+func (c *Client) GetVersion(ctx context.Context) (string, error) {
 	body, err := c.rpcRequest(ctx, formatRPCRequest("getVersion", []interface{}{}))
 
 	if body == nil {
-		return nil, fmt.Errorf("RPC call failed: Body empty")
+		return "", fmt.Errorf("RPC call failed: Body empty")
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("RPC call failed: %w", err)
+		return "", fmt.Errorf("RPC call failed: %w", err)
 	}
 
 	klog.V(2).Infof("version response: %v", string(body))
 
 	var resp GetVersionResponse
 	if err = json.Unmarshal(body, &resp); err != nil {
-		return nil, fmt.Errorf("failed to decode response body: %w", err)
+		return "", fmt.Errorf("failed to decode response body: %w", err)
 	}
 
 	if resp.Error.Code != 0 {
-		return nil, fmt.Errorf("RPC error: %d %v", resp.Error.Code, resp.Error.Message)
+		return "", fmt.Errorf("RPC error: %d %v", resp.Error.Code, resp.Error.Message)
 	}
 
-	return &resp.Result.Version, nil
+	return resp.Result.Version, nil
 }
