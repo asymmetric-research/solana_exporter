@@ -65,10 +65,10 @@ func init() {
 	prometheus.MustRegister(leaderSlotsByEpoch)
 }
 
-func (c *solanaCollector) WatchSlots() {
+func (c *solanaCollector) WatchSlots(ctx context.Context) {
 	// Get current slot height and epoch info
-	ctx, cancel := context.WithTimeout(context.Background(), httpTimeout)
-	info, err := c.rpcClient.GetEpochInfo(ctx, rpc.CommitmentMax)
+	ctx_, cancel := context.WithTimeout(context.Background(), httpTimeout)
+	info, err := c.rpcClient.GetEpochInfo(ctx_, rpc.CommitmentMax)
 	if err != nil {
 		klog.Fatalf("failed to fetch epoch info, bailing out: %v", err)
 	}
@@ -92,41 +92,75 @@ func (c *solanaCollector) WatchSlots() {
 	ticker := time.NewTicker(c.slotPace)
 
 	for {
-		<-ticker.C
+		select {
+		case <-ctx.Done():
+			klog.Infof("Stopping WatchSlots() at slot %v", watermark)
+			return
 
-		// Get current slot height and epoch info
-		ctx, cancel := context.WithTimeout(context.Background(), httpTimeout)
-		info, err := c.rpcClient.GetEpochInfo(ctx, rpc.CommitmentMax)
-		if err != nil {
-			klog.Infof("failed to fetch epoch info, retrying: %v", err)
-			cancel()
-			continue
-		}
-		cancel()
+		default:
+			<-ticker.C
 
-		if watermark == info.AbsoluteSlot {
-			klog.Infof("slot has not advanced at %d, skipping", info.AbsoluteSlot)
-			continue
-		}
-
-		if currentEpoch != info.Epoch {
-			klog.Infof(
-				"changing epoch from %d to %d. Watermark: %d, lastSlot: %d",
-				currentEpoch,
-				info.Epoch,
-				watermark,
-				lastSlot,
-			)
-
-			last, err := updateCounters(c.rpcClient, currentEpoch, watermark, &lastSlot)
+			// Get current slot height and epoch info
+			ctx_, cancel := context.WithTimeout(context.Background(), httpTimeout)
+			info, err := c.rpcClient.GetEpochInfo(ctx_, rpc.CommitmentMax)
 			if err != nil {
-				klog.Error(err)
+				klog.Infof("failed to fetch epoch info, retrying: %v", err)
+				cancel()
+				continue
+			}
+			cancel()
+
+			if watermark == info.AbsoluteSlot {
+				klog.Infof("slot has not advanced at %d, skipping", info.AbsoluteSlot)
+				continue
+			}
+
+			if currentEpoch != info.Epoch {
+				klog.Infof(
+					"changing epoch from %d to %d. Watermark: %d, lastSlot: %d",
+					currentEpoch,
+					info.Epoch,
+					watermark,
+					lastSlot,
+				)
+
+				last, err := updateCounters(c.rpcClient, currentEpoch, watermark, &lastSlot)
+				if err != nil {
+					klog.Error(err)
+					continue
+				}
+
+				klog.Infof(
+					"counters updated to slot %d (+%d), epoch %d (slots %d-%d, %d remaining)",
+					last,
+					last-watermark,
+					currentEpoch,
+					firstSlot,
+					lastSlot,
+					lastSlot-last,
+				)
+
+				watermark = last
+				currentEpoch, firstSlot, lastSlot = getEpochBounds(info)
+
+				currentEpochNumber.Set(float64(currentEpoch))
+				epochFirstSlot.Set(float64(firstSlot))
+				epochLastSlot.Set(float64(lastSlot))
+			}
+
+			totalTransactionsTotal.Set(float64(info.TransactionCount))
+			confirmedSlotHeight.Set(float64(info.AbsoluteSlot))
+
+			last, err := updateCounters(c.rpcClient, currentEpoch, watermark, nil)
+			if err != nil {
+				klog.Info(err)
 				continue
 			}
 
 			klog.Infof(
-				"counters updated to slot %d (+%d), epoch %d (slots %d-%d, %d remaining)",
+				"counters updated to slot %d (offset %d, +%d), epoch %d (slots %d-%d, %d remaining)",
 				last,
+				info.SlotIndex,
 				last-watermark,
 				currentEpoch,
 				firstSlot,
@@ -135,34 +169,7 @@ func (c *solanaCollector) WatchSlots() {
 			)
 
 			watermark = last
-			currentEpoch, firstSlot, lastSlot = getEpochBounds(info)
-
-			currentEpochNumber.Set(float64(currentEpoch))
-			epochFirstSlot.Set(float64(firstSlot))
-			epochLastSlot.Set(float64(lastSlot))
 		}
-
-		totalTransactionsTotal.Set(float64(info.TransactionCount))
-		confirmedSlotHeight.Set(float64(info.AbsoluteSlot))
-
-		last, err := updateCounters(c.rpcClient, currentEpoch, watermark, nil)
-		if err != nil {
-			klog.Info(err)
-			continue
-		}
-
-		klog.Infof(
-			"counters updated to slot %d (offset %d, +%d), epoch %d (slots %d-%d, %d remaining)",
-			last,
-			info.SlotIndex,
-			last-watermark,
-			currentEpoch,
-			firstSlot,
-			lastSlot,
-			lastSlot-last,
-		)
-
-		watermark = last
 	}
 }
 

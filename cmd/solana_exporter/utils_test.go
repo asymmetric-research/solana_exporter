@@ -59,20 +59,20 @@ var (
 		TransactionCount: 22661093,
 	}
 	staticBlockProduction = rpc.BlockProduction{
-		FirstSlot: 1000,
-		LastSlot:  2000,
+		FirstSlot: 100000000,
+		LastSlot:  200000000,
 		Hosts: map[string]rpc.BlockProductionPerHost{
 			"bbb": {
-				LeaderSlots:    400,
-				BlocksProduced: 360,
+				LeaderSlots:    40000000,
+				BlocksProduced: 36000000,
 			},
 			"ccc": {
-				LeaderSlots:    300,
-				BlocksProduced: 296,
+				LeaderSlots:    30000000,
+				BlocksProduced: 29600000,
 			},
 			"aaa": {
-				LeaderSlots:    300,
-				BlocksProduced: 0,
+				LeaderSlots:    30000000,
+				BlocksProduced: 10000000,
 			},
 		},
 	}
