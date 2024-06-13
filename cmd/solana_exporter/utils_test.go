@@ -188,13 +188,19 @@ func newDynamicRPCClient() *dynamicRPCClient {
 	}
 }
 
-func (c *dynamicRPCClient) Run() {
+func (c *dynamicRPCClient) Run(ctx context.Context) {
 	for {
-		c.newSlot()
-		// add 5% noise to the slot time:
-		noiseRange := float64(c.SlotTime) * 0.05
-		noise := (rand.Float64()*2 - 1) * noiseRange
-		time.Sleep(c.SlotTime + time.Duration(noise))
+		select {
+		case <-ctx.Done():
+			return
+
+		default:
+			c.newSlot()
+			// add 5% noise to the slot time:
+			noiseRange := float64(c.SlotTime) * 0.05
+			noise := (rand.Float64()*2 - 1) * noiseRange
+			time.Sleep(c.SlotTime + time.Duration(noise))
+		}
 	}
 }
 

@@ -162,10 +162,11 @@ func TestSolanaCollector_WatchSlots_Dynamic(t *testing.T) {
 	prometheus.NewPedanticRegistry().MustRegister(collector)
 
 	// start client/collector and wait a bit:
-	go client.Run()
+	runCtx, runCancel := context.WithCancel(context.Background())
+	go client.Run(runCtx)
 	time.Sleep(time.Second)
-	ctx, cancel := context.WithCancel(context.Background())
-	go collector.WatchSlots(ctx)
+	slotsCtx, slotsCancel := context.WithCancel(context.Background())
+	go collector.WatchSlots(slotsCtx)
 	time.Sleep(time.Second)
 
 	initial := getSlotMetricValues()
@@ -210,8 +211,11 @@ func TestSolanaCollector_WatchSlots_Dynamic(t *testing.T) {
 		initial = final
 	}
 
+	// epoch should have changed somewhere
 	assert.Truef(t, epochChanged, "Epoch has not changed!")
+
 	// cancel and wait for cancellation:
-	cancel()
+	slotsCancel()
+	runCancel()
 	time.Sleep(time.Second)
 }
