@@ -178,31 +178,36 @@ func TestSolanaCollector_WatchSlots_Dynamic(t *testing.T) {
 		time.Sleep(time.Second)
 		final := getSlotMetricValues()
 
-		// make sure that things have increased
-		assert.Greaterf(
+		// make sure things are changing correctly:
+		assertSlotMetricsChangeCorrectly(t, initial, final)
+
+		// sense check to make sure the exporter is not "ahead" of the client (due to double counting or whatever)
+		assert.LessOrEqualf(
 			t,
-			final.SlotHeight,
-			initial.SlotHeight,
-			"Slot has not increased! (%v -> %v)",
-			initial.SlotHeight,
-			final.SlotHeight,
+			int(final.SlotHeight),
+			client.Slot,
+			"Exporter slot (%v) ahead of client slot (%v)!",
+			int(final.SlotHeight),
+			client.Slot,
 		)
-		assert.Greaterf(
+		assert.LessOrEqualf(
 			t,
-			final.TotalTransactions,
-			initial.TotalTransactions,
-			"Total transactions have not increased! (%v -> %v)",
-			initial.TotalTransactions,
-			final.TotalTransactions,
+			int(final.TotalTransactions),
+			client.TransactionCount,
+			"Exporter transaction count (%v) ahead of client transaction count (%v)!",
+			int(final.TotalTransactions),
+			client.TransactionCount,
 		)
-		assert.GreaterOrEqualf(
+		assert.LessOrEqualf(
 			t,
-			final.EpochNumber,
-			initial.EpochNumber,
-			"Epoch number has decreased! (%v -> %v)",
-			initial.EpochNumber,
-			final.EpochNumber,
+			int(final.EpochNumber),
+			client.Epoch,
+			"Exporter epoch (%v) ahead of client epoch (%v)!",
+			int(final.EpochNumber),
+			client.Epoch,
 		)
+
+		// check if epoch changed
 		if final.EpochNumber > initial.EpochNumber {
 			epochChanged = true
 		}
@@ -218,4 +223,32 @@ func TestSolanaCollector_WatchSlots_Dynamic(t *testing.T) {
 	slotsCancel()
 	runCancel()
 	time.Sleep(time.Second)
+}
+
+func assertSlotMetricsChangeCorrectly(t *testing.T, initial slotMetricValues, final slotMetricValues) {
+	// make sure that things have increased
+	assert.Greaterf(
+		t,
+		final.SlotHeight,
+		initial.SlotHeight,
+		"Slot has not increased! (%v -> %v)",
+		initial.SlotHeight,
+		final.SlotHeight,
+	)
+	assert.Greaterf(
+		t,
+		final.TotalTransactions,
+		initial.TotalTransactions,
+		"Total transactions have not increased! (%v -> %v)",
+		initial.TotalTransactions,
+		final.TotalTransactions,
+	)
+	assert.GreaterOrEqualf(
+		t,
+		final.EpochNumber,
+		initial.EpochNumber,
+		"Epoch number has decreased! (%v -> %v)",
+		initial.EpochNumber,
+		final.EpochNumber,
+	)
 }
