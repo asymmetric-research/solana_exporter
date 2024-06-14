@@ -118,3 +118,5 @@ func TestClient_GetBlockProduction(t *testing.T) {
 	}
 	assert.Equal(t, totalLeaderSlots, nSlots+1)
 }
+
+// TODO: Add tests that make sure our error handling is correct
