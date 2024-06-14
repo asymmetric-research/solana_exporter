@@ -383,3 +383,21 @@ func runCollectionTests(t *testing.T, collector prometheus.Collector, testCases 
 		)
 	}
 }
+
+type slotMetricValues struct {
+	SlotHeight        float64
+	TotalTransactions float64
+	EpochNumber       float64
+	EpochFirstSlot    float64
+	EpochLastSlot     float64
+}
+
+func getSlotMetricValues() slotMetricValues {
+	return slotMetricValues{
+		SlotHeight:        testutil.ToFloat64(confirmedSlotHeight),
+		TotalTransactions: testutil.ToFloat64(totalTransactionsTotal),
+		EpochNumber:       testutil.ToFloat64(currentEpochNumber),
+		EpochFirstSlot:    testutil.ToFloat64(epochFirstSlot),
+		EpochLastSlot:     testutil.ToFloat64(epochLastSlot),
+	}
+}

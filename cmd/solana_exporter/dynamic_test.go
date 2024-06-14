@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
@@ -128,24 +127,6 @@ solana_node_version{version="v1.2.3"} 1
 	}
 
 	runCollectionTests(t, collector, testCases)
-}
-
-type slotMetricValues struct {
-	SlotHeight        float64
-	TotalTransactions float64
-	EpochNumber       float64
-	EpochFirstSlot    float64
-	EpochLastSlot     float64
-}
-
-func getSlotMetricValues() slotMetricValues {
-	return slotMetricValues{
-		SlotHeight:        testutil.ToFloat64(confirmedSlotHeight),
-		TotalTransactions: testutil.ToFloat64(totalTransactionsTotal),
-		EpochNumber:       testutil.ToFloat64(currentEpochNumber),
-		EpochFirstSlot:    testutil.ToFloat64(epochFirstSlot),
-		EpochLastSlot:     testutil.ToFloat64(epochLastSlot),
-	}
 }
 
 func TestSolanaCollector_WatchSlots_Dynamic(t *testing.T) {
