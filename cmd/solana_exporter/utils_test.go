@@ -6,6 +6,7 @@ import (
 	"github.com/certusone/solana_exporter/pkg/rpc"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
+	"github.com/stretchr/testify/assert"
 	"math/rand"
 	"regexp"
 	"testing"
@@ -39,16 +40,8 @@ type (
 )
 
 var (
-	identities = []string{
-		"aaa",
-		"bbb",
-		"ccc",
-	}
-	identityVotes = map[string]string{
-		"aaa": "AAA",
-		"bbb": "BBB",
-		"ccc": "CCC",
-	}
+	identities      = []string{"aaa", "bbb", "ccc"}
+	identityVotes   = map[string]string{"aaa": "AAA", "bbb": "BBB", "ccc": "CCC"}
 	nv              = len(identities)
 	staticEpochInfo = rpc.EpochInfo{
 		AbsoluteSlot:     166598,
@@ -62,18 +55,9 @@ var (
 		FirstSlot: 100000000,
 		LastSlot:  200000000,
 		Hosts: map[string]rpc.BlockProductionPerHost{
-			"bbb": {
-				LeaderSlots:    40000000,
-				BlocksProduced: 36000000,
-			},
-			"ccc": {
-				LeaderSlots:    30000000,
-				BlocksProduced: 29600000,
-			},
-			"aaa": {
-				LeaderSlots:    30000000,
-				BlocksProduced: 10000000,
-			},
+			"bbb": {LeaderSlots: 40000000, BlocksProduced: 36000000},
+			"ccc": {LeaderSlots: 30000000, BlocksProduced: 29600000},
+			"aaa": {LeaderSlots: 30000000, BlocksProduced: 10000000},
 		},
 	}
 	staticVoteAccounts = rpc.VoteAccounts{
@@ -307,10 +291,7 @@ func (c *dynamicRPCClient) GetVoteAccounts(
 			currentVoteAccounts = append(currentVoteAccounts, voteAccount)
 		}
 	}
-	return &rpc.VoteAccounts{
-		Current:    currentVoteAccounts,
-		Delinquent: delinquentVoteAccounts,
-	}, nil
+	return &rpc.VoteAccounts{Current: currentVoteAccounts, Delinquent: delinquentVoteAccounts}, nil
 }
 
 //goland:noinspection GoUnusedParameter
@@ -347,10 +328,8 @@ func (c *dynamicRPCClient) GetBlockProduction(
 func extractName(desc *prometheus.Desc) string {
 	// Get the string representation of the descriptor
 	descString := desc.String()
-
 	// Use regex to extract the metric name and help message from the descriptor string
 	reName := regexp.MustCompile(`fqName: "([^"]+)"`)
-
 	nameMatch := reName.FindStringSubmatch(descString)
 
 	var name string
@@ -368,17 +347,9 @@ type collectionTest struct {
 
 func runCollectionTests(t *testing.T, collector prometheus.Collector, testCases []collectionTest) {
 	for _, test := range testCases {
-		t.Run(
-			test.Name,
-			func(t *testing.T) {
-				if err := testutil.CollectAndCompare(
-					collector,
-					bytes.NewBufferString(test.ExpectedResponse),
-					test.Name,
-				); err != nil {
-					t.Errorf("unexpected collecting result for %s: \n%s", test.Name, err)
-				}
-			},
-		)
+		t.Run(test.Name, func(t *testing.T) {
+			err := testutil.CollectAndCompare(collector, bytes.NewBufferString(test.ExpectedResponse), test.Name)
+			assert.Nilf(t, "unexpected collecting result for %s: \n%s", test.Name, err)
+		})
 	}
 }

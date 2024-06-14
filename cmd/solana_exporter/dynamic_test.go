@@ -11,10 +11,7 @@ import (
 
 func TestSolanaCollector_Collect_Dynamic(t *testing.T) {
 	client := newDynamicRPCClient()
-	collector := createSolanaCollector(
-		client,
-		slotPacerSchedule,
-	)
+	collector := createSolanaCollector(client, slotPacerSchedule)
 	prometheus.NewPedanticRegistry().MustRegister(collector)
 
 	// start off by testing initial state:
@@ -155,10 +152,7 @@ func TestSolanaCollector_WatchSlots_Dynamic(t *testing.T) {
 
 	// create clients:
 	client := newDynamicRPCClient()
-	collector := createSolanaCollector(
-		client,
-		300*time.Millisecond,
-	)
+	collector := createSolanaCollector(client, 300*time.Millisecond)
 	prometheus.NewPedanticRegistry().MustRegister(collector)
 
 	// start client/collector and wait a bit:

@@ -94,40 +94,24 @@ func TestSolanaCollector_WatchSlots_Static(t *testing.T) {
 	go collector.WatchSlots(ctx)
 	time.Sleep(1 * time.Second)
 
+	firstSlot := staticEpochInfo.AbsoluteSlot - staticEpochInfo.SlotIndex
+	lastSlot := firstSlot + staticEpochInfo.SlotsInEpoch
 	tests := []struct {
 		expectedValue float64
 		metric        prometheus.Gauge
 	}{
-		{
-			expectedValue: float64(staticEpochInfo.AbsoluteSlot),
-			metric:        confirmedSlotHeight,
-		},
-		{
-			expectedValue: float64(staticEpochInfo.TransactionCount),
-			metric:        totalTransactionsTotal,
-		},
-		{
-			expectedValue: float64(staticEpochInfo.Epoch),
-			metric:        currentEpochNumber,
-		},
-		{
-			expectedValue: float64(staticEpochInfo.AbsoluteSlot - staticEpochInfo.SlotIndex),
-			metric:        epochFirstSlot,
-		},
-		{
-			expectedValue: float64(staticEpochInfo.AbsoluteSlot - staticEpochInfo.SlotIndex + staticEpochInfo.SlotsInEpoch),
-			metric:        epochLastSlot,
-		},
+		{expectedValue: float64(staticEpochInfo.AbsoluteSlot), metric: confirmedSlotHeight},
+		{expectedValue: float64(staticEpochInfo.TransactionCount), metric: totalTransactionsTotal},
+		{expectedValue: float64(staticEpochInfo.Epoch), metric: currentEpochNumber},
+		{expectedValue: float64(firstSlot), metric: epochFirstSlot},
+		{expectedValue: float64(lastSlot), metric: epochLastSlot},
 	}
 
 	for _, testCase := range tests {
 		name := extractName(testCase.metric.Desc())
-		t.Run(
-			name,
-			func(t *testing.T) {
-				assert.Equal(t, testCase.expectedValue, testutil.ToFloat64(testCase.metric))
-			},
-		)
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, testCase.expectedValue, testutil.ToFloat64(testCase.metric))
+		})
 	}
 
 	metrics := map[string]*prometheus.CounterVec{
