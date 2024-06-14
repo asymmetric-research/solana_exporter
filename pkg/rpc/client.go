@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"k8s.io/klog/v2"
 	"net/http"
@@ -56,13 +57,13 @@ type Provider interface {
 
 	// GetVoteAccounts retrieves the vote accounts information.
 	// The method takes a context for cancellation and a slice of parameters to filter the vote accounts.
-	// It returns a pointer to a GetVoteAccountsResponse struct containing the vote accounts details,
+	// It returns a pointer to a VoteAccounts struct containing the vote accounts details,
 	// or an error if the operation fails.
 	GetVoteAccounts(ctx context.Context, params []interface{}) (*VoteAccounts, error)
 
 	// GetVersion retrieves the version of the Solana node.
 	// The method takes a context for cancellation.
-	// It returns a pointer to a string containing the version information, or an error if the operation fails.
+	// It returns a string containing the version information, or an error if the operation fails.
 	GetVersion(ctx context.Context) (string, error)
 }
 
@@ -127,4 +128,57 @@ func (c *Client) rpcRequest(ctx context.Context, data io.Reader) ([]byte, error)
 	}
 
 	return body, nil
+}
+
+func (c *Client) getResponse(ctx context.Context, method string, params []interface{}, result HasRPCError) error {
+	body, err := c.rpcRequest(ctx, formatRPCRequest(method, params))
+	// check if there was an error making the request:
+	if err != nil {
+		return fmt.Errorf("%s RPC call failed: %w", method, err)
+	}
+	// log response:
+	klog.V(2).Infof("%s response: %v", method, string(body))
+
+	// unmarshal the response into the predicted format
+	if err = json.Unmarshal(body, result); err != nil {
+		return fmt.Errorf("failed to decode %s response body: %w", method, err)
+	}
+
+	if result.getError().Code != 0 {
+		return fmt.Errorf("RPC error: %d %v", result.getError().Code, result.getError().Message)
+	}
+
+	return nil
+}
+
+func (c *Client) GetEpochInfo(ctx context.Context, commitment Commitment) (*EpochInfo, error) {
+	var resp response[EpochInfo]
+	if err := c.getResponse(ctx, "getEpochInfo", []interface{}{commitment}, &resp); err != nil {
+		return nil, err
+	}
+	return &resp.Result, nil
+}
+
+func (c *Client) GetVoteAccounts(ctx context.Context, params []interface{}) (*VoteAccounts, error) {
+	var resp response[VoteAccounts]
+	if err := c.getResponse(ctx, "getVoteAccounts", params, &resp); err != nil {
+		return nil, err
+	}
+	return &resp.Result, nil
+}
+
+func (c *Client) GetVersion(ctx context.Context) (string, error) {
+	var resp response[VersionInfo]
+	if err := c.getResponse(ctx, "getVersion", []interface{}{}, &resp); err != nil {
+		return "", err
+	}
+	return resp.Result.Version, nil
+}
+
+func (c *Client) GetSlot(ctx context.Context) (int64, error) {
+	var resp response[int64]
+	if err := c.getResponse(ctx, "getSlot", []interface{}{}, &resp); err != nil {
+		return 0, err
+	}
+	return resp.Result, nil
 }
