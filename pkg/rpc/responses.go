@@ -2,8 +2,8 @@ package rpc
 
 type (
 	response[T any] struct {
-		Result T         `json:"result"`
-		Error  rpcError1 `json:"error"`
+		Result T        `json:"result"`
+		Error  rpcError `json:"error"`
 	}
 
 	EpochInfo struct {
@@ -17,7 +17,7 @@ type (
 		SlotIndex int64 `json:"slotIndex"`
 		// Number of slots in this epoch
 		SlotsInEpoch int64 `json:"slotsInEpoch"`
-		// Total number of transactions ever (?)
+		// Total number of transactions
 		TransactionCount int64 `json:"transactionCount"`
 	}
 
@@ -37,15 +37,34 @@ type (
 		Delinquent []VoteAccount `json:"delinquent"`
 	}
 
-	VersionInfo struct {
-		Version string `json:"solana-core"`
+	blockProductionRange struct {
+		FirstSlot int64  `json:"firstSlot"`
+		LastSlot  *int64 `json:"lastSlot,omitempty"`
+	}
+
+	blockProductionResult struct {
+		Value struct {
+			ByIdentity map[string][]int64   `json:"byIdentity"`
+			Range      blockProductionRange `json:"range"`
+		} `json:"value"`
+	}
+
+	BlockProductionPerHost struct {
+		LeaderSlots    int64
+		BlocksProduced int64
+	}
+
+	BlockProduction struct {
+		FirstSlot int64
+		LastSlot  int64
+		Hosts     map[string]BlockProductionPerHost
 	}
 )
 
-func (r response[T]) getError() rpcError1 {
+func (r response[T]) getError() rpcError {
 	return r.Error
 }
 
 type HasRPCError interface {
-	getError() rpcError1
+	getError() rpcError
 }

@@ -140,8 +140,8 @@ func (c *staticRPCClient) GetBlockProduction(
 	ctx context.Context,
 	firstSlot *int64,
 	lastSlot *int64,
-) (rpc.BlockProduction, error) {
-	return staticBlockProduction, nil
+) (*rpc.BlockProduction, error) {
+	return &staticBlockProduction, nil
 }
 
 /*
@@ -299,7 +299,7 @@ func (c *dynamicRPCClient) GetBlockProduction(
 	ctx context.Context,
 	firstSlot *int64,
 	lastSlot *int64,
-) (rpc.BlockProduction, error) {
+) (*rpc.BlockProduction, error) {
 	hostProduction := make(map[string]rpc.BlockProductionPerHost)
 	for _, identity := range identities {
 		hostProduction[identity] = rpc.BlockProductionPerHost{LeaderSlots: 0, BlocksProduced: 0}
@@ -313,11 +313,12 @@ func (c *dynamicRPCClient) GetBlockProduction(
 		}
 		hostProduction[info.leader] = hp
 	}
-	return rpc.BlockProduction{
+	production := rpc.BlockProduction{
 		FirstSlot: *firstSlot,
 		LastSlot:  *lastSlot,
 		Hosts:     hostProduction,
-	}, nil
+	}
+	return &production, nil
 }
 
 /*
