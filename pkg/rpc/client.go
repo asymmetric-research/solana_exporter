@@ -63,7 +63,7 @@ type Provider interface {
 	// GetVersion retrieves the version of the Solana node.
 	// The method takes a context for cancellation.
 	// It returns a pointer to a string containing the version information, or an error if the operation fails.
-	GetVersion(ctx context.Context) (*string, error)
+	GetVersion(ctx context.Context) (string, error)
 }
 
 func (c Commitment) MarshalJSON() ([]byte, error) {

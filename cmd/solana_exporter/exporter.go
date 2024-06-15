@@ -26,6 +26,7 @@ func init() {
 
 type solanaCollector struct {
 	rpcClient rpc.Provider
+	slotPace  time.Duration
 
 	totalValidatorsDesc     *prometheus.Desc
 	validatorActivatedStake *prometheus.Desc
@@ -35,9 +36,10 @@ type solanaCollector struct {
 	solanaVersion           *prometheus.Desc
 }
 
-func createSolanaCollector(provider rpc.Provider) *solanaCollector {
+func createSolanaCollector(provider rpc.Provider, slotPace time.Duration) *solanaCollector {
 	return &solanaCollector{
 		rpcClient: provider,
+		slotPace:  slotPace,
 		totalValidatorsDesc: prometheus.NewDesc(
 			"solana_active_validators",
 			"Total number of active validators by state",
@@ -66,7 +68,7 @@ func createSolanaCollector(provider rpc.Provider) *solanaCollector {
 }
 
 func NewSolanaCollector(rpcAddr string) *solanaCollector {
-	return createSolanaCollector(rpc.NewRPCClient(rpcAddr))
+	return createSolanaCollector(rpc.NewRPCClient(rpcAddr), slotPacerSchedule)
 }
 
 func (c *solanaCollector) Describe(ch chan<- *prometheus.Desc) {
@@ -127,7 +129,7 @@ func (c *solanaCollector) Collect(ch chan<- prometheus.Metric) {
 	if err != nil {
 		ch <- prometheus.NewInvalidMetric(c.solanaVersion, err)
 	} else {
-		ch <- prometheus.MustNewConstMetric(c.solanaVersion, prometheus.GaugeValue, 1, *version)
+		ch <- prometheus.MustNewConstMetric(c.solanaVersion, prometheus.GaugeValue, 1, version)
 	}
 }
 
@@ -142,7 +144,7 @@ func main() {
 
 	collector := NewSolanaCollector(*rpcAddr)
 
-	go collector.WatchSlots()
+	go collector.WatchSlots(context.Background())
 
 	prometheus.MustRegister(collector)
 	http.Handle("/metrics", promhttp.Handler())
