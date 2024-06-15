@@ -104,14 +104,14 @@ func (c *solanaCollector) WatchSlots(ctx context.Context) {
 			ctx_, cancel := context.WithTimeout(context.Background(), httpTimeout)
 			info, err := c.rpcClient.GetEpochInfo(ctx_, rpc.CommitmentMax)
 			if err != nil {
-				klog.Infof("failed to fetch epoch info, retrying: %v", err)
+				klog.Warningf("failed to fetch epoch info, retrying: %v", err)
 				cancel()
 				continue
 			}
 			cancel()
 
 			if watermark == info.AbsoluteSlot {
-				klog.Infof("slot has not advanced at %d, skipping", info.AbsoluteSlot)
+				klog.V(2).Infof("slot has not advanced at %d, skipping", info.AbsoluteSlot)
 				continue
 			}
 

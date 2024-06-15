@@ -91,6 +91,7 @@ func TestSolanaCollector_WatchSlots_Static(t *testing.T) {
 	)
 	prometheus.NewPedanticRegistry().MustRegister(collector)
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	go collector.WatchSlots(ctx)
 	time.Sleep(1 * time.Second)
 
@@ -132,9 +133,6 @@ func TestSolanaCollector_WatchSlots_Static(t *testing.T) {
 			}
 		})
 	}
-	// cancel and wait for cancellation:
-	cancel()
-	time.Sleep(time.Second)
 }
 
 func testBlockProductionMetric(

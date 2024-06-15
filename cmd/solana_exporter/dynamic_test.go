@@ -157,9 +157,12 @@ func TestSolanaCollector_WatchSlots_Dynamic(t *testing.T) {
 
 	// start client/collector and wait a bit:
 	runCtx, runCancel := context.WithCancel(context.Background())
+	defer runCancel()
 	go client.Run(runCtx)
 	time.Sleep(time.Second)
+
 	slotsCtx, slotsCancel := context.WithCancel(context.Background())
+	defer slotsCancel()
 	go collector.WatchSlots(slotsCtx)
 	time.Sleep(time.Second)
 
@@ -212,11 +215,6 @@ func TestSolanaCollector_WatchSlots_Dynamic(t *testing.T) {
 
 	// epoch should have changed somewhere
 	assert.Truef(t, epochChanged, "Epoch has not changed!")
-
-	// cancel and wait for cancellation:
-	slotsCancel()
-	runCancel()
-	time.Sleep(time.Second)
 }
 
 func assertSlotMetricsChangeCorrectly(t *testing.T, initial slotMetricValues, final slotMetricValues) {
