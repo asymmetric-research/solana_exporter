@@ -15,12 +15,12 @@ type (
 		rpcAddr    string
 	}
 
-	rpcError struct {
+	rpcError1 struct {
 		Message string `json:"message"`
 		Code    int64  `json:"id"`
 	}
 
-	rpcError2 struct {
+	rpcError2 struct { // TODO: combine these error types into a single one
 		Message string `json:"message"`
 		Code    int64  `json:"code"`
 	}
@@ -58,7 +58,7 @@ type Provider interface {
 	// The method takes a context for cancellation and a slice of parameters to filter the vote accounts.
 	// It returns a pointer to a GetVoteAccountsResponse struct containing the vote accounts details,
 	// or an error if the operation fails.
-	GetVoteAccounts(ctx context.Context, params []interface{}) (*GetVoteAccountsResponse, error)
+	GetVoteAccounts(ctx context.Context, params []interface{}) (*VoteAccounts, error)
 
 	// GetVersion retrieves the version of the Solana node.
 	// The method takes a context for cancellation.

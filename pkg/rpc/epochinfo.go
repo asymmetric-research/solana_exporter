@@ -25,7 +25,7 @@ type (
 
 	GetEpochInfoResponse struct {
 		Result EpochInfo `json:"result"`
-		Error  rpcError  `json:"error"`
+		Error  rpcError1 `json:"error"`
 	}
 )
 

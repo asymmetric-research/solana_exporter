@@ -19,17 +19,19 @@ type (
 		VotePubkey       string  `json:"votePubkey"`
 	}
 
+	VoteAccounts struct {
+		Current    []VoteAccount `json:"current"`
+		Delinquent []VoteAccount `json:"delinquent"`
+	}
+
 	GetVoteAccountsResponse struct {
-		Result struct {
-			Current    []VoteAccount `json:"current"`
-			Delinquent []VoteAccount `json:"delinquent"`
-		} `json:"result"`
-		Error rpcError `json:"error"`
+		Result VoteAccounts `json:"result"`
+		Error  rpcError1    `json:"error"`
 	}
 )
 
 // https://docs.solana.com/developing/clients/jsonrpc-api#getvoteaccounts
-func (c *Client) GetVoteAccounts(ctx context.Context, params []interface{}) (*GetVoteAccountsResponse, error) {
+func (c *Client) GetVoteAccounts(ctx context.Context, params []interface{}) (*VoteAccounts, error) {
 	body, err := c.rpcRequest(ctx, formatRPCRequest("getVoteAccounts", params))
 	if err != nil {
 		return nil, fmt.Errorf("RPC call failed: %w", err)
@@ -46,5 +48,5 @@ func (c *Client) GetVoteAccounts(ctx context.Context, params []interface{}) (*Ge
 		return nil, fmt.Errorf("RPC error: %d %v", resp.Error.Code, resp.Error.Message)
 	}
 
-	return &resp, nil
+	return &resp.Result, nil
 }
