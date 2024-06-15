@@ -350,7 +350,7 @@ func runCollectionTests(t *testing.T, collector prometheus.Collector, testCases 
 	for _, test := range testCases {
 		t.Run(test.Name, func(t *testing.T) {
 			err := testutil.CollectAndCompare(collector, bytes.NewBufferString(test.ExpectedResponse), test.Name)
-			assert.Nilf(t, "unexpected collecting result for %s: \n%s", test.Name, err)
+			assert.Nilf(t, err, "unexpected collecting result for %s: \n%s", test.Name, err)
 		})
 	}
 }
