@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"k8s.io/klog/v2"
 	"net/http"
@@ -15,12 +16,7 @@ type (
 		rpcAddr    string
 	}
 
-	rpcError1 struct {
-		Message string `json:"message"`
-		Code    int64  `json:"id"`
-	}
-
-	rpcError2 struct { // TODO: combine these error types into a single one
+	rpcError struct {
 		Message string `json:"message"`
 		Code    int64  `json:"code"`
 	}
@@ -42,7 +38,7 @@ type Provider interface {
 	// GetBlockProduction retrieves the block production information for the specified slot range.
 	// The method takes a context for cancellation, and pointers to the first and last slots of the range.
 	// It returns a BlockProduction struct containing the block production details, or an error if the operation fails.
-	GetBlockProduction(ctx context.Context, firstSlot *int64, lastSlot *int64) (BlockProduction, error)
+	GetBlockProduction(ctx context.Context, firstSlot *int64, lastSlot *int64) (*BlockProduction, error)
 
 	// GetEpochInfo retrieves the information regarding the current epoch.
 	// The method takes a context for cancellation and a commitment level to specify the desired state.
@@ -56,13 +52,13 @@ type Provider interface {
 
 	// GetVoteAccounts retrieves the vote accounts information.
 	// The method takes a context for cancellation and a slice of parameters to filter the vote accounts.
-	// It returns a pointer to a GetVoteAccountsResponse struct containing the vote accounts details,
+	// It returns a pointer to a VoteAccounts struct containing the vote accounts details,
 	// or an error if the operation fails.
 	GetVoteAccounts(ctx context.Context, params []interface{}) (*VoteAccounts, error)
 
 	// GetVersion retrieves the version of the Solana node.
 	// The method takes a context for cancellation.
-	// It returns a pointer to a string containing the version information, or an error if the operation fails.
+	// It returns a string containing the version information, or an error if the operation fails.
 	GetVersion(ctx context.Context) (string, error)
 }
 
@@ -82,29 +78,29 @@ const (
 )
 
 func NewRPCClient(rpcAddr string) *Client {
-	c := &Client{
+	client := &Client{
 		httpClient: http.Client{},
 		rpcAddr:    rpcAddr,
 	}
 
-	return c
+	return client
 }
 
 func formatRPCRequest(method string, params []interface{}) io.Reader {
-	r := &rpcRequest{
+	request := &rpcRequest{
 		Version: "2.0",
 		ID:      1,
 		Method:  method,
 		Params:  params,
 	}
 
-	b, err := json.Marshal(r)
+	buffer, err := json.Marshal(request)
 	if err != nil {
 		panic(err)
 	}
 
-	klog.V(2).Infof("jsonrpc request: %s", string(b))
-	return bytes.NewBuffer(b)
+	klog.V(2).Infof("jsonrpc request: %s", string(buffer))
+	return bytes.NewBuffer(buffer)
 }
 
 func (c *Client) rpcRequest(ctx context.Context, data io.Reader) ([]byte, error) {
@@ -127,4 +123,93 @@ func (c *Client) rpcRequest(ctx context.Context, data io.Reader) ([]byte, error)
 	}
 
 	return body, nil
+}
+
+func (c *Client) getResponse(ctx context.Context, method string, params []interface{}, result HasRPCError) error {
+	body, err := c.rpcRequest(ctx, formatRPCRequest(method, params))
+	// check if there was an error making the request:
+	if err != nil {
+		return fmt.Errorf("%s RPC call failed: %w", method, err)
+	}
+	// log response:
+	klog.V(2).Infof("%s response: %v", method, string(body))
+
+	// unmarshal the response into the predicted format
+	if err = json.Unmarshal(body, result); err != nil {
+		return fmt.Errorf("failed to decode %s response body: %w", method, err)
+	}
+
+	if result.getError().Code != 0 {
+		return fmt.Errorf("RPC error: %d %v", result.getError().Code, result.getError().Message)
+	}
+
+	return nil
+}
+
+func (c *Client) GetEpochInfo(ctx context.Context, commitment Commitment) (*EpochInfo, error) {
+	var resp response[EpochInfo]
+	if err := c.getResponse(ctx, "getEpochInfo", []interface{}{commitment}, &resp); err != nil {
+		return nil, err
+	}
+	return &resp.Result, nil
+}
+
+func (c *Client) GetVoteAccounts(ctx context.Context, params []interface{}) (*VoteAccounts, error) {
+	var resp response[VoteAccounts]
+	if err := c.getResponse(ctx, "getVoteAccounts", params, &resp); err != nil {
+		return nil, err
+	}
+	return &resp.Result, nil
+}
+
+func (c *Client) GetVersion(ctx context.Context) (string, error) {
+	var resp response[struct {
+		Version string `json:"solana-core"`
+	}]
+	if err := c.getResponse(ctx, "getVersion", []interface{}{}, &resp); err != nil {
+		return "", err
+	}
+	return resp.Result.Version, nil
+}
+
+func (c *Client) GetSlot(ctx context.Context) (int64, error) {
+	var resp response[int64]
+	if err := c.getResponse(ctx, "getSlot", []interface{}{}, &resp); err != nil {
+		return 0, err
+	}
+	return resp.Result, nil
+}
+
+func (c *Client) GetBlockProduction(ctx context.Context, firstSlot *int64, lastSlot *int64) (*BlockProduction, error) {
+	// format params:
+	params := make([]interface{}, 1)
+	if firstSlot != nil {
+		params[0] = map[string]interface{}{
+			"range": blockProductionRange{
+				FirstSlot: *firstSlot,
+				LastSlot:  lastSlot,
+			},
+		}
+	}
+
+	// make request:
+	var resp response[blockProductionResult]
+	if err := c.getResponse(ctx, "getBlockProduction", params, &resp); err != nil {
+		return nil, err
+	}
+
+	// convert to BlockProduction format:
+	hosts := make(map[string]BlockProductionPerHost)
+	for id, arr := range resp.Result.Value.ByIdentity {
+		hosts[id] = BlockProductionPerHost{
+			LeaderSlots:    arr[0],
+			BlocksProduced: arr[1],
+		}
+	}
+	production := BlockProduction{
+		FirstSlot: resp.Result.Value.Range.FirstSlot,
+		LastSlot:  *resp.Result.Value.Range.LastSlot,
+		Hosts:     hosts,
+	}
+	return &production, nil
 }

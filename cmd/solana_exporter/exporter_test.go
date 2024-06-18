@@ -140,8 +140,8 @@ func (c *staticRPCClient) GetBlockProduction(
 	ctx context.Context,
 	firstSlot *int64,
 	lastSlot *int64,
-) (rpc.BlockProduction, error) {
-	return staticBlockProduction, nil
+) (*rpc.BlockProduction, error) {
+	return &staticBlockProduction, nil
 }
 
 /*
@@ -299,7 +299,7 @@ func (c *dynamicRPCClient) GetBlockProduction(
 	ctx context.Context,
 	firstSlot *int64,
 	lastSlot *int64,
-) (rpc.BlockProduction, error) {
+) (*rpc.BlockProduction, error) {
 	hostProduction := make(map[string]rpc.BlockProductionPerHost)
 	for _, identity := range identities {
 		hostProduction[identity] = rpc.BlockProductionPerHost{LeaderSlots: 0, BlocksProduced: 0}
@@ -313,11 +313,12 @@ func (c *dynamicRPCClient) GetBlockProduction(
 		}
 		hostProduction[info.leader] = hp
 	}
-	return rpc.BlockProduction{
+	production := rpc.BlockProduction{
 		FirstSlot: *firstSlot,
 		LastSlot:  *lastSlot,
 		Hosts:     hostProduction,
-	}, nil
+	}
+	return &production, nil
 }
 
 /*
@@ -349,7 +350,195 @@ func runCollectionTests(t *testing.T, collector prometheus.Collector, testCases 
 	for _, test := range testCases {
 		t.Run(test.Name, func(t *testing.T) {
 			err := testutil.CollectAndCompare(collector, bytes.NewBufferString(test.ExpectedResponse), test.Name)
-			assert.Nilf(t, "unexpected collecting result for %s: \n%s", test.Name, err)
+			assert.Nilf(t, err, "unexpected collecting result for %s: \n%s", test.Name, err)
 		})
 	}
+}
+
+func TestSolanaCollector_Collect_Static(t *testing.T) {
+	collector := createSolanaCollector(
+		&staticRPCClient{},
+		slotPacerSchedule,
+	)
+	prometheus.NewPedanticRegistry().MustRegister(collector)
+
+	testCases := []collectionTest{
+		{
+			Name: "solana_active_validators",
+			ExpectedResponse: `
+# HELP solana_active_validators Total number of active validators by state
+# TYPE solana_active_validators gauge
+solana_active_validators{state="current"} 2
+solana_active_validators{state="delinquent"} 1
+`,
+		},
+		{
+			Name: "solana_validator_activated_stake",
+			ExpectedResponse: `
+# HELP solana_validator_activated_stake Activated stake per validator
+# TYPE solana_validator_activated_stake gauge
+solana_validator_activated_stake{nodekey="aaa",pubkey="AAA"} 49
+solana_validator_activated_stake{nodekey="bbb",pubkey="BBB"} 42
+solana_validator_activated_stake{nodekey="ccc",pubkey="CCC"} 43
+`,
+		},
+		{
+			Name: "solana_validator_last_vote",
+			ExpectedResponse: `
+# HELP solana_validator_last_vote Last voted slot per validator
+# TYPE solana_validator_last_vote gauge
+solana_validator_last_vote{nodekey="aaa",pubkey="AAA"} 92
+solana_validator_last_vote{nodekey="bbb",pubkey="BBB"} 147
+solana_validator_last_vote{nodekey="ccc",pubkey="CCC"} 148
+`,
+		},
+		{
+			Name: "solana_validator_root_slot",
+			ExpectedResponse: `
+# HELP solana_validator_root_slot Root slot per validator
+# TYPE solana_validator_root_slot gauge
+solana_validator_root_slot{nodekey="aaa",pubkey="AAA"} 3
+solana_validator_root_slot{nodekey="bbb",pubkey="BBB"} 18
+solana_validator_root_slot{nodekey="ccc",pubkey="CCC"} 19
+`,
+		},
+		{
+			Name: "solana_validator_delinquent",
+			ExpectedResponse: `
+# HELP solana_validator_delinquent Whether a validator is delinquent
+# TYPE solana_validator_delinquent gauge
+solana_validator_delinquent{nodekey="aaa",pubkey="AAA"} 1
+solana_validator_delinquent{nodekey="bbb",pubkey="BBB"} 0
+solana_validator_delinquent{nodekey="ccc",pubkey="CCC"} 0
+`,
+		},
+		{
+			Name: "solana_node_version",
+			ExpectedResponse: `
+# HELP solana_node_version Node version of solana
+# TYPE solana_node_version gauge
+solana_node_version{version="1.16.7"} 1
+`,
+		},
+	}
+
+	runCollectionTests(t, collector, testCases)
+}
+
+func TestSolanaCollector_Collect_Dynamic(t *testing.T) {
+	client := newDynamicRPCClient()
+	collector := createSolanaCollector(client, slotPacerSchedule)
+	prometheus.NewPedanticRegistry().MustRegister(collector)
+
+	// start off by testing initial state:
+	testCases := []collectionTest{
+		{
+			Name: "solana_active_validators",
+			ExpectedResponse: `
+# HELP solana_active_validators Total number of active validators by state
+# TYPE solana_active_validators gauge
+solana_active_validators{state="current"} 3
+solana_active_validators{state="delinquent"} 0
+`,
+		},
+		{
+			Name: "solana_validator_activated_stake",
+			ExpectedResponse: `
+# HELP solana_validator_activated_stake Activated stake per validator
+# TYPE solana_validator_activated_stake gauge
+solana_validator_activated_stake{nodekey="aaa",pubkey="AAA"} 1000000
+solana_validator_activated_stake{nodekey="bbb",pubkey="BBB"} 1000000
+solana_validator_activated_stake{nodekey="ccc",pubkey="CCC"} 1000000
+`,
+		},
+		{
+			Name: "solana_validator_root_slot",
+			ExpectedResponse: `
+# HELP solana_validator_root_slot Root slot per validator
+# TYPE solana_validator_root_slot gauge
+solana_validator_root_slot{nodekey="aaa",pubkey="AAA"} 0
+solana_validator_root_slot{nodekey="bbb",pubkey="BBB"} 0
+solana_validator_root_slot{nodekey="ccc",pubkey="CCC"} 0
+`,
+		},
+		{
+			Name: "solana_validator_delinquent",
+			ExpectedResponse: `
+# HELP solana_validator_delinquent Whether a validator is delinquent
+# TYPE solana_validator_delinquent gauge
+solana_validator_delinquent{nodekey="aaa",pubkey="AAA"} 0
+solana_validator_delinquent{nodekey="bbb",pubkey="BBB"} 0
+solana_validator_delinquent{nodekey="ccc",pubkey="CCC"} 0
+`,
+		},
+		{
+			Name: "solana_node_version",
+			ExpectedResponse: `
+# HELP solana_node_version Node version of solana
+# TYPE solana_node_version gauge
+solana_node_version{version="v1.0.0"} 1
+`,
+		},
+	}
+
+	runCollectionTests(t, collector, testCases)
+
+	// now make some changes:
+	client.UpdateStake("aaa", 2_000_000)
+	client.UpdateStake("bbb", 500_000)
+	client.UpdateDelinquency("ccc", true)
+	client.UpdateVersion("v1.2.3")
+
+	// now test the final state
+	testCases = []collectionTest{
+		{
+			Name: "solana_active_validators",
+			ExpectedResponse: `
+# HELP solana_active_validators Total number of active validators by state
+# TYPE solana_active_validators gauge
+solana_active_validators{state="current"} 2
+solana_active_validators{state="delinquent"} 1
+`,
+		},
+		{
+			Name: "solana_validator_activated_stake",
+			ExpectedResponse: `
+# HELP solana_validator_activated_stake Activated stake per validator
+# TYPE solana_validator_activated_stake gauge
+solana_validator_activated_stake{nodekey="aaa",pubkey="AAA"} 2000000
+solana_validator_activated_stake{nodekey="bbb",pubkey="BBB"} 500000
+solana_validator_activated_stake{nodekey="ccc",pubkey="CCC"} 1000000
+`,
+		},
+		{
+			Name: "solana_validator_root_slot",
+			ExpectedResponse: `
+# HELP solana_validator_root_slot Root slot per validator
+# TYPE solana_validator_root_slot gauge
+solana_validator_root_slot{nodekey="aaa",pubkey="AAA"} 0
+solana_validator_root_slot{nodekey="bbb",pubkey="BBB"} 0
+solana_validator_root_slot{nodekey="ccc",pubkey="CCC"} 0
+`,
+		},
+		{
+			Name: "solana_validator_delinquent",
+			ExpectedResponse: `
+# HELP solana_validator_delinquent Whether a validator is delinquent
+# TYPE solana_validator_delinquent gauge
+solana_validator_delinquent{nodekey="aaa",pubkey="AAA"} 0
+solana_validator_delinquent{nodekey="bbb",pubkey="BBB"} 0
+solana_validator_delinquent{nodekey="ccc",pubkey="CCC"} 1
+`,
+		},
+		{
+			Name: "solana_node_version",
+			ExpectedResponse: `
+# HELP solana_node_version Node version of solana
+# TYPE solana_node_version gauge
+solana_node_version{version="v1.2.3"} 1
+`,
+		},
+	}
+
+	runCollectionTests(t, collector, testCases)
 }
