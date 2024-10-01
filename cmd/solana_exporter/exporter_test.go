@@ -26,6 +26,7 @@ type (
 		SlotInfos        map[int]slotInfo
 		LeaderIndex      int
 		ValidatorInfos   map[string]validatorInfo
+		Balance          float64
 	}
 	slotInfo struct {
 		leader        string
@@ -105,6 +106,7 @@ var (
 			},
 		},
 	}
+	balance = float64(100)
 )
 
 /*
@@ -128,20 +130,20 @@ func (c *staticRPCClient) GetVersion(ctx context.Context) (string, error) {
 }
 
 //goland:noinspection GoUnusedParameter
-func (c *staticRPCClient) GetVoteAccounts(
-	ctx context.Context,
-	params []interface{},
-) (*rpc.VoteAccounts, error) {
+func (c *staticRPCClient) GetVoteAccounts(ctx context.Context, params []interface{}) (*rpc.VoteAccounts, error) {
 	return &staticVoteAccounts, nil
 }
 
 //goland:noinspection GoUnusedParameter
 func (c *staticRPCClient) GetBlockProduction(
-	ctx context.Context,
-	firstSlot *int64,
-	lastSlot *int64,
+	ctx context.Context, firstSlot *int64, lastSlot *int64,
 ) (*rpc.BlockProduction, error) {
 	return &staticBlockProduction, nil
+}
+
+//goland:noinspection GoUnusedParameter
+func (c *staticRPCClient) GetBalance(ctx context.Context, address string) (float64, error) {
+	return balance, nil
 }
 
 /*
@@ -203,10 +205,7 @@ func (c *dynamicRPCClient) newSlot() {
 	// assume 90% chance of block produced:
 	blockProduced := rand.Intn(100) <= 90
 	// add slot info:
-	c.SlotInfos[c.Slot] = slotInfo{
-		leader:        identities[c.LeaderIndex],
-		blockProduced: blockProduced,
-	}
+	c.SlotInfos[c.Slot] = slotInfo{leader: identities[c.LeaderIndex], blockProduced: blockProduced}
 
 	if blockProduced {
 		c.BlockHeight++
@@ -268,10 +267,7 @@ func (c *dynamicRPCClient) GetVersion(ctx context.Context) (string, error) {
 }
 
 //goland:noinspection GoUnusedParameter
-func (c *dynamicRPCClient) GetVoteAccounts(
-	ctx context.Context,
-	params []interface{},
-) (*rpc.VoteAccounts, error) {
+func (c *dynamicRPCClient) GetVoteAccounts(ctx context.Context, params []interface{}) (*rpc.VoteAccounts, error) {
 	var currentVoteAccounts, delinquentVoteAccounts []rpc.VoteAccount
 	for identity, vote := range identityVotes {
 		info := c.ValidatorInfos[identity]
@@ -296,9 +292,7 @@ func (c *dynamicRPCClient) GetVoteAccounts(
 
 //goland:noinspection GoUnusedParameter
 func (c *dynamicRPCClient) GetBlockProduction(
-	ctx context.Context,
-	firstSlot *int64,
-	lastSlot *int64,
+	ctx context.Context, firstSlot *int64, lastSlot *int64,
 ) (*rpc.BlockProduction, error) {
 	hostProduction := make(map[string]rpc.BlockProductionPerHost)
 	for _, identity := range identities {
@@ -313,12 +307,13 @@ func (c *dynamicRPCClient) GetBlockProduction(
 		}
 		hostProduction[info.leader] = hp
 	}
-	production := rpc.BlockProduction{
-		FirstSlot: *firstSlot,
-		LastSlot:  *lastSlot,
-		Hosts:     hostProduction,
-	}
+	production := rpc.BlockProduction{FirstSlot: *firstSlot, LastSlot: *lastSlot, Hosts: hostProduction}
 	return &production, nil
+}
+
+//goland:noinspection GoUnusedParameter
+func (c *dynamicRPCClient) GetBalance(ctx context.Context, address string) (float64, error) {
+	return c.Balance, nil
 }
 
 /*
@@ -356,10 +351,7 @@ func runCollectionTests(t *testing.T, collector prometheus.Collector, testCases 
 }
 
 func TestSolanaCollector_Collect_Static(t *testing.T) {
-	collector := createSolanaCollector(
-		&staticRPCClient{},
-		slotPacerSchedule,
-	)
+	collector := createSolanaCollector(&staticRPCClient{}, slotPacerSchedule)
 	prometheus.NewPedanticRegistry().MustRegister(collector)
 
 	testCases := []collectionTest{
