@@ -3,7 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
-	"github.com/certusone/solana_exporter/pkg/rpc"
+	"github.com/asymmetric-research/solana_exporter/pkg/rpc"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
@@ -26,7 +26,7 @@ type (
 		SlotInfos        map[int]slotInfo
 		LeaderIndex      int
 		ValidatorInfos   map[string]validatorInfo
-		Balance          float64
+		Balances         map[string]float64
 	}
 	slotInfo struct {
 		leader        string
@@ -42,6 +42,7 @@ type (
 
 var (
 	identities      = []string{"aaa", "bbb", "ccc"}
+	balances        = map[string]float64{"aaa": 1, "bbb": 2, "ccc": 3}
 	identityVotes   = map[string]string{"aaa": "AAA", "bbb": "BBB", "ccc": "CCC"}
 	nv              = len(identities)
 	staticEpochInfo = rpc.EpochInfo{
@@ -106,7 +107,6 @@ var (
 			},
 		},
 	}
-	balance = float64(100)
 )
 
 /*
@@ -143,7 +143,7 @@ func (c *staticRPCClient) GetBlockProduction(
 
 //goland:noinspection GoUnusedParameter
 func (c *staticRPCClient) GetBalance(ctx context.Context, address string) (float64, error) {
-	return balance, nil
+	return balances[address], nil
 }
 
 /*
@@ -313,7 +313,7 @@ func (c *dynamicRPCClient) GetBlockProduction(
 
 //goland:noinspection GoUnusedParameter
 func (c *dynamicRPCClient) GetBalance(ctx context.Context, address string) (float64, error) {
-	return c.Balance, nil
+	return balances[address], nil
 }
 
 /*
@@ -351,7 +351,7 @@ func runCollectionTests(t *testing.T, collector prometheus.Collector, testCases 
 }
 
 func TestSolanaCollector_Collect_Static(t *testing.T) {
-	collector := createSolanaCollector(&staticRPCClient{}, slotPacerSchedule)
+	collector := createSolanaCollector(&staticRPCClient{}, slotPacerSchedule, identities)
 	prometheus.NewPedanticRegistry().MustRegister(collector)
 
 	testCases := []collectionTest{
@@ -407,10 +407,20 @@ solana_validator_delinquent{nodekey="ccc",pubkey="CCC"} 0
 		{
 			Name: "solana_node_version",
 			ExpectedResponse: `
-# HELP solana_node_version Node version of solana
-# TYPE solana_node_version gauge
-solana_node_version{version="1.16.7"} 1
-`,
+		# HELP solana_node_version Node version of solana
+		# TYPE solana_node_version gauge
+		solana_node_version{version="1.16.7"} 1
+		`,
+		},
+		{
+			Name: "solana_account_balance",
+			ExpectedResponse: `
+		# HELP solana_account_balance Solana account balances
+		# TYPE solana_account_balance gauge
+		solana_account_balance{address="aaa"} 1
+		solana_account_balance{address="bbb"} 2
+		solana_account_balance{address="ccc"} 3
+		`,
 		},
 	}
 
@@ -419,7 +429,7 @@ solana_node_version{version="1.16.7"} 1
 
 func TestSolanaCollector_Collect_Dynamic(t *testing.T) {
 	client := newDynamicRPCClient()
-	collector := createSolanaCollector(client, slotPacerSchedule)
+	collector := createSolanaCollector(client, slotPacerSchedule, identities)
 	prometheus.NewPedanticRegistry().MustRegister(collector)
 
 	// start off by testing initial state:
@@ -469,6 +479,16 @@ solana_validator_delinquent{nodekey="ccc",pubkey="CCC"} 0
 # HELP solana_node_version Node version of solana
 # TYPE solana_node_version gauge
 solana_node_version{version="v1.0.0"} 1
+`,
+		},
+		{
+			Name: "solana_account_balance",
+			ExpectedResponse: `
+# HELP solana_account_balance Solana account balances
+# TYPE solana_account_balance gauge
+solana_account_balance{address="aaa"} 1
+solana_account_balance{address="bbb"} 2
+solana_account_balance{address="ccc"} 3
 `,
 		},
 	}
@@ -528,6 +548,16 @@ solana_validator_delinquent{nodekey="ccc",pubkey="CCC"} 1
 # HELP solana_node_version Node version of solana
 # TYPE solana_node_version gauge
 solana_node_version{version="v1.2.3"} 1
+`,
+		},
+		{
+			Name: "solana_account_balance",
+			ExpectedResponse: `
+# HELP solana_account_balance Solana account balances
+# TYPE solana_account_balance gauge
+solana_account_balance{address="aaa"} 1
+solana_account_balance{address="bbb"} 2
+solana_account_balance{address="ccc"} 3
 `,
 		},
 	}
