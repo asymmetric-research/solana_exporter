@@ -203,6 +203,8 @@ func (c *solanaCollector) Collect(ch chan<- prometheus.Metric) {
 	defer cancel()
 
 	c.collectVoteAccounts(ctx, ch)
+	c.collectVersion(ctx, ch)
+	c.collectBalances(ctx, ch)
 }
 
 func main() {

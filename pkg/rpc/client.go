@@ -86,28 +86,6 @@ func NewRPCClient(rpcAddr string) *Client {
 	return &Client{httpClient: http.Client{}, rpcAddr: rpcAddr}
 }
 
-func (c *Client) rpcRequest(ctx context.Context, data io.Reader) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, "POST", c.rpcAddr, data)
-	if err != nil {
-		panic(err)
-	}
-	req.Header.Set("content-type", "application/json")
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	//goland:noinspection GoUnhandledErrorResult
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	return body, nil
-}
-
 func (c *Client) getResponse(ctx context.Context, method string, params []interface{}, result HasRPCError) error {
 	// format request:
 	request := &rpcRequest{Version: "2.0", ID: 1, Method: method, Params: params}
@@ -143,6 +121,7 @@ func (c *Client) getResponse(ctx context.Context, method string, params []interf
 		return fmt.Errorf("failed to decode %s response body: %w", method, err)
 	}
 
+	// last error check:
 	if result.getError().Code != 0 {
 		return fmt.Errorf("RPC error: %d %v", result.getError().Code, result.getError().Message)
 	}
