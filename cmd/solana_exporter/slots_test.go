@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
@@ -45,9 +44,6 @@ func testBlockProductionMetric(
 	}
 	// get labels (leaderSlotsByEpoch requires an extra one)
 	labels := []string{status, host}
-	if metric == leaderSlotsByEpoch {
-		labels = append(labels, fmt.Sprintf("%d", staticEpochInfo.Epoch))
-	}
 	// now we can do the assertion:
 	assert.Equalf(
 		t,
@@ -89,7 +85,6 @@ func assertSlotMetricsChangeCorrectly(t *testing.T, initial slotMetricValues, fi
 func TestSolanaCollector_WatchSlots_Static(t *testing.T) {
 	// reset metrics before running tests:
 	leaderSlotsTotal.Reset()
-	leaderSlotsByEpoch.Reset()
 
 	collector := createSolanaCollector(
 		&staticRPCClient{},
@@ -122,8 +117,7 @@ func TestSolanaCollector_WatchSlots_Static(t *testing.T) {
 	}
 
 	metrics := map[string]*prometheus.CounterVec{
-		"solana_leader_slots_total":    leaderSlotsTotal,
-		"solana_leader_slots_by_epoch": leaderSlotsByEpoch,
+		"solana_leader_slots_total": leaderSlotsTotal,
 	}
 	statuses := []string{"valid", "skipped"}
 	for name, metric := range metrics {
@@ -144,7 +138,6 @@ func TestSolanaCollector_WatchSlots_Static(t *testing.T) {
 func TestSolanaCollector_WatchSlots_Dynamic(t *testing.T) {
 	// reset metrics before running tests:
 	leaderSlotsTotal.Reset()
-	leaderSlotsByEpoch.Reset()
 
 	// create clients:
 	client := newDynamicRPCClient()

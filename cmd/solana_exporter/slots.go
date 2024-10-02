@@ -43,16 +43,9 @@ var (
 	leaderSlotsTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "solana_leader_slots_total",
-			Help: "(DEPRECATED) Number of leader slots per leader, grouped by skip status",
+			Help: "Number of leader slots per leader, grouped by skip status",
 		},
 		[]string{"status", "nodekey"})
-
-	leaderSlotsByEpoch = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "solana_leader_slots_by_epoch",
-			Help: "Number of leader slots per leader, grouped by skip status and epoch",
-		},
-		[]string{"status", "nodekey", "epoch"})
 )
 
 func init() {
@@ -62,7 +55,6 @@ func init() {
 	prometheus.MustRegister(epochFirstSlot)
 	prometheus.MustRegister(epochLastSlot)
 	prometheus.MustRegister(leaderSlotsTotal)
-	prometheus.MustRegister(leaderSlotsByEpoch)
 }
 
 func (c *solanaCollector) WatchSlots(ctx context.Context) {
@@ -221,17 +213,12 @@ func updateCounters(c rpc.Provider, epoch, firstSlot int64, lastSlotOpt *int64) 
 		valid := float64(prod.BlocksProduced)
 		skipped := float64(prod.LeaderSlots - prod.BlocksProduced)
 
-		epochStr := fmt.Sprintf("%d", epoch)
-
 		leaderSlotsTotal.WithLabelValues("valid", host).Add(valid)
 		leaderSlotsTotal.WithLabelValues("skipped", host).Add(skipped)
 
-		leaderSlotsByEpoch.WithLabelValues("valid", host, epochStr).Add(valid)
-		leaderSlotsByEpoch.WithLabelValues("skipped", host, epochStr).Add(skipped)
-
 		klog.V(1).Infof(
 			"Epoch %s, slots %d-%d, node %s: Added %d valid and %d skipped slots",
-			epochStr,
+			fmt.Sprintf("%d", epoch),
 			firstSlot,
 			lastSlot,
 			host,
