@@ -22,10 +22,10 @@ type (
 	}
 
 	rpcRequest struct {
-		Version string        `json:"jsonrpc"`
-		ID      int           `json:"id"`
-		Method  string        `json:"method"`
-		Params  []interface{} `json:"params"`
+		Version string `json:"jsonrpc"`
+		ID      int    `json:"id"`
+		Method  string `json:"method"`
+		Params  []any  `json:"params"`
 	}
 
 	Commitment string
@@ -56,7 +56,7 @@ type Provider interface {
 	// The method takes a context for cancellation and a slice of parameters to filter the vote accounts.
 	// It returns a pointer to a VoteAccounts struct containing the vote accounts details,
 	// or an error if the operation fails.
-	GetVoteAccounts(ctx context.Context, params []interface{}) (*VoteAccounts, error)
+	GetVoteAccounts(ctx context.Context, commitment Commitment, votePubkey *string) (*VoteAccounts, error)
 
 	// GetVersion retrieves the version of the Solana node.
 	// The method takes a context for cancellation.
@@ -87,7 +87,7 @@ func NewRPCClient(rpcAddr string) *Client {
 	return &Client{httpClient: http.Client{}, rpcAddr: rpcAddr}
 }
 
-func (c *Client) getResponse(ctx context.Context, method string, params []interface{}, result HasRPCError) error {
+func (c *Client) getResponse(ctx context.Context, method string, params []any, result HasRPCError) error {
 	// format request:
 	request := &rpcRequest{Version: "2.0", ID: 1, Method: method, Params: params}
 	buffer, err := json.Marshal(request)
@@ -132,15 +132,23 @@ func (c *Client) getResponse(ctx context.Context, method string, params []interf
 
 func (c *Client) GetEpochInfo(ctx context.Context, commitment Commitment) (*EpochInfo, error) {
 	var resp response[EpochInfo]
-	if err := c.getResponse(ctx, "getEpochInfo", []interface{}{commitment}, &resp); err != nil {
+	if err := c.getResponse(ctx, "getEpochInfo", []any{commitment}, &resp); err != nil {
 		return nil, err
 	}
 	return &resp.Result, nil
 }
 
-func (c *Client) GetVoteAccounts(ctx context.Context, params []interface{}) (*VoteAccounts, error) {
+func (c *Client) GetVoteAccounts(
+	ctx context.Context, commitment Commitment, votePubkey *string,
+) (*VoteAccounts, error) {
+	// format params:
+	config := map[string]string{"commitment": string(commitment)}
+	if votePubkey != nil {
+		config["votePubkey"] = *votePubkey
+	}
+
 	var resp response[VoteAccounts]
-	if err := c.getResponse(ctx, "getVoteAccounts", params, &resp); err != nil {
+	if err := c.getResponse(ctx, "getVoteAccounts", []any{config}, &resp); err != nil {
 		return nil, err
 	}
 	return &resp.Result, nil
@@ -150,7 +158,7 @@ func (c *Client) GetVersion(ctx context.Context) (string, error) {
 	var resp response[struct {
 		Version string `json:"solana-core"`
 	}]
-	if err := c.getResponse(ctx, "getVersion", []interface{}{}, &resp); err != nil {
+	if err := c.getResponse(ctx, "getVersion", []any{}, &resp); err != nil {
 		return "", err
 	}
 	return resp.Result.Version, nil
@@ -158,7 +166,7 @@ func (c *Client) GetVersion(ctx context.Context) (string, error) {
 
 func (c *Client) GetSlot(ctx context.Context) (int64, error) {
 	var resp response[int64]
-	if err := c.getResponse(ctx, "getSlot", []interface{}{}, &resp); err != nil {
+	if err := c.getResponse(ctx, "getSlot", []any{}, &resp); err != nil {
 		return 0, err
 	}
 	return resp.Result, nil
@@ -173,7 +181,7 @@ func (c *Client) GetBlockProduction(
 	}
 
 	// format params:
-	config := make(map[string]interface{})
+	config := make(map[string]any)
 	if identity != nil {
 		config["identity"] = *identity
 	}
@@ -185,7 +193,7 @@ func (c *Client) GetBlockProduction(
 		config["range"] = blockRange
 	}
 
-	var params []interface{}
+	var params []any
 	if len(config) > 0 {
 		params = append(params, config)
 	}
@@ -200,7 +208,7 @@ func (c *Client) GetBlockProduction(
 
 func (c *Client) GetBalance(ctx context.Context, address string) (float64, error) {
 	var resp response[contextualResult[int64]]
-	if err := c.getResponse(ctx, "getBalance", []interface{}{address}, &resp); err != nil {
+	if err := c.getResponse(ctx, "getBalance", []any{address}, &resp); err != nil {
 		return 0, err
 	}
 	return float64(resp.Result.Value / 1_000_000_000), nil

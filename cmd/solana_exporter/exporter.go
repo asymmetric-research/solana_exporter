@@ -114,12 +114,7 @@ func (c *solanaCollector) Describe(ch chan<- *prometheus.Desc) {
 }
 
 func (c *solanaCollector) collectVoteAccounts(ctx context.Context, ch chan<- prometheus.Metric) {
-	params := map[string]string{"commitment": string(rpc.CommitmentProcessed)}
-	if *votePubkey != "" {
-		params = map[string]string{"commitment": string(rpc.CommitmentProcessed), "votePubkey": *votePubkey}
-	}
-
-	voteAccounts, err := c.rpcClient.GetVoteAccounts(ctx, []interface{}{params})
+	voteAccounts, err := c.rpcClient.GetVoteAccounts(ctx, rpc.CommitmentProcessed, votePubkey)
 	if err != nil {
 		ch <- prometheus.NewInvalidMetric(c.totalValidatorsDesc, err)
 		ch <- prometheus.NewInvalidMetric(c.validatorActivatedStake, err)

@@ -129,7 +129,9 @@ func (c *staticRPCClient) GetVersion(ctx context.Context) (string, error) {
 }
 
 //goland:noinspection GoUnusedParameter
-func (c *staticRPCClient) GetVoteAccounts(ctx context.Context, params []interface{}) (*rpc.VoteAccounts, error) {
+func (c *staticRPCClient) GetVoteAccounts(
+	ctx context.Context, commitment rpc.Commitment, votePubkey *string,
+) (*rpc.VoteAccounts, error) {
 	return &staticVoteAccounts, nil
 }
 
@@ -266,7 +268,9 @@ func (c *dynamicRPCClient) GetVersion(ctx context.Context) (string, error) {
 }
 
 //goland:noinspection GoUnusedParameter
-func (c *dynamicRPCClient) GetVoteAccounts(ctx context.Context, params []interface{}) (*rpc.VoteAccounts, error) {
+func (c *dynamicRPCClient) GetVoteAccounts(
+	ctx context.Context, commitment rpc.Commitment, votePubkey *string,
+) (*rpc.VoteAccounts, error) {
 	var currentVoteAccounts, delinquentVoteAccounts []rpc.VoteAccount
 	for identity, vote := range identityVotes {
 		info := c.ValidatorInfos[identity]
