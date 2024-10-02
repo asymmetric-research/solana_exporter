@@ -114,9 +114,9 @@ func (c *solanaCollector) Describe(ch chan<- *prometheus.Desc) {
 }
 
 func (c *solanaCollector) collectVoteAccounts(ctx context.Context, ch chan<- prometheus.Metric) {
-	params := map[string]string{"commitment": string(rpc.CommitmentRecent)}
+	params := map[string]string{"commitment": string(rpc.CommitmentProcessed)}
 	if *votePubkey != "" {
-		params = map[string]string{"commitment": string(rpc.CommitmentRecent), "votePubkey": *votePubkey}
+		params = map[string]string{"commitment": string(rpc.CommitmentProcessed), "votePubkey": *votePubkey}
 	}
 
 	voteAccounts, err := c.rpcClient.GetVoteAccounts(ctx, []interface{}{params})

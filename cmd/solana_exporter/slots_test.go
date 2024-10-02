@@ -34,7 +34,7 @@ func testBlockProductionMetric(
 	host string,
 	status string,
 ) {
-	hostInfo := staticBlockProduction.Hosts[host]
+	hostInfo := staticBlockProduction.ByIdentity[host]
 	// get expected value depending on status:
 	var expectedValue float64
 	switch status {
