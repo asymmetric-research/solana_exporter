@@ -215,12 +215,12 @@ func (c *solanaCollector) updateCounters(epoch, firstSlot int64, lastSlotOpt *in
 	ctx, cancel = context.WithTimeout(context.Background(), httpTimeout)
 	defer cancel()
 
-	blockProductionValue, err := c.rpcClient.GetBlockProduction(ctx, nil, &firstSlot, &lastSlot)
+	blockProduction, err := c.rpcClient.GetBlockProduction(ctx, nil, &firstSlot, &lastSlot)
 	if err != nil {
 		return 0, fmt.Errorf("failed to fetch block production, retrying: %v", err)
 	}
 
-	for identity, production := range blockProductionValue.ByIdentity {
+	for identity, production := range blockProduction.ByIdentity {
 		valid := float64(production.BlocksProduced)
 		skipped := float64(production.LeaderSlots - production.BlocksProduced)
 

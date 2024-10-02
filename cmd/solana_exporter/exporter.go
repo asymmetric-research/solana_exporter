@@ -32,11 +32,14 @@ func init() {
 }
 
 type solanaCollector struct {
-	rpcClient           rpc.Provider
-	slotPace            time.Duration
-	balanceAddresses    []string
+	rpcClient rpc.Provider
+
+	// config:
+	slotPace         time.Duration
+	balanceAddresses []string
 	leaderSlotAddresses []string
 
+	/// descriptors:
 	totalValidatorsDesc     *prometheus.Desc
 	validatorActivatedStake *prometheus.Desc
 	validatorLastVote       *prometheus.Desc
@@ -44,6 +47,10 @@ type solanaCollector struct {
 	validatorDelinquent     *prometheus.Desc
 	solanaVersion           *prometheus.Desc
 	balances                *prometheus.Desc
+
+	// state:
+	epochWatermark int64
+	slotWatermark  int64
 }
 
 func createSolanaCollector(
