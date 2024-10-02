@@ -63,6 +63,14 @@ type (
 		ByIdentity map[string]HostProduction `json:"byIdentity"`
 		Range      BlockProductionRange      `json:"range"`
 	}
+
+	InflationReward struct {
+		Amount        int64 `json:"amount"`
+		EffectiveSlot int64 `json:"effectiveSlot"`
+		Epoch         int64 `json:"epoch"`
+		PostBalance   int64 `json:"postBalance"`
+		Commission    uint8 `json:"commission"`
+	}
 )
 
 func (hp *HostProduction) UnmarshalJSON(data []byte) error {

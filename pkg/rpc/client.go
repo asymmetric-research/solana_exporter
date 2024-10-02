@@ -10,6 +10,8 @@ import (
 	"net/http"
 )
 
+const LamportsInSol = 1_000_000_000
+
 type (
 	Client struct {
 		httpClient http.Client
@@ -216,5 +218,27 @@ func (c *Client) GetBalance(ctx context.Context, address string) (float64, error
 	if err := c.getResponse(ctx, "getBalance", []any{address}, &resp); err != nil {
 		return 0, err
 	}
-	return float64(resp.Result.Value / 1_000_000_000), nil
+	return float64(resp.Result.Value) / float64(LamportsInSol), nil
+}
+
+func (c *Client) GetInflationReward(
+	ctx context.Context, addresses []string, commitment *Commitment, epoch *int64, minContextSlot *int64,
+) (*InflationReward, error) {
+	// format params:
+	config := make(map[string]any)
+	if commitment != nil {
+		config["commitment"] = *commitment
+	}
+	if epoch != nil {
+		config["epoch"] = *epoch
+	}
+	if minContextSlot != nil {
+		config["minContextSlot"] = *minContextSlot
+	}
+
+	var resp response[InflationReward]
+	if err := c.getResponse(ctx, "getInflationReward", []any{addresses, config}, &resp); err != nil {
+		return nil, err
+	}
+	return &resp.Result, nil
 }

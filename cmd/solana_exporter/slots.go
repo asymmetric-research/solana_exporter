@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"slices"
 	"time"
 
 	"github.com/asymmetric-research/solana_exporter/pkg/rpc"
