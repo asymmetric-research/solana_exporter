@@ -24,7 +24,6 @@ type SlotWatcher struct {
 	firstSlot int64
 	// lastSlot is the last slot [inclusive] of the current epoch which we are watching
 	lastSlot int64
-
 	// slotWatermark is the last (most recent) slot we have tracked
 	slotWatermark int64
 }
@@ -128,6 +127,8 @@ func (c *SlotWatcher) WatchSlots(ctx context.Context, pace time.Duration) {
 	}
 }
 
+// trackEpoch takes in a new rpc.EpochInfo and sets the SlotWatcher tracking metrics accordingly,
+// and updates the prometheus gauges associated with those metrics.
 func (c *SlotWatcher) trackEpoch(epoch *rpc.EpochInfo) {
 	firstSlot, lastSlot := getEpochBounds(epoch)
 	// if we haven't yet set c.currentEpoch, that (hopefully) means this is the initial setup,
@@ -170,11 +171,14 @@ func (c *SlotWatcher) trackEpoch(epoch *rpc.EpochInfo) {
 	epochLastSlot.Set(float64(c.lastSlot))
 }
 
+// closeCurrentEpoch is called when an epoch change-over happens, and we need to make sure we track the last
+// remaining slots in the "current" epoch before we start tracking the new one.
 func (c *SlotWatcher) closeCurrentEpoch(ctx context.Context, newEpoch *rpc.EpochInfo) {
 	c.fetchAndEmitBlockProduction(ctx, c.lastSlot)
 	c.trackEpoch(newEpoch)
 }
 
+// checkValidSlotRange makes sure that the slot range we are going to query is within the current epoch we are tracking.
 func (c *SlotWatcher) checkValidSlotRange(from, to int64) error {
 	if from < c.firstSlot || to > c.lastSlot {
 		return fmt.Errorf(
@@ -189,6 +193,8 @@ func (c *SlotWatcher) checkValidSlotRange(from, to int64) error {
 	return nil
 }
 
+// fetchAndEmitBlockProduction fetches block production up to the provided endSlot, emits the prometheus metrics,
+// and updates the SlotWatcher.slotWatermark accordingly
 func (c *SlotWatcher) fetchAndEmitBlockProduction(ctx context.Context, endSlot int64) {
 	// add 1 because GetBlockProduction's range is inclusive, and the watermark is already tracked
 	startSlot := c.slotWatermark + 1
