@@ -91,11 +91,7 @@ func TestSolanaCollector_WatchSlots_Static(t *testing.T) {
 	leaderSlotsTotal.Reset()
 	leaderSlotsByEpoch.Reset()
 
-	collector := createSolanaCollector(
-		&staticRPCClient{},
-		100*time.Millisecond,
-		identities,
-	)
+	collector := createSolanaCollector(&staticRPCClient{}, 100*time.Millisecond, identities, []string{})
 	prometheus.NewPedanticRegistry().MustRegister(collector)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -149,7 +145,7 @@ func TestSolanaCollector_WatchSlots_Dynamic(t *testing.T) {
 
 	// create clients:
 	client := newDynamicRPCClient()
-	collector := createSolanaCollector(client, 300*time.Millisecond, identities)
+	collector := createSolanaCollector(client, 300*time.Millisecond, identities, []string{})
 	prometheus.NewPedanticRegistry().MustRegister(collector)
 
 	// start client/collector and wait a bit:
