@@ -3,11 +3,12 @@ package main
 import (
 	"context"
 	"flag"
+	"net/http"
+	"time"
+
 	"github.com/certusone/solana_exporter/pkg/rpc"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"net/http"
-	"time"
 
 	"k8s.io/klog/v2"
 )
@@ -145,6 +146,7 @@ func main() {
 	collector := NewSolanaCollector(*rpcAddr)
 
 	go collector.WatchSlots(context.Background())
+	go collector.WatchHealth(context.Background())
 
 	prometheus.MustRegister(collector)
 	http.Handle("/metrics", promhttp.Handler())

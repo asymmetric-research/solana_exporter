@@ -6,8 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"k8s.io/klog/v2"
 	"net/http"
+
+	"k8s.io/klog/v2"
 )
 
 type (
@@ -60,6 +61,7 @@ type Provider interface {
 	// The method takes a context for cancellation.
 	// It returns a string containing the version information, or an error if the operation fails.
 	GetVersion(ctx context.Context) (string, error)
+	GetHealth(ctx context.Context) (*string, *GetHealthRpcError, error) 
 }
 
 func (c Commitment) MarshalJSON() ([]byte, error) {
