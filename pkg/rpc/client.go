@@ -188,6 +188,10 @@ func (c *Client) GetBlockProduction(
 	if firstSlot != nil {
 		blockRange := map[string]int64{"firstSlot": *firstSlot}
 		if lastSlot != nil {
+			// make sure first and last slot are in order:
+			if *firstSlot > *lastSlot {
+				panic(fmt.Errorf("last slot %v is greater than first slot %v", *lastSlot, *firstSlot))
+			}
 			blockRange["lastSlot"] = *lastSlot
 		}
 		config["range"] = blockRange

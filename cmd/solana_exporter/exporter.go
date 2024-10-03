@@ -47,10 +47,6 @@ type solanaCollector struct {
 	validatorDelinquent     *prometheus.Desc
 	solanaVersion           *prometheus.Desc
 	balances                *prometheus.Desc
-
-	// state:
-	epochWatermark int64
-	slotWatermark  int64
 }
 
 func createSolanaCollector(
@@ -247,7 +243,8 @@ func main() {
 
 	collector := NewSolanaCollector(*rpcAddr, balAddresses, lsAddresses)
 
-	go collector.WatchSlots(context.Background())
+	slotWatcher := SlotWatcher{client: collector.rpcClient}
+	go slotWatcher.WatchSlots(context.Background(), collector.slotPace)
 
 	prometheus.MustRegister(collector)
 	http.Handle("/metrics", promhttp.Handler())
