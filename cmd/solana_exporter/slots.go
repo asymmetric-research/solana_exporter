@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/certusone/solana_exporter/pkg/rpc"
+	"github.com/asymmetric-research/solana_exporter/pkg/rpc"
 	"github.com/prometheus/client_golang/prometheus"
 	"k8s.io/klog/v2"
 )
@@ -45,14 +45,16 @@ var (
 			Name: "solana_leader_slots_total",
 			Help: "(DEPRECATED) Number of leader slots per leader, grouped by skip status",
 		},
-		[]string{"status", "nodekey"})
+		[]string{"status", "nodekey"},
+	)
 
 	leaderSlotsByEpoch = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "solana_leader_slots_by_epoch",
 			Help: "Number of leader slots per leader, grouped by skip status and epoch",
 		},
-		[]string{"status", "nodekey", "epoch"})
+		[]string{"status", "nodekey", "epoch"},
+	)
 )
 
 func init() {
@@ -192,7 +194,7 @@ func updateCounters(c rpc.Provider, epoch, firstSlot int64, lastSlotOpt *int64) 
 		lastSlot, err = c.GetSlot(ctx)
 
 		if err != nil {
-			return 0, fmt.Errorf("Error while getting the last slot: %v", err)
+			return 0, fmt.Errorf("error while getting the last slot: %v", err)
 		}
 		klog.V(2).Infof("Setting lastSlot to %d", lastSlot)
 	} else {
@@ -202,7 +204,7 @@ func updateCounters(c rpc.Provider, epoch, firstSlot int64, lastSlotOpt *int64) 
 
 	if firstSlot > lastSlot {
 		return 0, fmt.Errorf(
-			"In epoch %d, firstSlot (%d) > lastSlot (%d). This should not happen. Not updating.",
+			"in epoch %d, firstSlot (%d) > lastSlot (%d), this should not happen, not updating",
 			epoch,
 			firstSlot,
 			lastSlot,

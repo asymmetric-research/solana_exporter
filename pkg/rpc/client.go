@@ -60,6 +60,9 @@ type Provider interface {
 	// The method takes a context for cancellation.
 	// It returns a string containing the version information, or an error if the operation fails.
 	GetVersion(ctx context.Context) (string, error)
+
+	// GetBalance returns the SOL balance of the account at the provided address
+	GetBalance(ctx context.Context, address string) (float64, error)
 }
 
 func (c Commitment) MarshalJSON() ([]byte, error) {
@@ -67,44 +70,33 @@ func (c Commitment) MarshalJSON() ([]byte, error) {
 }
 
 const (
-	// Most recent block confirmed by supermajority of the cluster as having reached maximum lockout.
+	// CommitmentMax represents the most recent block confirmed by the cluster super-majority
+	//as having reached maximum lockout.
 	CommitmentMax Commitment = "max"
 	// CommitmentRoot Most recent block having reached maximum lockout on this node.
 	CommitmentRoot Commitment = "root"
-	// Most recent block that has been voted on by supermajority of the cluster (optimistic confirmation).
+	// CommitmentSingleGossip represents the most recent block that has been voted on
+	//by the cluster super-majority (optimistic confirmation).
 	CommitmentSingleGossip Commitment = "singleGossip"
-	// The node will query its most recent block. Note that the block may not be complete.
+	// CommitmentRecent represents the nodes most recent block
 	CommitmentRecent Commitment = "recent"
 )
 
 func NewRPCClient(rpcAddr string) *Client {
-	client := &Client{
-		httpClient: http.Client{},
-		rpcAddr:    rpcAddr,
-	}
-
-	return client
+	return &Client{httpClient: http.Client{}, rpcAddr: rpcAddr}
 }
 
-func formatRPCRequest(method string, params []interface{}) io.Reader {
-	request := &rpcRequest{
-		Version: "2.0",
-		ID:      1,
-		Method:  method,
-		Params:  params,
-	}
-
+func (c *Client) getResponse(ctx context.Context, method string, params []interface{}, result HasRPCError) error {
+	// format request:
+	request := &rpcRequest{Version: "2.0", ID: 1, Method: method, Params: params}
 	buffer, err := json.Marshal(request)
 	if err != nil {
 		panic(err)
 	}
-
 	klog.V(2).Infof("jsonrpc request: %s", string(buffer))
-	return bytes.NewBuffer(buffer)
-}
 
-func (c *Client) rpcRequest(ctx context.Context, data io.Reader) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, "POST", c.rpcAddr, data)
+	// make request:
+	req, err := http.NewRequestWithContext(ctx, "POST", c.rpcAddr, bytes.NewBuffer(buffer))
 	if err != nil {
 		panic(err)
 	}
@@ -112,24 +104,14 @@ func (c *Client) rpcRequest(ctx context.Context, data io.Reader) ([]byte, error)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, err
+		return fmt.Errorf("%s RPC call failed: %w", method, err)
 	}
 	//goland:noinspection GoUnhandledErrorResult
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, err
-	}
-
-	return body, nil
-}
-
-func (c *Client) getResponse(ctx context.Context, method string, params []interface{}, result HasRPCError) error {
-	body, err := c.rpcRequest(ctx, formatRPCRequest(method, params))
-	// check if there was an error making the request:
-	if err != nil {
-		return fmt.Errorf("%s RPC call failed: %w", method, err)
+		return fmt.Errorf("error processing %s rpc call: %w", method, err)
 	}
 	// log response:
 	klog.V(2).Infof("%s response: %v", method, string(body))
@@ -139,6 +121,7 @@ func (c *Client) getResponse(ctx context.Context, method string, params []interf
 		return fmt.Errorf("failed to decode %s response body: %w", method, err)
 	}
 
+	// last error check:
 	if result.getError().Code != 0 {
 		return fmt.Errorf("RPC error: %d %v", result.getError().Code, result.getError().Message)
 	}
@@ -184,12 +167,7 @@ func (c *Client) GetBlockProduction(ctx context.Context, firstSlot *int64, lastS
 	// format params:
 	params := make([]interface{}, 1)
 	if firstSlot != nil {
-		params[0] = map[string]interface{}{
-			"range": blockProductionRange{
-				FirstSlot: *firstSlot,
-				LastSlot:  lastSlot,
-			},
-		}
+		params[0] = map[string]interface{}{"range": blockProductionRange{FirstSlot: *firstSlot, LastSlot: lastSlot}}
 	}
 
 	// make request:
@@ -201,15 +179,18 @@ func (c *Client) GetBlockProduction(ctx context.Context, firstSlot *int64, lastS
 	// convert to BlockProduction format:
 	hosts := make(map[string]BlockProductionPerHost)
 	for id, arr := range resp.Result.Value.ByIdentity {
-		hosts[id] = BlockProductionPerHost{
-			LeaderSlots:    arr[0],
-			BlocksProduced: arr[1],
-		}
+		hosts[id] = BlockProductionPerHost{LeaderSlots: arr[0], BlocksProduced: arr[1]}
 	}
 	production := BlockProduction{
-		FirstSlot: resp.Result.Value.Range.FirstSlot,
-		LastSlot:  *resp.Result.Value.Range.LastSlot,
-		Hosts:     hosts,
+		FirstSlot: resp.Result.Value.Range.FirstSlot, LastSlot: *resp.Result.Value.Range.LastSlot, Hosts: hosts,
 	}
 	return &production, nil
+}
+
+func (c *Client) GetBalance(ctx context.Context, address string) (float64, error) {
+	var resp response[BalanceResult]
+	if err := c.getResponse(ctx, "getBalance", []interface{}{address}, &resp); err != nil {
+		return 0, err
+	}
+	return float64(resp.Result.Value / 1_000_000_000), nil
 }

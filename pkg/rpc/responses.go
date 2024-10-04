@@ -59,6 +59,13 @@ type (
 		LastSlot  int64
 		Hosts     map[string]BlockProductionPerHost
 	}
+
+	BalanceResult struct {
+		Value   int64 `json:"value"`
+		Context struct {
+			Slot int64 `json:"slot"`
+		} `json:"context"`
+	}
 )
 
 func (r response[T]) getError() rpcError {
