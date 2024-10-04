@@ -23,7 +23,7 @@ var (
 	leaderSlotAddresses = flag.String(
 		"leader-slot-addresses",
 		"",
-		"Comma-separated list of addresses to monitor leader slots by epoch for, leave nil to track by epoch for all validators.",
+		"Comma-separated list of addresses to monitor leader slots by epoch for, leave nil to track by epoch for all validators (this creates a lot of Prometheus metrics with every new epoch).",
 	)
 )
 
@@ -221,6 +221,13 @@ func main() {
 
 	if *rpcAddr == "" {
 		klog.Fatal("Please specify -rpcURI")
+	}
+
+	if *leaderSlotAddresses == "" {
+		klog.Warning(
+			"Not specifying leader-slot-addresses will lead to potentially thousands of new " +
+				"Prometheus metrics being created every epoch.",
+		)
 	}
 
 	httpTimeout = time.Duration(*httpTimeoutSecs) * time.Second
