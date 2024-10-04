@@ -35,8 +35,8 @@ type solanaCollector struct {
 	rpcClient rpc.Provider
 
 	// config:
-	slotPace         time.Duration
-	balanceAddresses []string
+	slotPace            time.Duration
+	balanceAddresses    []string
 	leaderSlotAddresses []string
 
 	/// descriptors:
@@ -243,7 +243,7 @@ func main() {
 
 	collector := NewSolanaCollector(*rpcAddr, balAddresses, lsAddresses)
 
-	slotWatcher := SlotWatcher{client: collector.rpcClient}
+	slotWatcher := NewCollectorSlotWatcher(collector)
 	go slotWatcher.WatchSlots(context.Background(), collector.slotPace)
 
 	prometheus.MustRegister(collector)

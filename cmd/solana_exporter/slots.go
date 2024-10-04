@@ -18,6 +18,8 @@ const (
 type SlotWatcher struct {
 	client rpc.Provider
 
+	leaderSlotAddresses []string
+
 	// currentEpoch is the current epoch we are watching
 	currentEpoch int64
 	// firstSlot is the first slot [inclusive] of the current epoch which we are watching
@@ -70,6 +72,10 @@ var (
 		[]string{"status", "nodekey", "epoch"},
 	)
 )
+
+func NewCollectorSlotWatcher(collector *solanaCollector) *SlotWatcher {
+	return &SlotWatcher{client: collector.rpcClient, leaderSlotAddresses: collector.leaderSlotAddresses}
+}
 
 func init() {
 	prometheus.MustRegister(totalTransactionsTotal)
