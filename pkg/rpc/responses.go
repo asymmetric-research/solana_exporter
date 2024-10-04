@@ -15,7 +15,7 @@ type (
 		Value   T `json:"value"`
 		Context struct {
 			Slot int64 `json:"slot"`
-		}
+		} `json:"context"`
 	}
 
 	EpochInfo struct {
