@@ -14,12 +14,17 @@ import (
 )
 
 var (
-	httpTimeout      = 60 * time.Second
-	rpcAddr          = flag.String("rpcURI", "", "Solana RPC URI (including protocol and path)")
-	addr             = flag.String("addr", ":8080", "Listen address")
-	votePubkey       = flag.String("votepubkey", "", "Validator vote address (will only return results of this address)")
-	httpTimeoutSecs  = flag.Int("http_timeout", 60, "HTTP timeout in seconds")
-	balanceAddresses = flag.String("balance-addresses", "", "Comma-separated list of addresses to monitor balances")
+	httpTimeout         = 60 * time.Second
+	rpcAddr             = flag.String("rpcURI", "", "Solana RPC URI (including protocol and path)")
+	addr                = flag.String("addr", ":8080", "Listen address")
+	votePubkey          = flag.String("votepubkey", "", "Validator vote address (will only return results of this address)")
+	httpTimeoutSecs     = flag.Int("http_timeout", 60, "HTTP timeout in seconds")
+	balanceAddresses    = flag.String("balance-addresses", "", "Comma-separated list of addresses to monitor balances")
+	leaderSlotAddresses = flag.String(
+		"leader-slot-addresses",
+		"",
+		"Comma-separated list of addresses to monitor leader slots by epoch for, leave nil to track by epoch for all validators (this creates a lot of Prometheus metrics with every new epoch).",
+	)
 )
 
 func init() {
@@ -27,9 +32,10 @@ func init() {
 }
 
 type solanaCollector struct {
-	rpcClient        rpc.Provider
-	slotPace         time.Duration
-	balanceAddresses []string
+	rpcClient           rpc.Provider
+	slotPace            time.Duration
+	balanceAddresses    []string
+	leaderSlotAddresses []string
 
 	totalValidatorsDesc     *prometheus.Desc
 	validatorActivatedStake *prometheus.Desc
@@ -40,11 +46,14 @@ type solanaCollector struct {
 	balances                *prometheus.Desc
 }
 
-func createSolanaCollector(provider rpc.Provider, slotPace time.Duration, balanceAddresses []string) *solanaCollector {
+func createSolanaCollector(
+	provider rpc.Provider, slotPace time.Duration, balanceAddresses []string, leaderSlotAddresses []string,
+) *solanaCollector {
 	return &solanaCollector{
-		rpcClient:        provider,
-		slotPace:         slotPace,
-		balanceAddresses: balanceAddresses,
+		rpcClient:           provider,
+		slotPace:            slotPace,
+		balanceAddresses:    balanceAddresses,
+		leaderSlotAddresses: leaderSlotAddresses,
 		totalValidatorsDesc: prometheus.NewDesc(
 			"solana_active_validators",
 			"Total number of active validators by state",
@@ -90,8 +99,8 @@ func createSolanaCollector(provider rpc.Provider, slotPace time.Duration, balanc
 	}
 }
 
-func NewSolanaCollector(rpcAddr string, balanceAddresses []string) *solanaCollector {
-	return createSolanaCollector(rpc.NewRPCClient(rpcAddr), slotPacerSchedule, balanceAddresses)
+func NewSolanaCollector(rpcAddr string, balanceAddresses []string, leaderSlotAddresses []string) *solanaCollector {
+	return createSolanaCollector(rpc.NewRPCClient(rpcAddr), slotPacerSchedule, balanceAddresses, leaderSlotAddresses)
 }
 
 func (c *solanaCollector) Describe(ch chan<- *prometheus.Desc) {
@@ -214,13 +223,27 @@ func main() {
 		klog.Fatal("Please specify -rpcURI")
 	}
 
+	if *leaderSlotAddresses == "" {
+		klog.Warning(
+			"Not specifying leader-slot-addresses will lead to potentially thousands of new " +
+				"Prometheus metrics being created every epoch.",
+		)
+	}
+
 	httpTimeout = time.Duration(*httpTimeoutSecs) * time.Second
 
-	var monitoredAddresses []string
+	var (
+		balAddresses []string
+		lsAddresses  []string
+	)
 	if *balanceAddresses != "" {
-		monitoredAddresses = strings.Split(*balanceAddresses, ",")
+		balAddresses = strings.Split(*balanceAddresses, ",")
 	}
-	collector := NewSolanaCollector(*rpcAddr, monitoredAddresses)
+	if *leaderSlotAddresses != "" {
+		lsAddresses = strings.Split(*leaderSlotAddresses, ",")
+	}
+
+	collector := NewSolanaCollector(*rpcAddr, balAddresses, lsAddresses)
 
 	go collector.WatchSlots(context.Background())
 

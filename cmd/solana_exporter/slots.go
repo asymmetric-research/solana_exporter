@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/asymmetric-research/solana_exporter/pkg/rpc"
@@ -87,7 +88,7 @@ func (c *solanaCollector) WatchSlots(ctx context.Context) {
 	epochLastSlot.Set(float64(lastSlot))
 
 	klog.Infof("Starting at slot %d in epoch %d (%d-%d)", firstSlot, currentEpoch, firstSlot, lastSlot)
-	_, err = updateCounters(c.rpcClient, currentEpoch, watermark, &lastSlot)
+	_, err = c.updateCounters(currentEpoch, watermark, &lastSlot)
 	if err != nil {
 		klog.Error(err)
 	}
@@ -126,7 +127,7 @@ func (c *solanaCollector) WatchSlots(ctx context.Context) {
 					lastSlot,
 				)
 
-				last, err := updateCounters(c.rpcClient, currentEpoch, watermark, &lastSlot)
+				last, err := c.updateCounters(currentEpoch, watermark, &lastSlot)
 				if err != nil {
 					klog.Error(err)
 					continue
@@ -153,7 +154,7 @@ func (c *solanaCollector) WatchSlots(ctx context.Context) {
 			totalTransactionsTotal.Set(float64(info.TransactionCount))
 			confirmedSlotHeight.Set(float64(info.AbsoluteSlot))
 
-			last, err := updateCounters(c.rpcClient, currentEpoch, watermark, nil)
+			last, err := c.updateCounters(currentEpoch, watermark, nil)
 			if err != nil {
 				klog.Info(err)
 				continue
@@ -183,7 +184,7 @@ func getEpochBounds(info *rpc.EpochInfo) (int64, int64, int64) {
 	return info.Epoch, firstSlot, lastSlot
 }
 
-func updateCounters(c rpc.Provider, epoch, firstSlot int64, lastSlotOpt *int64) (int64, error) {
+func (c *solanaCollector) updateCounters(epoch, firstSlot int64, lastSlotOpt *int64) (int64, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), httpTimeout)
 	defer cancel()
 
@@ -191,7 +192,7 @@ func updateCounters(c rpc.Provider, epoch, firstSlot int64, lastSlotOpt *int64) 
 	var err error
 
 	if lastSlotOpt == nil {
-		lastSlot, err = c.GetSlot(ctx)
+		lastSlot, err = c.rpcClient.GetSlot(ctx)
 
 		if err != nil {
 			return 0, fmt.Errorf("error while getting the last slot: %v", err)
@@ -214,7 +215,7 @@ func updateCounters(c rpc.Provider, epoch, firstSlot int64, lastSlotOpt *int64) 
 	ctx, cancel = context.WithTimeout(context.Background(), httpTimeout)
 	defer cancel()
 
-	blockProduction, err := c.GetBlockProduction(ctx, &firstSlot, &lastSlot)
+	blockProduction, err := c.rpcClient.GetBlockProduction(ctx, &firstSlot, &lastSlot)
 	if err != nil {
 		return 0, fmt.Errorf("failed to fetch block production, retrying: %v", err)
 	}
@@ -228,8 +229,10 @@ func updateCounters(c rpc.Provider, epoch, firstSlot int64, lastSlotOpt *int64) 
 		leaderSlotsTotal.WithLabelValues("valid", host).Add(valid)
 		leaderSlotsTotal.WithLabelValues("skipped", host).Add(skipped)
 
-		leaderSlotsByEpoch.WithLabelValues("valid", host, epochStr).Add(valid)
-		leaderSlotsByEpoch.WithLabelValues("skipped", host, epochStr).Add(skipped)
+		if len(c.leaderSlotAddresses) == 0 || slices.Contains(c.leaderSlotAddresses, host) {
+			leaderSlotsByEpoch.WithLabelValues("valid", host, epochStr).Add(valid)
+			leaderSlotsByEpoch.WithLabelValues("skipped", host, epochStr).Add(skipped)
+		}
 
 		klog.V(1).Infof(
 			"Epoch %s, slots %d-%d, node %s: Added %d valid and %d skipped slots",

@@ -351,7 +351,7 @@ func runCollectionTests(t *testing.T, collector prometheus.Collector, testCases 
 }
 
 func TestSolanaCollector_Collect_Static(t *testing.T) {
-	collector := createSolanaCollector(&staticRPCClient{}, slotPacerSchedule, identities)
+	collector := createSolanaCollector(&staticRPCClient{}, slotPacerSchedule, identities, []string{})
 	prometheus.NewPedanticRegistry().MustRegister(collector)
 
 	testCases := []collectionTest{
@@ -429,7 +429,7 @@ solana_validator_delinquent{nodekey="ccc",pubkey="CCC"} 0
 
 func TestSolanaCollector_Collect_Dynamic(t *testing.T) {
 	client := newDynamicRPCClient()
-	collector := createSolanaCollector(client, slotPacerSchedule, identities)
+	collector := createSolanaCollector(client, slotPacerSchedule, identities, []string{})
 	prometheus.NewPedanticRegistry().MustRegister(collector)
 
 	// start off by testing initial state:
