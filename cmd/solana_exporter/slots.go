@@ -208,7 +208,7 @@ func (c *SlotWatcher) fetchAndEmitBlockProduction(ctx context.Context, endSlot i
 
 	// make sure the bounds are contained within the epoch we are currently watching:
 	if err := c.checkValidSlotRange(startSlot, endSlot); err != nil {
-		panic(err)
+		klog.Fatalf("invalid slot range: %v", err)
 	}
 
 	// fetch block production:

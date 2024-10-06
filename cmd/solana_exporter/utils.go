@@ -1,25 +1,11 @@
 package main
 
 import (
-	"encoding/json"
-	"fmt"
+	"k8s.io/klog/v2"
 )
 
 func assertf(condition bool, format string, args ...any) {
 	if !condition {
-		panic(fmt.Errorf(format, args...))
+		klog.Fatalf(format, args...)
 	}
-}
-
-// prettyPrint is just a useful debugging function
-func prettyPrint(obj any) {
-	// For pretty-printed JSON, use json.MarshalIndent
-	prettyJSON, err := json.MarshalIndent(obj, "", "  ")
-	if err != nil {
-		fmt.Println("Error marshalling to pretty JSON:", err, ". obj: ", obj)
-		return
-	}
-
-	// Print the pretty JSON string
-	fmt.Println(string(prettyJSON))
 }

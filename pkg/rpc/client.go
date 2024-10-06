@@ -92,14 +92,14 @@ func (c *Client) getResponse(ctx context.Context, method string, params []any, r
 	request := &rpcRequest{Version: "2.0", ID: 1, Method: method, Params: params}
 	buffer, err := json.Marshal(request)
 	if err != nil {
-		panic(err)
+		klog.Fatalf("failed to marshal request: %v", err)
 	}
 	klog.V(2).Infof("jsonrpc request: %s", string(buffer))
 
 	// make request:
 	req, err := http.NewRequestWithContext(ctx, "POST", c.rpcAddr, bytes.NewBuffer(buffer))
 	if err != nil {
-		panic(err)
+		klog.Fatalf("failed to create request: %v", err)
 	}
 	req.Header.Set("content-type", "application/json")
 
@@ -177,7 +177,7 @@ func (c *Client) GetBlockProduction(
 ) (*BlockProduction, error) {
 	// can't provide a last slot without a first:
 	if firstSlot == nil && lastSlot != nil {
-		panic("can't provide a last slot without a first!")
+		klog.Fatalf("can't provide a last slot without a first!")
 	}
 
 	// format params:
@@ -190,7 +190,8 @@ func (c *Client) GetBlockProduction(
 		if lastSlot != nil {
 			// make sure first and last slot are in order:
 			if *firstSlot > *lastSlot {
-				panic(fmt.Errorf("last slot %v is greater than first slot %v", *lastSlot, *firstSlot))
+				err := fmt.Errorf("last slot %v is greater than first slot %v", *lastSlot, *firstSlot)
+				klog.Fatalf("%v", err)
 			}
 			blockRange["lastSlot"] = *lastSlot
 		}
