@@ -1,9 +1,21 @@
 package rpc
 
+import (
+	"encoding/json"
+	"fmt"
+)
+
 type (
 	response[T any] struct {
 		Result T        `json:"result"`
 		Error  rpcError `json:"error"`
+	}
+
+	contextualResult[T any] struct {
+		Value   T `json:"value"`
+		Context struct {
+			Slot int64 `json:"slot"`
+		} `json:"context"`
 	}
 
 	EpochInfo struct {
@@ -37,36 +49,35 @@ type (
 		Delinquent []VoteAccount `json:"delinquent"`
 	}
 
-	blockProductionRange struct {
-		FirstSlot int64  `json:"firstSlot"`
-		LastSlot  *int64 `json:"lastSlot,omitempty"`
-	}
-
-	blockProductionResult struct {
-		Value struct {
-			ByIdentity map[string][]int64   `json:"byIdentity"`
-			Range      blockProductionRange `json:"range"`
-		} `json:"value"`
-	}
-
-	BlockProductionPerHost struct {
+	HostProduction struct {
 		LeaderSlots    int64
 		BlocksProduced int64
 	}
 
-	BlockProduction struct {
-		FirstSlot int64
-		LastSlot  int64
-		Hosts     map[string]BlockProductionPerHost
+	BlockProductionRange struct {
+		FirstSlot int64 `json:"firstSlot"`
+		LastSlot  int64 `json:"lastSlot"`
 	}
 
-	BalanceResult struct {
-		Value   int64 `json:"value"`
-		Context struct {
-			Slot int64 `json:"slot"`
-		} `json:"context"`
+	BlockProduction struct {
+		ByIdentity map[string]HostProduction `json:"byIdentity"`
+		Range      BlockProductionRange      `json:"range"`
 	}
 )
+
+func (hp *HostProduction) UnmarshalJSON(data []byte) error {
+	var arr []int64
+	if err := json.Unmarshal(data, &arr); err != nil {
+		return err
+	}
+
+	if len(arr) != 2 {
+		return fmt.Errorf("expected array of 2 integers, got %d", len(arr))
+	}
+	hp.LeaderSlots = arr[0]
+	hp.BlocksProduced = arr[1]
+	return nil
+}
 
 func (r response[T]) getError() rpcError {
 	return r.Error

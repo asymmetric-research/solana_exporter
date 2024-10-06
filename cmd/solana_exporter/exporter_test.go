@@ -54,13 +54,12 @@ var (
 		TransactionCount: 22661093,
 	}
 	staticBlockProduction = rpc.BlockProduction{
-		FirstSlot: 100000000,
-		LastSlot:  200000000,
-		Hosts: map[string]rpc.BlockProductionPerHost{
-			"bbb": {LeaderSlots: 40000000, BlocksProduced: 36000000},
-			"ccc": {LeaderSlots: 30000000, BlocksProduced: 29600000},
-			"aaa": {LeaderSlots: 30000000, BlocksProduced: 10000000},
+		ByIdentity: map[string]rpc.HostProduction{
+			"aaa": {300, 100},
+			"bbb": {400, 360},
+			"ccc": {300, 296},
 		},
+		Range: rpc.BlockProductionRange{FirstSlot: 1000, LastSlot: 2000},
 	}
 	staticVoteAccounts = rpc.VoteAccounts{
 		Current: []rpc.VoteAccount{
@@ -130,13 +129,15 @@ func (c *staticRPCClient) GetVersion(ctx context.Context) (string, error) {
 }
 
 //goland:noinspection GoUnusedParameter
-func (c *staticRPCClient) GetVoteAccounts(ctx context.Context, params []interface{}) (*rpc.VoteAccounts, error) {
+func (c *staticRPCClient) GetVoteAccounts(
+	ctx context.Context, commitment rpc.Commitment, votePubkey *string,
+) (*rpc.VoteAccounts, error) {
 	return &staticVoteAccounts, nil
 }
 
 //goland:noinspection GoUnusedParameter
 func (c *staticRPCClient) GetBlockProduction(
-	ctx context.Context, firstSlot *int64, lastSlot *int64,
+	ctx context.Context, identity *string, firstSlot *int64, lastSlot *int64,
 ) (*rpc.BlockProduction, error) {
 	return &staticBlockProduction, nil
 }
@@ -267,7 +268,9 @@ func (c *dynamicRPCClient) GetVersion(ctx context.Context) (string, error) {
 }
 
 //goland:noinspection GoUnusedParameter
-func (c *dynamicRPCClient) GetVoteAccounts(ctx context.Context, params []interface{}) (*rpc.VoteAccounts, error) {
+func (c *dynamicRPCClient) GetVoteAccounts(
+	ctx context.Context, commitment rpc.Commitment, votePubkey *string,
+) (*rpc.VoteAccounts, error) {
 	var currentVoteAccounts, delinquentVoteAccounts []rpc.VoteAccount
 	for identity, vote := range identityVotes {
 		info := c.ValidatorInfos[identity]
@@ -292,23 +295,25 @@ func (c *dynamicRPCClient) GetVoteAccounts(ctx context.Context, params []interfa
 
 //goland:noinspection GoUnusedParameter
 func (c *dynamicRPCClient) GetBlockProduction(
-	ctx context.Context, firstSlot *int64, lastSlot *int64,
+	ctx context.Context, identity *string, firstSlot *int64, lastSlot *int64,
 ) (*rpc.BlockProduction, error) {
-	hostProduction := make(map[string]rpc.BlockProductionPerHost)
+	byIdentity := make(map[string]rpc.HostProduction)
 	for _, identity := range identities {
-		hostProduction[identity] = rpc.BlockProductionPerHost{LeaderSlots: 0, BlocksProduced: 0}
+		byIdentity[identity] = rpc.HostProduction{LeaderSlots: 0, BlocksProduced: 0}
 	}
 	for i := *firstSlot; i <= *lastSlot; i++ {
 		info := c.SlotInfos[int(i)]
-		hp := hostProduction[info.leader]
-		hp.LeaderSlots++
+		production := byIdentity[info.leader]
+		production.LeaderSlots++
 		if info.blockProduced {
-			hp.BlocksProduced++
+			production.BlocksProduced++
 		}
-		hostProduction[info.leader] = hp
+		byIdentity[info.leader] = production
 	}
-	production := rpc.BlockProduction{FirstSlot: *firstSlot, LastSlot: *lastSlot, Hosts: hostProduction}
-	return &production, nil
+	blockProduction := rpc.BlockProduction{
+		ByIdentity: byIdentity, Range: rpc.BlockProductionRange{FirstSlot: *firstSlot, LastSlot: *lastSlot},
+	}
+	return &blockProduction, nil
 }
 
 //goland:noinspection GoUnusedParameter
@@ -407,19 +412,19 @@ solana_validator_delinquent{nodekey="ccc",pubkey="CCC"} 0
 		{
 			Name: "solana_node_version",
 			ExpectedResponse: `
-		# HELP solana_node_version Node version of solana
-		# TYPE solana_node_version gauge
-		solana_node_version{version="1.16.7"} 1
+# HELP solana_node_version Node version of solana
+# TYPE solana_node_version gauge
+solana_node_version{version="1.16.7"} 1
 		`,
 		},
 		{
 			Name: "solana_account_balance",
 			ExpectedResponse: `
-		# HELP solana_account_balance Solana account balances
-		# TYPE solana_account_balance gauge
-		solana_account_balance{address="aaa"} 1
-		solana_account_balance{address="bbb"} 2
-		solana_account_balance{address="ccc"} 3
+# HELP solana_account_balance Solana account balances
+# TYPE solana_account_balance gauge
+solana_account_balance{address="aaa"} 1
+solana_account_balance{address="bbb"} 2
+solana_account_balance{address="ccc"} 3
 		`,
 		},
 	}

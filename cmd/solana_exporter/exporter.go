@@ -32,11 +32,14 @@ func init() {
 }
 
 type solanaCollector struct {
-	rpcClient           rpc.Provider
+	rpcClient rpc.Provider
+
+	// config:
 	slotPace            time.Duration
 	balanceAddresses    []string
 	leaderSlotAddresses []string
 
+	/// descriptors:
 	totalValidatorsDesc     *prometheus.Desc
 	validatorActivatedStake *prometheus.Desc
 	validatorLastVote       *prometheus.Desc
@@ -114,12 +117,7 @@ func (c *solanaCollector) Describe(ch chan<- *prometheus.Desc) {
 }
 
 func (c *solanaCollector) collectVoteAccounts(ctx context.Context, ch chan<- prometheus.Metric) {
-	params := map[string]string{"commitment": string(rpc.CommitmentRecent)}
-	if *votePubkey != "" {
-		params = map[string]string{"commitment": string(rpc.CommitmentRecent), "votePubkey": *votePubkey}
-	}
-
-	voteAccounts, err := c.rpcClient.GetVoteAccounts(ctx, []interface{}{params})
+	voteAccounts, err := c.rpcClient.GetVoteAccounts(ctx, rpc.CommitmentProcessed, votePubkey)
 	if err != nil {
 		ch <- prometheus.NewInvalidMetric(c.totalValidatorsDesc, err)
 		ch <- prometheus.NewInvalidMetric(c.validatorActivatedStake, err)
@@ -245,7 +243,8 @@ func main() {
 
 	collector := NewSolanaCollector(*rpcAddr, balAddresses, lsAddresses)
 
-	go collector.WatchSlots(context.Background())
+	slotWatcher := NewCollectorSlotWatcher(collector)
+	go slotWatcher.WatchSlots(context.Background(), collector.slotPace)
 
 	prometheus.MustRegister(collector)
 	http.Handle("/metrics", promhttp.Handler())
