@@ -61,6 +61,11 @@ var (
 		},
 		Range: rpc.BlockProductionRange{FirstSlot: 1000, LastSlot: 2000},
 	}
+	staticInflationRewards = []rpc.InflationReward{
+		{Amount: 1000, EffectiveSlot: 166598, Epoch: 27, PostBalance: 2000},
+		{Amount: 2000, EffectiveSlot: 166598, Epoch: 27, PostBalance: 4000},
+		{Amount: 3000, EffectiveSlot: 166598, Epoch: 27, PostBalance: 6000},
+	}
 	staticVoteAccounts = rpc.VoteAccounts{
 		Current: []rpc.VoteAccount{
 			{
@@ -145,6 +150,13 @@ func (c *staticRPCClient) GetBlockProduction(
 //goland:noinspection GoUnusedParameter
 func (c *staticRPCClient) GetBalance(ctx context.Context, address string) (float64, error) {
 	return balances[address], nil
+}
+
+//goland:noinspection GoUnusedParameter
+func (c *staticRPCClient) GetInflationReward(
+	ctx context.Context, addresses []string, commitment rpc.Commitment, epoch *int64, minContextSlot *int64,
+) ([]rpc.InflationReward, error) {
+	return staticInflationRewards, nil
 }
 
 /*
@@ -319,6 +331,13 @@ func (c *dynamicRPCClient) GetBlockProduction(
 //goland:noinspection GoUnusedParameter
 func (c *dynamicRPCClient) GetBalance(ctx context.Context, address string) (float64, error) {
 	return balances[address], nil
+}
+
+//goland:noinspection GoUnusedParameter
+func (c *dynamicRPCClient) GetInflationReward(
+	ctx context.Context, addresses []string, commitment rpc.Commitment, epoch *int64, minContextSlot *int64,
+) ([]rpc.InflationReward, error) {
+	return staticInflationRewards, nil
 }
 
 /*

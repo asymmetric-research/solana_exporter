@@ -7,8 +7,10 @@ import (
 
 type (
 	response[T any] struct {
-		Result T        `json:"result"`
-		Error  rpcError `json:"error"`
+		jsonrpc string
+		Result  T        `json:"result"`
+		Error   rpcError `json:"error"`
+		Id      int      `json:"id"`
 	}
 
 	contextualResult[T any] struct {
@@ -69,7 +71,6 @@ type (
 		EffectiveSlot int64 `json:"effectiveSlot"`
 		Epoch         int64 `json:"epoch"`
 		PostBalance   int64 `json:"postBalance"`
-		Commission    uint8 `json:"commission"`
 	}
 )
 

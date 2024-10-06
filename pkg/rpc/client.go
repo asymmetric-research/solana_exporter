@@ -10,8 +10,6 @@ import (
 	"net/http"
 )
 
-const LamportsInSol = 1_000_000_000
-
 type (
 	Client struct {
 		httpClient http.Client
@@ -67,6 +65,12 @@ type Provider interface {
 
 	// GetBalance returns the SOL balance of the account at the provided address
 	GetBalance(ctx context.Context, address string) (float64, error)
+
+	// GetInflationReward returns the inflation rewards (in lamports) awarded to the given addresses (vote accounts)
+	// during the given epoch.
+	GetInflationReward(
+		ctx context.Context, addresses []string, commitment Commitment, epoch *int64, minContextSlot *int64,
+	) ([]InflationReward, error)
 }
 
 func (c Commitment) MarshalJSON() ([]byte, error) {
@@ -74,6 +78,8 @@ func (c Commitment) MarshalJSON() ([]byte, error) {
 }
 
 const (
+	// LamportsInSol is the number of lamports in 1 SOL (a billion)
+	LamportsInSol = 1_000_000_000
 	// CommitmentFinalized level offers the highest level of certainty for a transaction on the Solana blockchain.
 	// A transaction is considered “Finalized” when it is included in a block that has been confirmed by a
 	// supermajority of the stake, and at least 31 additional confirmed blocks have been built on top of it.
@@ -222,13 +228,10 @@ func (c *Client) GetBalance(ctx context.Context, address string) (float64, error
 }
 
 func (c *Client) GetInflationReward(
-	ctx context.Context, addresses []string, commitment *Commitment, epoch *int64, minContextSlot *int64,
-) (*InflationReward, error) {
+	ctx context.Context, addresses []string, commitment Commitment, epoch *int64, minContextSlot *int64,
+) ([]InflationReward, error) {
 	// format params:
-	config := make(map[string]any)
-	if commitment != nil {
-		config["commitment"] = *commitment
-	}
+	config := map[string]any{"commitment": string(commitment)}
 	if epoch != nil {
 		config["epoch"] = *epoch
 	}
@@ -236,9 +239,9 @@ func (c *Client) GetInflationReward(
 		config["minContextSlot"] = *minContextSlot
 	}
 
-	var resp response[InflationReward]
+	var resp response[[]InflationReward]
 	if err := c.getResponse(ctx, "getInflationReward", []any{addresses, config}, &resp); err != nil {
 		return nil, err
 	}
-	return &resp.Result, nil
+	return resp.Result, nil
 }
