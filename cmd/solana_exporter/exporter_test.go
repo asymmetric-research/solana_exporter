@@ -42,6 +42,7 @@ type (
 
 var (
 	identities      = []string{"aaa", "bbb", "ccc"}
+	votekeys        = []string{"AAA", "BBB", "CCC"}
 	balances        = map[string]float64{"aaa": 1, "bbb": 2, "ccc": 3}
 	identityVotes   = map[string]string{"aaa": "AAA", "bbb": "BBB", "ccc": "CCC"}
 	nv              = len(identities)
@@ -60,6 +61,11 @@ var (
 			"ccc": {300, 296},
 		},
 		Range: rpc.BlockProductionRange{FirstSlot: 1000, LastSlot: 2000},
+	}
+	staticInflationRewards = []rpc.InflationReward{
+		{Amount: 1000, EffectiveSlot: 166598, Epoch: 27, PostBalance: 2000},
+		{Amount: 2000, EffectiveSlot: 166598, Epoch: 27, PostBalance: 4000},
+		{Amount: 3000, EffectiveSlot: 166598, Epoch: 27, PostBalance: 6000},
 	}
 	staticVoteAccounts = rpc.VoteAccounts{
 		Current: []rpc.VoteAccount{
@@ -145,6 +151,13 @@ func (c *staticRPCClient) GetBlockProduction(
 //goland:noinspection GoUnusedParameter
 func (c *staticRPCClient) GetBalance(ctx context.Context, address string) (float64, error) {
 	return balances[address], nil
+}
+
+//goland:noinspection GoUnusedParameter
+func (c *staticRPCClient) GetInflationReward(
+	ctx context.Context, addresses []string, commitment rpc.Commitment, epoch *int64, minContextSlot *int64,
+) ([]rpc.InflationReward, error) {
+	return staticInflationRewards, nil
 }
 
 /*
@@ -321,6 +334,13 @@ func (c *dynamicRPCClient) GetBalance(ctx context.Context, address string) (floa
 	return balances[address], nil
 }
 
+//goland:noinspection GoUnusedParameter
+func (c *dynamicRPCClient) GetInflationReward(
+	ctx context.Context, addresses []string, commitment rpc.Commitment, epoch *int64, minContextSlot *int64,
+) ([]rpc.InflationReward, error) {
+	return staticInflationRewards, nil
+}
+
 /*
 ===== OTHER TEST UTILITIES =====:
 */
@@ -356,7 +376,7 @@ func runCollectionTests(t *testing.T, collector prometheus.Collector, testCases 
 }
 
 func TestSolanaCollector_Collect_Static(t *testing.T) {
-	collector := createSolanaCollector(&staticRPCClient{}, slotPacerSchedule, identities, []string{})
+	collector := createSolanaCollector(&staticRPCClient{}, slotPacerSchedule, identities, []string{}, votekeys)
 	prometheus.NewPedanticRegistry().MustRegister(collector)
 
 	testCases := []collectionTest{
@@ -434,7 +454,7 @@ solana_account_balance{address="ccc"} 3
 
 func TestSolanaCollector_Collect_Dynamic(t *testing.T) {
 	client := newDynamicRPCClient()
-	collector := createSolanaCollector(client, slotPacerSchedule, identities, []string{})
+	collector := createSolanaCollector(client, slotPacerSchedule, identities, []string{}, votekeys)
 	prometheus.NewPedanticRegistry().MustRegister(collector)
 
 	// start off by testing initial state:

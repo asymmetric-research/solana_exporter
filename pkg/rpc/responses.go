@@ -7,8 +7,10 @@ import (
 
 type (
 	response[T any] struct {
-		Result T        `json:"result"`
-		Error  rpcError `json:"error"`
+		jsonrpc string
+		Result  T        `json:"result"`
+		Error   rpcError `json:"error"`
+		Id      int      `json:"id"`
 	}
 
 	contextualResult[T any] struct {
@@ -62,6 +64,13 @@ type (
 	BlockProduction struct {
 		ByIdentity map[string]HostProduction `json:"byIdentity"`
 		Range      BlockProductionRange      `json:"range"`
+	}
+
+	InflationReward struct {
+		Amount        int64 `json:"amount"`
+		EffectiveSlot int64 `json:"effectiveSlot"`
+		Epoch         int64 `json:"epoch"`
+		PostBalance   int64 `json:"postBalance"`
 	}
 )
 
