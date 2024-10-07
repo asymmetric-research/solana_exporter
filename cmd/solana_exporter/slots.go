@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/asymmetric-research/solana_exporter/pkg/rpc"
@@ -17,7 +18,9 @@ const (
 type SlotWatcher struct {
 	client rpc.Provider
 
-	leaderSlotAddresses []string
+	// config:
+	leaderSlotAddresses      []string
+	inflationRewardAddresses []string
 
 	// currentEpoch is the current epoch we are watching
 	currentEpoch int64
@@ -70,10 +73,22 @@ var (
 		},
 		[]string{"status", "nodekey", "epoch"},
 	)
+
+	inflationRewards = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "solana_inflation_rewards",
+			Help: "Inflation reward earned per leader, per epoch",
+		},
+		[]string{"votekey", "epoch"},
+	)
 )
 
 func NewCollectorSlotWatcher(collector *solanaCollector) *SlotWatcher {
-	return &SlotWatcher{client: collector.rpcClient, leaderSlotAddresses: collector.leaderSlotAddresses}
+	return &SlotWatcher{
+		client:                   collector.rpcClient,
+		leaderSlotAddresses:      collector.leaderSlotAddresses,
+		inflationRewardAddresses: collector.inflationRewardAddresses,
+	}
 }
 
 func init() {
@@ -84,6 +99,7 @@ func init() {
 	prometheus.MustRegister(epochLastSlot)
 	prometheus.MustRegister(leaderSlotsTotal)
 	prometheus.MustRegister(leaderSlotsByEpoch)
+	prometheus.MustRegister(inflationRewards)
 }
 
 func (c *SlotWatcher) WatchSlots(ctx context.Context, pace time.Duration) {
@@ -123,6 +139,13 @@ func (c *SlotWatcher) WatchSlots(ctx context.Context, pace time.Duration) {
 			}
 
 			if epochInfo.Epoch > c.currentEpoch {
+				// if we have configured inflation reward addresses, fetch em
+				if len(c.inflationRewardAddresses) > 0 {
+					err = c.fetchAndEmitInflationRewards(ctx, c.currentEpoch)
+					if err != nil {
+						klog.Errorf("Failed to emit inflation rewards, bailing out: %v", err)
+					}
+				}
 				c.closeCurrentEpoch(ctx, epochInfo)
 			}
 
@@ -243,4 +266,29 @@ func (c *SlotWatcher) fetchAndEmitBlockProduction(ctx context.Context, endSlot i
 func getEpochBounds(info *rpc.EpochInfo) (int64, int64) {
 	firstSlot := info.AbsoluteSlot - info.SlotIndex
 	return firstSlot, firstSlot + info.SlotsInEpoch - 1
+}
+
+// fetchAndEmitInflationRewards fetches and emits the inflation rewards for the configured inflationRewardAddresses
+// at the provided epoch
+func (c *SlotWatcher) fetchAndEmitInflationRewards(ctx context.Context, epoch int64) error {
+	epochStr := fmt.Sprintf("%d", epoch)
+	klog.Infof("Fetching inflation reward for epoch %v ...", epochStr)
+
+	ctx, cancel := context.WithTimeout(ctx, httpTimeout)
+	defer cancel()
+
+	rewardInfos, err := c.client.GetInflationReward(
+		ctx, c.inflationRewardAddresses, rpc.CommitmentFinalized, &epoch, nil,
+	)
+	if err != nil {
+		return err
+	}
+
+	for i, rewardInfo := range rewardInfos {
+		address := c.inflationRewardAddresses[i]
+		reward := float64(rewardInfo.Amount) / float64(rpc.LamportsInSol)
+		inflationRewards.WithLabelValues(address, epochStr).Set(reward)
+	}
+	klog.Infof("Fetched inflation reward for epoch %v.", epochStr)
+	return nil
 }

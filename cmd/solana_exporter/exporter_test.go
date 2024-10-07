@@ -42,6 +42,7 @@ type (
 
 var (
 	identities      = []string{"aaa", "bbb", "ccc"}
+	votekeys        = []string{"AAA", "BBB", "CCC"}
 	balances        = map[string]float64{"aaa": 1, "bbb": 2, "ccc": 3}
 	identityVotes   = map[string]string{"aaa": "AAA", "bbb": "BBB", "ccc": "CCC"}
 	nv              = len(identities)
@@ -375,7 +376,7 @@ func runCollectionTests(t *testing.T, collector prometheus.Collector, testCases 
 }
 
 func TestSolanaCollector_Collect_Static(t *testing.T) {
-	collector := createSolanaCollector(&staticRPCClient{}, slotPacerSchedule, identities, []string{})
+	collector := createSolanaCollector(&staticRPCClient{}, slotPacerSchedule, identities, []string{}, votekeys)
 	prometheus.NewPedanticRegistry().MustRegister(collector)
 
 	testCases := []collectionTest{
@@ -453,7 +454,7 @@ solana_account_balance{address="ccc"} 3
 
 func TestSolanaCollector_Collect_Dynamic(t *testing.T) {
 	client := newDynamicRPCClient()
-	collector := createSolanaCollector(client, slotPacerSchedule, identities, []string{})
+	collector := createSolanaCollector(client, slotPacerSchedule, identities, []string{}, votekeys)
 	prometheus.NewPedanticRegistry().MustRegister(collector)
 
 	// start off by testing initial state:

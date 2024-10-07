@@ -14,16 +14,27 @@ import (
 )
 
 var (
-	httpTimeout         = 60 * time.Second
-	rpcAddr             = flag.String("rpcURI", "", "Solana RPC URI (including protocol and path)")
-	addr                = flag.String("addr", ":8080", "Listen address")
-	votePubkey          = flag.String("votepubkey", "", "Validator vote address (will only return results of this address)")
-	httpTimeoutSecs     = flag.Int("http_timeout", 60, "HTTP timeout in seconds")
-	balanceAddresses    = flag.String("balance-addresses", "", "Comma-separated list of addresses to monitor balances")
+	httpTimeout     = 60 * time.Second
+	rpcAddr         = flag.String("rpcURI", "", "Solana RPC URI (including protocol and path)")
+	addr            = flag.String("addr", ":8080", "Listen address")
+	votePubkey      = flag.String("votepubkey", "", "Validator vote address (will only return results of this address)")
+	httpTimeoutSecs = flag.Int("http_timeout", 60, "HTTP timeout in seconds")
+
+	// addresses:
+	balanceAddresses = flag.String(
+		"balance-addresses",
+		"",
+		"Comma-separated list of addresses to monitor SOL balances.",
+	)
 	leaderSlotAddresses = flag.String(
 		"leader-slot-addresses",
 		"",
 		"Comma-separated list of addresses to monitor leader slots by epoch for, leave nil to track by epoch for all validators (this creates a lot of Prometheus metrics with every new epoch).",
+	)
+	inflationRewardAddresses = flag.String(
+		"inflation-reward-addresses",
+		"",
+		"Comma-separated list of validator vote accounts to track inflationary rewards for",
 	)
 )
 
@@ -35,9 +46,10 @@ type solanaCollector struct {
 	rpcClient rpc.Provider
 
 	// config:
-	slotPace            time.Duration
-	balanceAddresses    []string
-	leaderSlotAddresses []string
+	slotPace                 time.Duration
+	balanceAddresses         []string
+	leaderSlotAddresses      []string
+	inflationRewardAddresses []string
 
 	/// descriptors:
 	totalValidatorsDesc     *prometheus.Desc
@@ -50,13 +62,18 @@ type solanaCollector struct {
 }
 
 func createSolanaCollector(
-	provider rpc.Provider, slotPace time.Duration, balanceAddresses []string, leaderSlotAddresses []string,
+	provider rpc.Provider,
+	slotPace time.Duration,
+	balanceAddresses []string,
+	leaderSlotAddresses []string,
+	inflationRewardAddresses []string,
 ) *solanaCollector {
 	return &solanaCollector{
-		rpcClient:           provider,
-		slotPace:            slotPace,
-		balanceAddresses:    balanceAddresses,
-		leaderSlotAddresses: leaderSlotAddresses,
+		rpcClient:                provider,
+		slotPace:                 slotPace,
+		balanceAddresses:         balanceAddresses,
+		leaderSlotAddresses:      leaderSlotAddresses,
+		inflationRewardAddresses: inflationRewardAddresses,
 		totalValidatorsDesc: prometheus.NewDesc(
 			"solana_active_validators",
 			"Total number of active validators by state",
@@ -102,8 +119,12 @@ func createSolanaCollector(
 	}
 }
 
-func NewSolanaCollector(rpcAddr string, balanceAddresses []string, leaderSlotAddresses []string) *solanaCollector {
-	return createSolanaCollector(rpc.NewRPCClient(rpcAddr), slotPacerSchedule, balanceAddresses, leaderSlotAddresses)
+func NewSolanaCollector(
+	rpcAddr string, balanceAddresses []string, leaderSlotAddresses []string, inflationRewardAddresses []string,
+) *solanaCollector {
+	return createSolanaCollector(
+		rpc.NewRPCClient(rpcAddr), slotPacerSchedule, balanceAddresses, leaderSlotAddresses, inflationRewardAddresses,
+	)
 }
 
 func (c *solanaCollector) Describe(ch chan<- *prometheus.Desc) {
@@ -233,6 +254,7 @@ func main() {
 	var (
 		balAddresses []string
 		lsAddresses  []string
+		irAddresses  []string
 	)
 	if *balanceAddresses != "" {
 		balAddresses = strings.Split(*balanceAddresses, ",")
@@ -240,8 +262,11 @@ func main() {
 	if *leaderSlotAddresses != "" {
 		lsAddresses = strings.Split(*leaderSlotAddresses, ",")
 	}
+	if *inflationRewardAddresses != "" {
+		irAddresses = strings.Split(*inflationRewardAddresses, ",")
+	}
 
-	collector := NewSolanaCollector(*rpcAddr, balAddresses, lsAddresses)
+	collector := NewSolanaCollector(*rpcAddr, balAddresses, lsAddresses, irAddresses)
 
 	slotWatcher := NewCollectorSlotWatcher(collector)
 	go slotWatcher.WatchSlots(context.Background(), collector.slotPace)
