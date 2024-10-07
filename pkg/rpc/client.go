@@ -138,6 +138,8 @@ func (c *Client) getResponse(ctx context.Context, method string, params []any, r
 	return nil
 }
 
+// GetEpochInfo returns information about the current epoch.
+// See API docs: https://solana.com/docs/rpc/http/getepochinfo
 func (c *Client) GetEpochInfo(ctx context.Context, commitment Commitment) (*EpochInfo, error) {
 	var resp response[EpochInfo]
 	if err := c.getResponse(ctx, "getEpochInfo", []any{commitment}, &resp); err != nil {
@@ -146,6 +148,8 @@ func (c *Client) GetEpochInfo(ctx context.Context, commitment Commitment) (*Epoc
 	return &resp.Result, nil
 }
 
+// GetVoteAccounts returns the account info and associated stake for all the voting accounts in the current bank.
+// See API docs: https://solana.com/docs/rpc/http/getvoteaccounts
 func (c *Client) GetVoteAccounts(
 	ctx context.Context, commitment Commitment, votePubkey *string,
 ) (*VoteAccounts, error) {
@@ -162,6 +166,8 @@ func (c *Client) GetVoteAccounts(
 	return &resp.Result, nil
 }
 
+// GetVersion returns the current Solana version running on the node.
+// See API docs: https://solana.com/docs/rpc/http/getversion
 func (c *Client) GetVersion(ctx context.Context) (string, error) {
 	var resp response[struct {
 		Version string `json:"solana-core"`
@@ -172,6 +178,8 @@ func (c *Client) GetVersion(ctx context.Context) (string, error) {
 	return resp.Result.Version, nil
 }
 
+// GetSlot returns the slot that has reached the given or default commitment level.
+// See API docs: https://solana.com/docs/rpc/http/getslot
 func (c *Client) GetSlot(ctx context.Context) (int64, error) {
 	var resp response[int64]
 	if err := c.getResponse(ctx, "getSlot", []any{}, &resp); err != nil {
@@ -180,6 +188,8 @@ func (c *Client) GetSlot(ctx context.Context) (int64, error) {
 	return resp.Result, nil
 }
 
+// GetBlockProduction returns recent block production information from the current or previous epoch.
+// See API docs: https://solana.com/docs/rpc/http/getblockproduction
 func (c *Client) GetBlockProduction(
 	ctx context.Context, identity *string, firstSlot *int64, lastSlot *int64,
 ) (*BlockProduction, error) {
@@ -219,6 +229,8 @@ func (c *Client) GetBlockProduction(
 	return &resp.Result.Value, nil
 }
 
+// GetBalance returns the lamport balance of the account of provided pubkey.
+// See API docs:https://solana.com/docs/rpc/http/getbalance
 func (c *Client) GetBalance(ctx context.Context, address string) (float64, error) {
 	var resp response[contextualResult[int64]]
 	if err := c.getResponse(ctx, "getBalance", []any{address}, &resp); err != nil {
@@ -227,6 +239,8 @@ func (c *Client) GetBalance(ctx context.Context, address string) (float64, error
 	return float64(resp.Result.Value) / float64(LamportsInSol), nil
 }
 
+// GetInflationReward returns the inflation / staking reward for a list of addresses for an epoch.
+// See API docs: https://solana.com/docs/rpc/http/getinflationreward
 func (c *Client) GetInflationReward(
 	ctx context.Context, addresses []string, commitment Commitment, epoch *int64, minContextSlot *int64,
 ) ([]InflationReward, error) {
@@ -241,6 +255,19 @@ func (c *Client) GetInflationReward(
 
 	var resp response[[]InflationReward]
 	if err := c.getResponse(ctx, "getInflationReward", []any{addresses, config}, &resp); err != nil {
+		return nil, err
+	}
+	return resp.Result, nil
+}
+
+// GetLeaderSchedule returns the leader schedule for an epoch.
+// See API docs: https://solana.com/docs/rpc/http/getleaderschedule
+func (c *Client) GetLeaderSchedule(
+	ctx context.Context, commitment Commitment,
+) (map[string][]int64, error) {
+	config := map[string]any{"commitment": string(commitment)}
+	var resp response[map[string][]int64]
+	if err := c.getResponse(ctx, "getLeaderSchedule", []any{nil, config}, &resp); err != nil {
 		return nil, err
 	}
 	return resp.Result, nil
