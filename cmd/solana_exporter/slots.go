@@ -77,7 +77,7 @@ var (
 	inflationRewards = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "solana_inflation_rewards",
-			Help: "Inflation reward earned per leader, per epoch",
+			Help: "Inflation reward earned per validator vote account, per epoch",
 		},
 		[]string{"votekey", "epoch"},
 	)

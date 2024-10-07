@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/asymmetric-research/solana_exporter/pkg/rpc"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
@@ -97,18 +98,33 @@ func TestSolanaCollector_WatchSlots_Static(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go watcher.WatchSlots(ctx, collector.slotPace)
+
+	// make sure inflation rewards are collected:
+	err := watcher.fetchAndEmitInflationRewards(ctx, staticEpochInfo.Epoch)
+	assert.NoError(t, err)
 	time.Sleep(1 * time.Second)
 
 	firstSlot, lastSlot := getEpochBounds(&staticEpochInfo)
-	tests := []struct {
+	type testCase struct {
 		expectedValue float64
 		metric        prometheus.Gauge
-	}{
+	}
+	tests := []testCase{
 		{expectedValue: float64(staticEpochInfo.AbsoluteSlot), metric: confirmedSlotHeight},
 		{expectedValue: float64(staticEpochInfo.TransactionCount), metric: totalTransactionsTotal},
 		{expectedValue: float64(staticEpochInfo.Epoch), metric: currentEpochNumber},
 		{expectedValue: float64(firstSlot), metric: epochFirstSlot},
 		{expectedValue: float64(lastSlot), metric: epochLastSlot},
+	}
+
+	// add inflation reward tests:
+	for i, rewardInfo := range staticInflationRewards {
+		epoch := fmt.Sprintf("%v", staticEpochInfo.Epoch)
+		test := testCase{
+			expectedValue: float64(rewardInfo.Amount) / float64(rpc.LamportsInSol),
+			metric:        inflationRewards.WithLabelValues(votekeys[i], epoch),
+		}
+		tests = append(tests, test)
 	}
 
 	for _, testCase := range tests {
