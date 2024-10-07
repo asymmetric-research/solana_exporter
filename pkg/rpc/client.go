@@ -71,6 +71,10 @@ type Provider interface {
 	GetInflationReward(
 		ctx context.Context, commitment Commitment, addresses []string, epoch *int64, minContextSlot *int64,
 	) ([]InflationReward, error)
+
+	GetLeaderSchedule(ctx context.Context, commitment Commitment, slot int64) (map[string][]int64, error)
+
+	GetBlock(ctx context.Context, commitment Commitment, slot int64) (*Block, error)
 }
 
 func (c Commitment) MarshalJSON() ([]byte, error) {
@@ -259,10 +263,10 @@ func (c *Client) GetInflationReward(
 
 // GetLeaderSchedule returns the leader schedule for an epoch.
 // See API docs: https://solana.com/docs/rpc/http/getleaderschedule
-func (c *Client) GetLeaderSchedule(ctx context.Context, commitment Commitment) (map[string][]int64, error) {
+func (c *Client) GetLeaderSchedule(ctx context.Context, commitment Commitment, slot int64) (map[string][]int64, error) {
 	config := map[string]any{"commitment": string(commitment)}
 	var resp response[map[string][]int64]
-	if err := c.getResponse(ctx, "getLeaderSchedule", []any{nil, config}, &resp); err != nil {
+	if err := c.getResponse(ctx, "getLeaderSchedule", []any{slot, config}, &resp); err != nil {
 		return nil, err
 	}
 	return resp.Result, nil

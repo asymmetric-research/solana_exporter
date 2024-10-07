@@ -36,6 +36,11 @@ var (
 		"",
 		"Comma-separated list of validator vote accounts to track inflationary rewards for",
 	)
+	feeRewardAddresses = flag.String(
+		"fee-reward-addresses",
+		"",
+		"Comma-separated list of validator identity accounts to track fee rewards for.",
+	)
 )
 
 func init() {
@@ -50,6 +55,7 @@ type solanaCollector struct {
 	balanceAddresses         []string
 	leaderSlotAddresses      []string
 	inflationRewardAddresses []string
+	feeRewardAddresses       []string
 
 	/// descriptors:
 	totalValidatorsDesc     *prometheus.Desc
@@ -67,6 +73,7 @@ func createSolanaCollector(
 	balanceAddresses []string,
 	leaderSlotAddresses []string,
 	inflationRewardAddresses []string,
+	feeRewardAddresses []string,
 ) *solanaCollector {
 	return &solanaCollector{
 		rpcClient:                provider,
@@ -74,6 +81,7 @@ func createSolanaCollector(
 		balanceAddresses:         balanceAddresses,
 		leaderSlotAddresses:      leaderSlotAddresses,
 		inflationRewardAddresses: inflationRewardAddresses,
+		feeRewardAddresses:       feeRewardAddresses,
 		totalValidatorsDesc: prometheus.NewDesc(
 			"solana_active_validators",
 			"Total number of active validators by state",
@@ -120,10 +128,19 @@ func createSolanaCollector(
 }
 
 func NewSolanaCollector(
-	rpcAddr string, balanceAddresses []string, leaderSlotAddresses []string, inflationRewardAddresses []string,
+	rpcAddr string,
+	balanceAddresses []string,
+	leaderSlotAddresses []string,
+	inflationRewardAddresses []string,
+	feeRewardAddresses []string,
 ) *solanaCollector {
 	return createSolanaCollector(
-		rpc.NewRPCClient(rpcAddr), slotPacerSchedule, balanceAddresses, leaderSlotAddresses, inflationRewardAddresses,
+		rpc.NewRPCClient(rpcAddr),
+		slotPacerSchedule,
+		balanceAddresses,
+		leaderSlotAddresses,
+		inflationRewardAddresses,
+		feeRewardAddresses,
 	)
 }
 
@@ -255,6 +272,7 @@ func main() {
 		balAddresses []string
 		lsAddresses  []string
 		irAddresses  []string
+		frAddresses  []string
 	)
 	if *balanceAddresses != "" {
 		balAddresses = strings.Split(*balanceAddresses, ",")
@@ -265,8 +283,11 @@ func main() {
 	if *inflationRewardAddresses != "" {
 		irAddresses = strings.Split(*inflationRewardAddresses, ",")
 	}
+	if *feeRewardAddresses != "" {
+		frAddresses = strings.Split(*feeRewardAddresses, ",")
+	}
 
-	collector := NewSolanaCollector(*rpcAddr, balAddresses, lsAddresses, irAddresses)
+	collector := NewSolanaCollector(*rpcAddr, balAddresses, lsAddresses, irAddresses, frAddresses)
 
 	slotWatcher := NewCollectorSlotWatcher(collector)
 	go slotWatcher.WatchSlots(context.Background(), collector.slotPace)

@@ -21,6 +21,7 @@ type SlotWatcher struct {
 	// config:
 	leaderSlotAddresses      []string
 	inflationRewardAddresses []string
+	feeRewardAddresses       []string
 
 	// currentEpoch is the current epoch we are watching
 	currentEpoch int64
@@ -30,6 +31,8 @@ type SlotWatcher struct {
 	lastSlot int64
 	// slotWatermark is the last (most recent) slot we have tracked
 	slotWatermark int64
+
+	leaderSchedule map[string][]int64
 }
 
 var (
@@ -81,6 +84,14 @@ var (
 		},
 		[]string{"votekey", "epoch"},
 	)
+
+	feeRewards = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "solana_fee_rewards",
+			Help: "Transaction fee rewards earned per validator identity account, per epoch",
+		},
+		[]string{"nodekey", "epoch"},
+	)
 )
 
 func NewCollectorSlotWatcher(collector *solanaCollector) *SlotWatcher {
@@ -88,6 +99,7 @@ func NewCollectorSlotWatcher(collector *solanaCollector) *SlotWatcher {
 		client:                   collector.rpcClient,
 		leaderSlotAddresses:      collector.leaderSlotAddresses,
 		inflationRewardAddresses: collector.inflationRewardAddresses,
+		feeRewardAddresses:       collector.feeRewardAddresses,
 	}
 }
 
@@ -100,6 +112,7 @@ func init() {
 	prometheus.MustRegister(leaderSlotsTotal)
 	prometheus.MustRegister(leaderSlotsByEpoch)
 	prometheus.MustRegister(inflationRewards)
+	prometheus.MustRegister(feeRewards)
 }
 
 func (c *SlotWatcher) WatchSlots(ctx context.Context, pace time.Duration) {
@@ -246,12 +259,11 @@ func (c *SlotWatcher) fetchAndEmitBlockProduction(ctx context.Context, endSlot i
 		valid := float64(production.BlocksProduced)
 		skipped := float64(production.LeaderSlots - production.BlocksProduced)
 
-		epochStr := fmt.Sprintf("%d", c.currentEpoch)
-
 		leaderSlotsTotal.WithLabelValues("valid", address).Add(valid)
 		leaderSlotsTotal.WithLabelValues("skipped", address).Add(skipped)
 
 		if len(c.leaderSlotAddresses) == 0 || slices.Contains(c.leaderSlotAddresses, address) {
+			epochStr := toString(c.currentEpoch)
 			leaderSlotsByEpoch.WithLabelValues("valid", address, epochStr).Add(valid)
 			leaderSlotsByEpoch.WithLabelValues("skipped", address, epochStr).Add(skipped)
 		}
@@ -271,8 +283,7 @@ func getEpochBounds(info *rpc.EpochInfo) (int64, int64) {
 // fetchAndEmitInflationRewards fetches and emits the inflation rewards for the configured inflationRewardAddresses
 // at the provided epoch
 func (c *SlotWatcher) fetchAndEmitInflationRewards(ctx context.Context, epoch int64) error {
-	epochStr := fmt.Sprintf("%d", epoch)
-	klog.Infof("Fetching inflation reward for epoch %v ...", epochStr)
+	klog.Infof("Fetching inflation reward for epoch %v ...", toString(epoch))
 
 	ctx, cancel := context.WithTimeout(ctx, httpTimeout)
 	defer cancel()
@@ -287,8 +298,33 @@ func (c *SlotWatcher) fetchAndEmitInflationRewards(ctx context.Context, epoch in
 	for i, rewardInfo := range rewardInfos {
 		address := c.inflationRewardAddresses[i]
 		reward := float64(rewardInfo.Amount) / float64(rpc.LamportsInSol)
-		inflationRewards.WithLabelValues(address, epochStr).Set(reward)
+		inflationRewards.WithLabelValues(address, toString(epoch)).Set(reward)
 	}
-	klog.Infof("Fetched inflation reward for epoch %v.", epochStr)
+	klog.Infof("Fetched inflation reward for epoch %v.", epoch)
+	return nil
+}
+
+func (c *SlotWatcher) fetchAndEmitFeeReward(
+	ctx context.Context, identity string, epoch int64, slot int64,
+) error {
+	block, err := c.client.GetBlock(ctx, rpc.CommitmentConfirmed, slot)
+	if err != nil {
+		return err
+	}
+
+	for _, reward := range block.Rewards {
+		if reward.RewardType == "fee" {
+			// make sure we haven't made a logic issue or something:
+			assertf(
+				reward.Pubkey == identity,
+				"fetching fee reward for %v but got fee reward for %v",
+				identity,
+				reward.Pubkey,
+			)
+			amount := float64(reward.Lamports) / float64(rpc.LamportsInSol)
+			feeRewards.WithLabelValues(identity, toString(epoch)).Add(amount)
+		}
+	}
+
 	return nil
 }
