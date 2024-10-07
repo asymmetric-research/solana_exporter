@@ -281,7 +281,7 @@ func (c *SlotWatcher) fetchAndEmitInflationRewards(ctx context.Context, epoch in
 		ctx, c.inflationRewardAddresses, rpc.CommitmentFinalized, &epoch, nil,
 	)
 	if err != nil {
-		return err
+		return fmt.Errorf("error fetching inflation rewards: %w", err)
 	}
 
 	for i, rewardInfo := range rewardInfos {
