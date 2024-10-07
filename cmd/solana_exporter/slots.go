@@ -117,7 +117,7 @@ func (c *SlotWatcher) WatchSlots(ctx context.Context, pace time.Duration) {
 			<-ticker.C
 
 			ctx_, cancel := context.WithTimeout(ctx, httpTimeout)
-			epochInfo, err := c.client.GetEpochInfo(ctx_, rpc.CommitmentFinalized)
+			epochInfo, err := c.client.GetEpochInfo(ctx_, rpc.CommitmentConfirmed)
 			if err != nil {
 				klog.Warningf("Failed to get epoch info, bailing out: %v", err)
 			}
@@ -236,7 +236,7 @@ func (c *SlotWatcher) fetchAndEmitBlockProduction(ctx context.Context, endSlot i
 	// fetch block production:
 	ctx, cancel := context.WithTimeout(ctx, httpTimeout)
 	defer cancel()
-	blockProduction, err := c.client.GetBlockProduction(ctx, nil, &startSlot, &endSlot)
+	blockProduction, err := c.client.GetBlockProduction(ctx, rpc.CommitmentConfirmed, nil, &startSlot, &endSlot)
 	if err != nil {
 		klog.Warningf("Failed to get block production, bailing out: %v", err)
 	}
@@ -278,7 +278,7 @@ func (c *SlotWatcher) fetchAndEmitInflationRewards(ctx context.Context, epoch in
 	defer cancel()
 
 	rewardInfos, err := c.client.GetInflationReward(
-		ctx, c.inflationRewardAddresses, rpc.CommitmentFinalized, &epoch, nil,
+		ctx, rpc.CommitmentConfirmed, c.inflationRewardAddresses, &epoch, nil,
 	)
 	if err != nil {
 		return err

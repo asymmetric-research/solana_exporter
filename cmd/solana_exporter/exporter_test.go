@@ -124,7 +124,7 @@ func (c *staticRPCClient) GetEpochInfo(ctx context.Context, commitment rpc.Commi
 }
 
 //goland:noinspection GoUnusedParameter
-func (c *staticRPCClient) GetSlot(ctx context.Context) (int64, error) {
+func (c *staticRPCClient) GetSlot(ctx context.Context, commitment rpc.Commitment) (int64, error) {
 	return staticEpochInfo.AbsoluteSlot, nil
 }
 
@@ -143,19 +143,19 @@ func (c *staticRPCClient) GetVoteAccounts(
 
 //goland:noinspection GoUnusedParameter
 func (c *staticRPCClient) GetBlockProduction(
-	ctx context.Context, identity *string, firstSlot *int64, lastSlot *int64,
+	ctx context.Context, commitment rpc.Commitment, identity *string, firstSlot *int64, lastSlot *int64,
 ) (*rpc.BlockProduction, error) {
 	return &staticBlockProduction, nil
 }
 
 //goland:noinspection GoUnusedParameter
-func (c *staticRPCClient) GetBalance(ctx context.Context, address string) (float64, error) {
+func (c *staticRPCClient) GetBalance(ctx context.Context, commitment rpc.Commitment, address string) (float64, error) {
 	return balances[address], nil
 }
 
 //goland:noinspection GoUnusedParameter
 func (c *staticRPCClient) GetInflationReward(
-	ctx context.Context, addresses []string, commitment rpc.Commitment, epoch *int64, minContextSlot *int64,
+	ctx context.Context, commitment rpc.Commitment, addresses []string, epoch *int64, minContextSlot *int64,
 ) ([]rpc.InflationReward, error) {
 	return staticInflationRewards, nil
 }
@@ -271,7 +271,7 @@ func (c *dynamicRPCClient) GetEpochInfo(ctx context.Context, commitment rpc.Comm
 }
 
 //goland:noinspection GoUnusedParameter
-func (c *dynamicRPCClient) GetSlot(ctx context.Context) (int64, error) {
+func (c *dynamicRPCClient) GetSlot(ctx context.Context, commitment rpc.Commitment) (int64, error) {
 	return int64(c.Slot), nil
 }
 
@@ -308,7 +308,7 @@ func (c *dynamicRPCClient) GetVoteAccounts(
 
 //goland:noinspection GoUnusedParameter
 func (c *dynamicRPCClient) GetBlockProduction(
-	ctx context.Context, identity *string, firstSlot *int64, lastSlot *int64,
+	ctx context.Context, commitment rpc.Commitment, identity *string, firstSlot *int64, lastSlot *int64,
 ) (*rpc.BlockProduction, error) {
 	byIdentity := make(map[string]rpc.HostProduction)
 	for _, identity := range identities {
@@ -330,13 +330,13 @@ func (c *dynamicRPCClient) GetBlockProduction(
 }
 
 //goland:noinspection GoUnusedParameter
-func (c *dynamicRPCClient) GetBalance(ctx context.Context, address string) (float64, error) {
+func (c *dynamicRPCClient) GetBalance(ctx context.Context, client rpc.Commitment, address string) (float64, error) {
 	return balances[address], nil
 }
 
 //goland:noinspection GoUnusedParameter
 func (c *dynamicRPCClient) GetInflationReward(
-	ctx context.Context, addresses []string, commitment rpc.Commitment, epoch *int64, minContextSlot *int64,
+	ctx context.Context, commitment rpc.Commitment, addresses []string, epoch *int64, minContextSlot *int64,
 ) ([]rpc.InflationReward, error) {
 	return staticInflationRewards, nil
 }

@@ -138,7 +138,7 @@ func (c *solanaCollector) Describe(ch chan<- *prometheus.Desc) {
 }
 
 func (c *solanaCollector) collectVoteAccounts(ctx context.Context, ch chan<- prometheus.Metric) {
-	voteAccounts, err := c.rpcClient.GetVoteAccounts(ctx, rpc.CommitmentProcessed, votePubkey)
+	voteAccounts, err := c.rpcClient.GetVoteAccounts(ctx, rpc.CommitmentConfirmed, votePubkey)
 	if err != nil {
 		ch <- prometheus.NewInvalidMetric(c.totalValidatorsDesc, err)
 		ch <- prometheus.NewInvalidMetric(c.validatorActivatedStake, err)
@@ -217,7 +217,7 @@ func (c *solanaCollector) collectBalances(ctx context.Context, ch chan<- prometh
 func fetchBalances(ctx context.Context, client rpc.Provider, addresses []string) (map[string]float64, error) {
 	balances := make(map[string]float64)
 	for _, address := range addresses {
-		balance, err := client.GetBalance(ctx, address)
+		balance, err := client.GetBalance(ctx, rpc.CommitmentConfirmed, address)
 		if err != nil {
 			return nil, err
 		}
