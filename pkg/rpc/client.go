@@ -180,9 +180,10 @@ func (c *Client) GetVersion(ctx context.Context) (string, error) {
 
 // GetSlot returns the slot that has reached the given or default commitment level.
 // See API docs: https://solana.com/docs/rpc/http/getslot
-func (c *Client) GetSlot(ctx context.Context) (int64, error) {
+func (c *Client) GetSlot(ctx context.Context, commitment Commitment) (int64, error) {
+	config := map[string]string{"commitment": string(commitment)}
 	var resp response[int64]
-	if err := c.getResponse(ctx, "getSlot", []any{}, &resp); err != nil {
+	if err := c.getResponse(ctx, "getSlot", []any{config}, &resp); err != nil {
 		return 0, err
 	}
 	return resp.Result, nil
@@ -262,13 +263,30 @@ func (c *Client) GetInflationReward(
 
 // GetLeaderSchedule returns the leader schedule for an epoch.
 // See API docs: https://solana.com/docs/rpc/http/getleaderschedule
-func (c *Client) GetLeaderSchedule(
-	ctx context.Context, commitment Commitment,
-) (map[string][]int64, error) {
+func (c *Client) GetLeaderSchedule(ctx context.Context, commitment Commitment) (map[string][]int64, error) {
 	config := map[string]any{"commitment": string(commitment)}
 	var resp response[map[string][]int64]
 	if err := c.getResponse(ctx, "getLeaderSchedule", []any{nil, config}, &resp); err != nil {
 		return nil, err
 	}
 	return resp.Result, nil
+}
+
+// GetBlock returns identity and transaction information about a confirmed block in the ledger.
+// See API docs: https://solana.com/docs/rpc/http/getblock
+func (c *Client) GetBlock(ctx context.Context, slot int64, commitment Commitment) (*Block, error) {
+	if commitment == CommitmentProcessed {
+		klog.Fatalf("commitment %v is not supported for GetBlock", commitment)
+	}
+	config := map[string]any{
+		"commitment":         commitment,
+		"encoding":           "json", // this is default, but no harm in specifying it
+		"transactionDetails": "none", // for now, can hard-code this out, as we don't need it
+		"rewards":            true,   // what we here for!
+	}
+	var resp response[Block]
+	if err := c.getResponse(ctx, "getBlock", []any{slot, config}, &resp); err != nil {
+		return nil, err
+	}
+	return &resp.Result, nil
 }
