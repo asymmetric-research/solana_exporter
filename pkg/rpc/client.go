@@ -133,7 +133,7 @@ func getResponse[T any](
 
 	// last error check:
 	if rpcResponse.Error.Code != 0 {
-		return fmt.Errorf("RPC error: %d %v", rpcResponse.Error.Code, rpcResponse.Error.Message)
+		return &rpcResponse.Error
 	}
 	return nil
 }
@@ -272,7 +272,8 @@ func (c *Client) GetLeaderSchedule(ctx context.Context, commitment Commitment, s
 // See API docs: https://solana.com/docs/rpc/http/getblock
 func (c *Client) GetBlock(ctx context.Context, commitment Commitment, slot int64) (*Block, error) {
 	if commitment == CommitmentProcessed {
-		klog.Fatalf("commitment %v is not supported for GetBlock", commitment)
+		// as per https://solana.com/docs/rpc/http/getblock
+		klog.Fatalf("commitment '%v' is not supported for GetBlock", CommitmentProcessed)
 	}
 	config := map[string]any{
 		"commitment":         commitment,

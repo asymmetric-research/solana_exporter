@@ -96,6 +96,10 @@ type (
 	}
 )
 
+func (e *RPCError) Error() string {
+	return fmt.Sprintf("RPC Error (%d): %s", e.Code, e.Message)
+}
+
 func (hp *HostProduction) UnmarshalJSON(data []byte) error {
 	var arr []int64
 	if err := json.Unmarshal(data, &arr); err != nil {
