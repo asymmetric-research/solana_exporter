@@ -130,15 +130,17 @@ func (c *SlotWatcher) WatchSlots(ctx context.Context, pace time.Duration) {
 			<-ticker.C
 
 			ctx_, cancel := context.WithTimeout(ctx, httpTimeout)
-			epochInfo, err := c.client.GetEpochInfo(ctx_, rpc.CommitmentConfirmed)
-			if err != nil {
-				klog.Warningf("Failed to get epoch info, bailing out: %v", err)
-			}
+			// TODO: separate fee-rewards watching from general slot watching, such that general slot watching commitment level can be dropped to confirmed
+			epochInfo, err := c.client.GetEpochInfo(ctx_, rpc.CommitmentFinalized)
 			cancel()
+			if err != nil {
+				klog.Errorf("Failed to get epoch info, bailing out: %v", err)
+				continue
+			}
 
 			// if we are running for the first time, then we need to set our tracking numbers:
 			if c.currentEpoch == 0 {
-				c.trackEpoch(epochInfo)
+				c.trackEpoch(ctx, epochInfo)
 			}
 
 			totalTransactionsTotal.Set(float64(epochInfo.TransactionCount))
@@ -163,14 +165,15 @@ func (c *SlotWatcher) WatchSlots(ctx context.Context, pace time.Duration) {
 			}
 
 			// update block production metrics up until the current slot:
-			c.fetchAndEmitBlockProduction(ctx, epochInfo.AbsoluteSlot)
+			c.moveSlotWatermark(ctx, epochInfo.AbsoluteSlot)
 		}
 	}
 }
 
 // trackEpoch takes in a new rpc.EpochInfo and sets the SlotWatcher tracking metrics accordingly,
 // and updates the prometheus gauges associated with those metrics.
-func (c *SlotWatcher) trackEpoch(epoch *rpc.EpochInfo) {
+func (c *SlotWatcher) trackEpoch(ctx context.Context, epoch *rpc.EpochInfo) {
+	klog.Infof("Tracking epoch %v (from %v)", epoch.Epoch, c.currentEpoch)
 	firstSlot, lastSlot := getEpochBounds(epoch)
 	// if we haven't yet set c.currentEpoch, that (hopefully) means this is the initial setup,
 	// and so we can simply store the tracking numbers
@@ -207,16 +210,29 @@ func (c *SlotWatcher) trackEpoch(epoch *rpc.EpochInfo) {
 	}
 
 	// emit epoch bounds:
+	klog.Infof("Emitting epoch bounds: %v (slots %v -> %v)", c.currentEpoch, c.firstSlot, c.lastSlot)
 	currentEpochNumber.Set(float64(c.currentEpoch))
 	epochFirstSlot.Set(float64(c.firstSlot))
 	epochLastSlot.Set(float64(c.lastSlot))
+
+	// update leader schedule:
+	ctx, cancel := context.WithTimeout(ctx, httpTimeout)
+	defer cancel()
+	klog.Infof("Updating leader schedule for epoch %v ...", c.currentEpoch)
+	leaderSchedule, err := GetTrimmedLeaderSchedule(
+		ctx, c.client, c.feeRewardAddresses, epoch.AbsoluteSlot, c.firstSlot,
+	)
+	if err != nil {
+		klog.Errorf("Failed to get trimmed leader schedule, bailing out: %v", err)
+	}
+	c.leaderSchedule = leaderSchedule
 }
 
 // closeCurrentEpoch is called when an epoch change-over happens, and we need to make sure we track the last
 // remaining slots in the "current" epoch before we start tracking the new one.
 func (c *SlotWatcher) closeCurrentEpoch(ctx context.Context, newEpoch *rpc.EpochInfo) {
-	c.fetchAndEmitBlockProduction(ctx, c.lastSlot)
-	c.trackEpoch(newEpoch)
+	c.moveSlotWatermark(ctx, c.lastSlot)
+	c.trackEpoch(ctx, newEpoch)
 }
 
 // checkValidSlotRange makes sure that the slot range we are going to query is within the current epoch we are tracking.
@@ -234,6 +250,13 @@ func (c *SlotWatcher) checkValidSlotRange(from, to int64) error {
 	return nil
 }
 
+// moveSlotWatermark performs all the slot-watching tasks required to move the slotWatermark to the provided 'to' slot.
+func (c *SlotWatcher) moveSlotWatermark(ctx context.Context, to int64) {
+	c.fetchAndEmitBlockProduction(ctx, to)
+	c.fetchAndEmitFeeRewards(ctx, to)
+	c.slotWatermark = to
+}
+
 // fetchAndEmitBlockProduction fetches block production up to the provided endSlot, emits the prometheus metrics,
 // and updates the SlotWatcher.slotWatermark accordingly
 func (c *SlotWatcher) fetchAndEmitBlockProduction(ctx context.Context, endSlot int64) {
@@ -249,9 +272,10 @@ func (c *SlotWatcher) fetchAndEmitBlockProduction(ctx context.Context, endSlot i
 	// fetch block production:
 	ctx, cancel := context.WithTimeout(ctx, httpTimeout)
 	defer cancel()
-	blockProduction, err := c.client.GetBlockProduction(ctx, rpc.CommitmentConfirmed, nil, &startSlot, &endSlot)
+	blockProduction, err := c.client.GetBlockProduction(ctx, rpc.CommitmentFinalized, nil, &startSlot, &endSlot)
 	if err != nil {
-		klog.Warningf("Failed to get block production, bailing out: %v", err)
+		klog.Errorf("Failed to get block production, bailing out: %v", err)
+		return
 	}
 
 	// emit the metrics:
@@ -270,8 +294,61 @@ func (c *SlotWatcher) fetchAndEmitBlockProduction(ctx context.Context, endSlot i
 	}
 
 	klog.Infof("Fetched block production in [%v -> %v]", startSlot, endSlot)
-	// update the slot watermark:
-	c.slotWatermark = endSlot
+}
+
+// fetchAndEmitFeeRewards fetches and emits all the fee rewards for the tracked addresses between the
+// slotWatermark and endSlot
+func (c *SlotWatcher) fetchAndEmitFeeRewards(ctx context.Context, endSlot int64) {
+	startSlot := c.slotWatermark + 1
+	klog.Infof("Fetching fee rewards in [%v -> %v]", startSlot, endSlot)
+
+	if err := c.checkValidSlotRange(startSlot, endSlot); err != nil {
+		klog.Fatalf("invalid slot range: %v", err)
+	}
+	scheduleToFetch := SelectFromSchedule(c.leaderSchedule, startSlot, endSlot)
+	for identity, leaderSlots := range scheduleToFetch {
+		if len(leaderSlots) == 0 {
+			continue
+		}
+
+		klog.Infof("Fetching fee rewards for %v in [%v -> %v]: %v ...", identity, startSlot, endSlot, leaderSlots)
+		for _, slot := range leaderSlots {
+			ctx, cancel := context.WithTimeout(ctx, httpTimeout)
+			err := c.fetchAndEmitSingleFeeReward(ctx, identity, c.currentEpoch, slot)
+			cancel()
+			if err != nil {
+				klog.Errorf("Failed to fetch fee rewards for %v at %v: %v", identity, slot, err)
+			}
+		}
+	}
+
+	klog.Infof("Fetched fee rewards in [%v -> %v]", startSlot, endSlot)
+}
+
+// fetchAndEmitSingleFeeReward fetches and emits the fee reward for a single block.
+func (c *SlotWatcher) fetchAndEmitSingleFeeReward(
+	ctx context.Context, identity string, epoch int64, slot int64,
+) error {
+	block, err := c.client.GetBlock(ctx, rpc.CommitmentConfirmed, slot)
+	if err != nil {
+		return err
+	}
+
+	for _, reward := range block.Rewards {
+		if reward.RewardType == "fee" {
+			// make sure we haven't made a logic issue or something:
+			assertf(
+				reward.Pubkey == identity,
+				"fetching fee reward for %v but got fee reward for %v",
+				identity,
+				reward.Pubkey,
+			)
+			amount := float64(reward.Lamports) / float64(rpc.LamportsInSol)
+			feeRewards.WithLabelValues(identity, toString(epoch)).Add(amount)
+		}
+	}
+
+	return nil
 }
 
 // getEpochBounds returns the first slot and last slot within an [inclusive] Epoch
@@ -301,30 +378,5 @@ func (c *SlotWatcher) fetchAndEmitInflationRewards(ctx context.Context, epoch in
 		inflationRewards.WithLabelValues(address, toString(epoch)).Set(reward)
 	}
 	klog.Infof("Fetched inflation reward for epoch %v.", epoch)
-	return nil
-}
-
-func (c *SlotWatcher) fetchAndEmitFeeReward(
-	ctx context.Context, identity string, epoch int64, slot int64,
-) error {
-	block, err := c.client.GetBlock(ctx, rpc.CommitmentConfirmed, slot)
-	if err != nil {
-		return err
-	}
-
-	for _, reward := range block.Rewards {
-		if reward.RewardType == "fee" {
-			// make sure we haven't made a logic issue or something:
-			assertf(
-				reward.Pubkey == identity,
-				"fetching fee reward for %v but got fee reward for %v",
-				identity,
-				reward.Pubkey,
-			)
-			amount := float64(reward.Lamports) / float64(rpc.LamportsInSol)
-			feeRewards.WithLabelValues(identity, toString(epoch)).Add(amount)
-		}
-	}
-
 	return nil
 }

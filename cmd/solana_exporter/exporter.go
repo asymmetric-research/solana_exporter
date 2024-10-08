@@ -276,15 +276,20 @@ func main() {
 	)
 	if *balanceAddresses != "" {
 		balAddresses = strings.Split(*balanceAddresses, ",")
+		klog.Infof("Monitoring balances for %v", balAddresses)
 	}
 	if *leaderSlotAddresses != "" {
 		lsAddresses = strings.Split(*leaderSlotAddresses, ",")
+		klog.Infof("Monitoring leader-slot by epoch for %v", lsAddresses)
+
 	}
 	if *inflationRewardAddresses != "" {
 		irAddresses = strings.Split(*inflationRewardAddresses, ",")
+		klog.Infof("Monitoring inflation reward by epoch for %v", irAddresses)
 	}
 	if *feeRewardAddresses != "" {
 		frAddresses = strings.Split(*feeRewardAddresses, ",")
+		klog.Infof("Monitoring fee reward by epoch for %v", frAddresses)
 	}
 
 	collector := NewSolanaCollector(*rpcAddr, balAddresses, lsAddresses, irAddresses, frAddresses)

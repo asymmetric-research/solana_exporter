@@ -47,7 +47,7 @@ var (
 	identityVotes   = map[string]string{"aaa": "AAA", "bbb": "BBB", "ccc": "CCC"}
 	nv              = len(identities)
 	staticEpochInfo = rpc.EpochInfo{
-		AbsoluteSlot:     166598,
+		AbsoluteSlot:     166599,
 		BlockHeight:      166500,
 		Epoch:            27,
 		SlotIndex:        2790,
@@ -70,12 +70,9 @@ var (
 	staticVoteAccounts = rpc.VoteAccounts{
 		Current: []rpc.VoteAccount{
 			{
-				ActivatedStake: 42,
-				Commission:     0,
-				EpochCredits: [][]int{
-					{1, 64, 0},
-					{2, 192, 64},
-				},
+				ActivatedStake:   42,
+				Commission:       0,
+				EpochCredits:     [][]int{{1, 64, 0}, {2, 192, 64}},
 				EpochVoteAccount: true,
 				LastVote:         147,
 				NodePubkey:       "bbb",
@@ -83,12 +80,9 @@ var (
 				VotePubkey:       "BBB",
 			},
 			{
-				ActivatedStake: 43,
-				Commission:     1,
-				EpochCredits: [][]int{
-					{2, 65, 1},
-					{3, 193, 65},
-				},
+				ActivatedStake:   43,
+				Commission:       1,
+				EpochCredits:     [][]int{{2, 65, 1}, {3, 193, 65}},
 				EpochVoteAccount: true,
 				LastVote:         148,
 				NodePubkey:       "ccc",
@@ -98,12 +92,9 @@ var (
 		},
 		Delinquent: []rpc.VoteAccount{
 			{
-				ActivatedStake: 49,
-				Commission:     2,
-				EpochCredits: [][]int{
-					{10, 594, 6},
-					{9, 98, 4},
-				},
+				ActivatedStake:   49,
+				Commission:       2,
+				EpochCredits:     [][]int{{10, 594, 6}, {9, 98, 4}},
 				EpochVoteAccount: true,
 				LastVote:         92,
 				NodePubkey:       "aaa",
@@ -111,6 +102,9 @@ var (
 				VotePubkey:       "AAA",
 			},
 		},
+	}
+	staticLeaderSchedule = map[string][]int64{
+		"aaa": {0, 3, 6, 9, 12}, "bbb": {1, 4, 7, 10, 13}, "ccc": {2, 5, 8, 11, 14},
 	}
 )
 
@@ -164,7 +158,7 @@ func (c *staticRPCClient) GetInflationReward(
 func (c *staticRPCClient) GetLeaderSchedule(
 	ctx context.Context, commitment rpc.Commitment, slot int64,
 ) (map[string][]int64, error) {
-	return nil, nil
+	return staticLeaderSchedule, nil
 }
 
 //goland:noinspection GoUnusedParameter
