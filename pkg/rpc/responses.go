@@ -6,10 +6,15 @@ import (
 )
 
 type (
+	RPCError struct {
+		Message string `json:"message"`
+		Code    int64  `json:"code"`
+	}
+
 	response[T any] struct {
 		jsonrpc string
 		Result  T        `json:"result"`
-		Error   rpcError `json:"error"`
+		Error   RPCError `json:"error"`
 		Id      int      `json:"id"`
 	}
 
@@ -91,6 +96,10 @@ type (
 	}
 )
 
+func (e *RPCError) Error() string {
+	return fmt.Sprintf("RPC Error (%d): %s", e.Code, e.Message)
+}
+
 func (hp *HostProduction) UnmarshalJSON(data []byte) error {
 	var arr []int64
 	if err := json.Unmarshal(data, &arr); err != nil {
@@ -103,12 +112,4 @@ func (hp *HostProduction) UnmarshalJSON(data []byte) error {
 	hp.LeaderSlots = arr[0]
 	hp.BlocksProduced = arr[1]
 	return nil
-}
-
-func (r response[T]) getError() rpcError {
-	return r.Error
-}
-
-type HasRPCError interface {
-	getError() rpcError
 }
