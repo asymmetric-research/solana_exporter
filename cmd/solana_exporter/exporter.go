@@ -13,33 +13,45 @@ import (
 	"k8s.io/klog/v2"
 )
 
+const (
+	SkipStatusLabel = "status"
+	StateLabel      = "state"
+	NodekeyLabel    = "nodekey"
+	VotekeyLabel    = "votekey"
+	VersionLabel    = "version"
+	AddressLabel    = "address"
+	EpochLabel      = "epoch"
+
+	StatusSkipped = "skipped"
+	StatusValid   = "valid"
+
+	StateCurrent    = "current"
+	StateDelinquent = "delinquent"
+)
+
 var (
 	httpTimeout     = 60 * time.Second
-	rpcAddr         = flag.String("rpcURI", "", "Solana RPC URI (including protocol and path)")
-	addr            = flag.String("addr", ":8080", "Listen address")
-	votePubkey      = flag.String("votepubkey", "", "Validator vote address (will only return results of this address)")
-	httpTimeoutSecs = flag.Int("http_timeout", 60, "HTTP timeout in seconds")
+	rpcUrl          = flag.String("rpc-url", "", "Solana RPC URI (including protocol and path)")
+	listenAddress   = flag.String("listen-address", ":8080", "Listen address")
+	httpTimeoutSecs = flag.Int("http-timeout", 60, "HTTP timeout to use, in seconds.")
 
 	// addresses:
+	nodekeys = flag.String(
+		"nodekeys",
+		"",
+		"Comma-separated list of nodekeys (identity accounts) representing validators to monitor.",
+	)
+	comprehensiveSlotTracking = flag.Bool(
+		"comprehensive-slot-tracking",
+		false,
+		"Set this flag to track solana_leader_slots_by_epoch for ALL validators. "+
+			"Warning: this will lead to potentially thousands of new Prometheus metrics being created every epoch.",
+	)
 	balanceAddresses = flag.String(
 		"balance-addresses",
 		"",
-		"Comma-separated list of addresses to monitor SOL balances.",
-	)
-	leaderSlotAddresses = flag.String(
-		"leader-slot-addresses",
-		"",
-		"Comma-separated list of addresses to monitor leader slots by epoch for, leave nil to track by epoch for all validators (this creates a lot of Prometheus metrics with every new epoch).",
-	)
-	inflationRewardAddresses = flag.String(
-		"inflation-reward-addresses",
-		"",
-		"Comma-separated list of validator vote accounts to track inflationary rewards for",
-	)
-	feeRewardAddresses = flag.String(
-		"fee-reward-addresses",
-		"",
-		"Comma-separated list of validator identity accounts to track fee rewards for.",
+		"Comma-separated list of addresses to monitor SOL balances for, "+
+			"in addition to the identity and vote accounts of the provided nodekeys.",
 	)
 )
 
@@ -47,15 +59,12 @@ func init() {
 	klog.InitFlags(nil)
 }
 
-type solanaCollector struct {
+type SolanaCollector struct {
 	rpcClient rpc.Provider
 
 	// config:
-	slotPace                 time.Duration
-	balanceAddresses         []string
-	leaderSlotAddresses      []string
-	inflationRewardAddresses []string
-	feeRewardAddresses       []string
+	slotPace         time.Duration
+	balanceAddresses []string
 
 	/// descriptors:
 	totalValidatorsDesc     *prometheus.Desc
@@ -67,84 +76,60 @@ type solanaCollector struct {
 	balances                *prometheus.Desc
 }
 
-func createSolanaCollector(
-	provider rpc.Provider,
-	slotPace time.Duration,
-	balanceAddresses []string,
-	leaderSlotAddresses []string,
-	inflationRewardAddresses []string,
-	feeRewardAddresses []string,
-) *solanaCollector {
-	return &solanaCollector{
-		rpcClient:                provider,
-		slotPace:                 slotPace,
-		balanceAddresses:         balanceAddresses,
-		leaderSlotAddresses:      leaderSlotAddresses,
-		inflationRewardAddresses: inflationRewardAddresses,
-		feeRewardAddresses:       feeRewardAddresses,
+func NewSolanaCollector(
+	provider rpc.Provider, slotPace time.Duration, balanceAddresses []string, nodekeys []string, votekeys []string,
+) *SolanaCollector {
+	collector := &SolanaCollector{
+		rpcClient:        provider,
+		slotPace:         slotPace,
+		balanceAddresses: CombineUnique(balanceAddresses, nodekeys, votekeys),
 		totalValidatorsDesc: prometheus.NewDesc(
 			"solana_active_validators",
 			"Total number of active validators by state",
-			[]string{"state"},
+			[]string{StateLabel},
 			nil,
 		),
 		validatorActivatedStake: prometheus.NewDesc(
 			"solana_validator_activated_stake",
 			"Activated stake per validator",
-			[]string{"pubkey", "nodekey"},
+			[]string{VotekeyLabel, NodekeyLabel},
 			nil,
 		),
 		validatorLastVote: prometheus.NewDesc(
 			"solana_validator_last_vote",
 			"Last voted slot per validator",
-			[]string{"pubkey", "nodekey"},
+			[]string{VotekeyLabel, NodekeyLabel},
 			nil,
 		),
 		validatorRootSlot: prometheus.NewDesc(
 			"solana_validator_root_slot",
 			"Root slot per validator",
-			[]string{"pubkey", "nodekey"},
+			[]string{VotekeyLabel, NodekeyLabel},
 			nil,
 		),
 		validatorDelinquent: prometheus.NewDesc(
 			"solana_validator_delinquent",
 			"Whether a validator is delinquent",
-			[]string{"pubkey", "nodekey"},
+			[]string{VotekeyLabel, NodekeyLabel},
 			nil,
 		),
 		solanaVersion: prometheus.NewDesc(
 			"solana_node_version",
 			"Node version of solana",
-			[]string{"version"},
+			[]string{VersionLabel},
 			nil,
 		),
 		balances: prometheus.NewDesc(
 			"solana_account_balance",
 			"Solana account balances",
-			[]string{"address"},
+			[]string{AddressLabel},
 			nil,
 		),
 	}
+	return collector
 }
 
-func NewSolanaCollector(
-	rpcAddr string,
-	balanceAddresses []string,
-	leaderSlotAddresses []string,
-	inflationRewardAddresses []string,
-	feeRewardAddresses []string,
-) *solanaCollector {
-	return createSolanaCollector(
-		rpc.NewRPCClient(rpcAddr),
-		slotPacerSchedule,
-		balanceAddresses,
-		leaderSlotAddresses,
-		inflationRewardAddresses,
-		feeRewardAddresses,
-	)
-}
-
-func (c *solanaCollector) Describe(ch chan<- *prometheus.Desc) {
+func (c *SolanaCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.totalValidatorsDesc
 	ch <- c.solanaVersion
 	ch <- c.validatorActivatedStake
@@ -154,8 +139,8 @@ func (c *solanaCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.balances
 }
 
-func (c *solanaCollector) collectVoteAccounts(ctx context.Context, ch chan<- prometheus.Metric) {
-	voteAccounts, err := c.rpcClient.GetVoteAccounts(ctx, rpc.CommitmentConfirmed, votePubkey)
+func (c *SolanaCollector) collectVoteAccounts(ctx context.Context, ch chan<- prometheus.Metric) {
+	voteAccounts, err := c.rpcClient.GetVoteAccounts(ctx, rpc.CommitmentConfirmed, nil)
 	if err != nil {
 		ch <- prometheus.NewInvalidMetric(c.totalValidatorsDesc, err)
 		ch <- prometheus.NewInvalidMetric(c.validatorActivatedStake, err)
@@ -166,10 +151,10 @@ func (c *solanaCollector) collectVoteAccounts(ctx context.Context, ch chan<- pro
 	}
 
 	ch <- prometheus.MustNewConstMetric(
-		c.totalValidatorsDesc, prometheus.GaugeValue, float64(len(voteAccounts.Delinquent)), "delinquent",
+		c.totalValidatorsDesc, prometheus.GaugeValue, float64(len(voteAccounts.Delinquent)), StateDelinquent,
 	)
 	ch <- prometheus.MustNewConstMetric(
-		c.totalValidatorsDesc, prometheus.GaugeValue, float64(len(voteAccounts.Current)), "current",
+		c.totalValidatorsDesc, prometheus.GaugeValue, float64(len(voteAccounts.Current)), StateCurrent,
 	)
 
 	for _, account := range append(voteAccounts.Current, voteAccounts.Delinquent...) {
@@ -208,7 +193,7 @@ func (c *solanaCollector) collectVoteAccounts(ctx context.Context, ch chan<- pro
 	}
 }
 
-func (c *solanaCollector) collectVersion(ctx context.Context, ch chan<- prometheus.Metric) {
+func (c *SolanaCollector) collectVersion(ctx context.Context, ch chan<- prometheus.Metric) {
 	version, err := c.rpcClient.GetVersion(ctx)
 
 	if err != nil {
@@ -219,8 +204,8 @@ func (c *solanaCollector) collectVersion(ctx context.Context, ch chan<- promethe
 	ch <- prometheus.MustNewConstMetric(c.solanaVersion, prometheus.GaugeValue, 1, version)
 }
 
-func (c *solanaCollector) collectBalances(ctx context.Context, ch chan<- prometheus.Metric) {
-	balances, err := fetchBalances(ctx, c.rpcClient, c.balanceAddresses)
+func (c *SolanaCollector) collectBalances(ctx context.Context, ch chan<- prometheus.Metric) {
+	balances, err := FetchBalances(ctx, c.rpcClient, c.balanceAddresses)
 	if err != nil {
 		ch <- prometheus.NewInvalidMetric(c.solanaVersion, err)
 		return
@@ -231,19 +216,7 @@ func (c *solanaCollector) collectBalances(ctx context.Context, ch chan<- prometh
 	}
 }
 
-func fetchBalances(ctx context.Context, client rpc.Provider, addresses []string) (map[string]float64, error) {
-	balances := make(map[string]float64)
-	for _, address := range addresses {
-		balance, err := client.GetBalance(ctx, rpc.CommitmentConfirmed, address)
-		if err != nil {
-			return nil, err
-		}
-		balances[address] = balance
-	}
-	return balances, nil
-}
-
-func (c *solanaCollector) Collect(ch chan<- prometheus.Metric) {
+func (c *SolanaCollector) Collect(ch chan<- prometheus.Metric) {
 	ctx, cancel := context.WithTimeout(context.Background(), httpTimeout)
 	defer cancel()
 
@@ -253,15 +226,16 @@ func (c *solanaCollector) Collect(ch chan<- prometheus.Metric) {
 }
 
 func main() {
+	ctx := context.Background()
 	flag.Parse()
 
-	if *rpcAddr == "" {
+	if *rpcUrl == "" {
 		klog.Fatal("Please specify -rpcURI")
 	}
 
-	if *leaderSlotAddresses == "" {
+	if *comprehensiveSlotTracking {
 		klog.Warning(
-			"Not specifying leader-slot-addresses will lead to potentially thousands of new " +
+			"Comprehensive slot tracking will lead to potentially thousands of new " +
 				"Prometheus metrics being created every epoch.",
 		)
 	}
@@ -269,37 +243,31 @@ func main() {
 	httpTimeout = time.Duration(*httpTimeoutSecs) * time.Second
 
 	var (
-		balAddresses []string
-		lsAddresses  []string
-		irAddresses  []string
-		frAddresses  []string
+		balAddresses      []string
+		validatorNodekeys []string
 	)
 	if *balanceAddresses != "" {
 		balAddresses = strings.Split(*balanceAddresses, ",")
-		klog.Infof("Monitoring balances for %v", balAddresses)
 	}
-	if *leaderSlotAddresses != "" {
-		lsAddresses = strings.Split(*leaderSlotAddresses, ",")
-		klog.Infof("Monitoring leader-slot by epoch for %v", lsAddresses)
-
-	}
-	if *inflationRewardAddresses != "" {
-		irAddresses = strings.Split(*inflationRewardAddresses, ",")
-		klog.Infof("Monitoring inflation reward by epoch for %v", irAddresses)
-	}
-	if *feeRewardAddresses != "" {
-		frAddresses = strings.Split(*feeRewardAddresses, ",")
-		klog.Infof("Monitoring fee reward by epoch for %v", frAddresses)
+	if *nodekeys != "" {
+		validatorNodekeys = strings.Split(*nodekeys, ",")
+		klog.Infof("Monitoring the following validators: %v", validatorNodekeys)
 	}
 
-	collector := NewSolanaCollector(*rpcAddr, balAddresses, lsAddresses, irAddresses, frAddresses)
-
-	slotWatcher := NewCollectorSlotWatcher(collector)
-	go slotWatcher.WatchSlots(context.Background(), collector.slotPace)
+	client := rpc.NewRPCClient(*rpcUrl)
+	ctx_, cancel := context.WithTimeout(ctx, httpTimeout)
+	defer cancel()
+	votekeys, err := GetAssociatedVoteAccounts(ctx_, client, rpc.CommitmentFinalized, validatorNodekeys)
+	if err != nil {
+		klog.Fatalf("Failed to get associated vote accounts for %v: %v", nodekeys, err)
+	}
+	collector := NewSolanaCollector(client, slotPacerSchedule, balAddresses, validatorNodekeys, votekeys)
+	slotWatcher := NewSlotWatcher(client, validatorNodekeys, votekeys, *comprehensiveSlotTracking)
+	go slotWatcher.WatchSlots(ctx, collector.slotPace)
 
 	prometheus.MustRegister(collector)
 	http.Handle("/metrics", promhttp.Handler())
 
-	klog.Infof("listening on %s", *addr)
-	klog.Fatal(http.ListenAndServe(*addr, nil))
+	klog.Infof("listening on %s", *listenAddress)
+	klog.Fatal(http.ListenAndServe(*listenAddress, nil))
 }

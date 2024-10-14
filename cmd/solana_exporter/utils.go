@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/asymmetric-research/solana_exporter/pkg/rpc"
 	"k8s.io/klog/v2"
+	"slices"
 )
 
 func assertf(condition bool, format string, args ...any) {
@@ -59,4 +60,56 @@ func GetTrimmedLeaderSchedule(
 	}
 
 	return trimmedLeaderSchedule, nil
+}
+
+// GetAssociatedVoteAccounts returns the votekeys associated with a given list of nodekeys
+func GetAssociatedVoteAccounts(
+	ctx context.Context, client rpc.Provider, commitment rpc.Commitment, nodekeys []string,
+) ([]string, error) {
+	voteAccounts, err := client.GetVoteAccounts(ctx, commitment, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	// first map nodekey -> votekey:
+	voteAccountsMap := make(map[string]string)
+	for _, voteAccount := range append(voteAccounts.Current, voteAccounts.Delinquent...) {
+		voteAccountsMap[voteAccount.NodePubkey] = voteAccount.VotePubkey
+	}
+
+	votekeys := make([]string, len(nodekeys))
+	for i, nodeKey := range nodekeys {
+		votekey := voteAccountsMap[nodeKey]
+		if votekey == "" {
+			return nil, fmt.Errorf("failed to find vote key for node %v", nodeKey)
+		}
+		votekeys[i] = votekey
+	}
+	return votekeys, nil
+}
+
+// FetchBalances fetches SOL balances for a list of addresses
+func FetchBalances(ctx context.Context, client rpc.Provider, addresses []string) (map[string]float64, error) {
+	balances := make(map[string]float64)
+	for _, address := range addresses {
+		balance, err := client.GetBalance(ctx, rpc.CommitmentConfirmed, address)
+		if err != nil {
+			return nil, err
+		}
+		balances[address] = balance
+	}
+	return balances, nil
+}
+
+// CombineUnique combines unique items from multiple arrays to a single array.
+func CombineUnique[T comparable](args ...[]T) []T {
+	var uniqueItems []T
+	for _, arg := range args {
+		for _, item := range arg {
+			if !slices.Contains(uniqueItems, item) {
+				uniqueItems = append(uniqueItems, item)
+			}
+		}
+	}
+	return uniqueItems
 }

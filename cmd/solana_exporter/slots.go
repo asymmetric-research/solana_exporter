@@ -21,9 +21,9 @@ type SlotWatcher struct {
 	client rpc.Provider
 
 	// config:
-	leaderSlotAddresses      []string
-	inflationRewardAddresses []string
-	feeRewardAddresses       []string
+	nodekeys                  []string
+	votekeys                  []string
+	comprehensiveSlotTracking bool
 
 	// currentEpoch is the current epoch we are watching
 	currentEpoch int64
@@ -68,7 +68,7 @@ var (
 			Name: "solana_leader_slots_total",
 			Help: "(DEPRECATED) Number of leader slots per leader, grouped by skip status",
 		},
-		[]string{"status", "nodekey"},
+		[]string{SkipStatusLabel, NodekeyLabel},
 	)
 
 	leaderSlotsByEpoch = prometheus.NewCounterVec(
@@ -76,7 +76,7 @@ var (
 			Name: "solana_leader_slots_by_epoch",
 			Help: "Number of leader slots per leader, grouped by skip status and epoch",
 		},
-		[]string{"status", "nodekey", "epoch"},
+		[]string{SkipStatusLabel, NodekeyLabel, EpochLabel},
 	)
 
 	inflationRewards = prometheus.NewGaugeVec(
@@ -84,7 +84,7 @@ var (
 			Name: "solana_inflation_rewards",
 			Help: "Inflation reward earned per validator vote account, per epoch",
 		},
-		[]string{"votekey", "epoch"},
+		[]string{VotekeyLabel, EpochLabel},
 	)
 
 	feeRewards = prometheus.NewCounterVec(
@@ -92,16 +92,18 @@ var (
 			Name: "solana_fee_rewards",
 			Help: "Transaction fee rewards earned per validator identity account, per epoch",
 		},
-		[]string{"nodekey", "epoch"},
+		[]string{NodekeyLabel, EpochLabel},
 	)
 )
 
-func NewCollectorSlotWatcher(collector *solanaCollector) *SlotWatcher {
+func NewSlotWatcher(
+	client rpc.Provider, nodekeys []string, votekeys []string, comprehensiveSlotTracking bool,
+) *SlotWatcher {
 	return &SlotWatcher{
-		client:                   collector.rpcClient,
-		leaderSlotAddresses:      collector.leaderSlotAddresses,
-		inflationRewardAddresses: collector.inflationRewardAddresses,
-		feeRewardAddresses:       collector.feeRewardAddresses,
+		client:                    client,
+		nodekeys:                  nodekeys,
+		votekeys:                  votekeys,
+		comprehensiveSlotTracking: comprehensiveSlotTracking,
 	}
 }
 
@@ -157,8 +159,8 @@ func (c *SlotWatcher) WatchSlots(ctx context.Context, pace time.Duration) {
 			}
 
 			if epochInfo.Epoch > c.currentEpoch {
-				// if we have configured inflation reward addresses, fetch em
-				if len(c.inflationRewardAddresses) > 0 {
+				// fetch inflation rewards for vote accounts:
+				if len(c.votekeys) > 0 {
 					err = c.fetchAndEmitInflationRewards(ctx, c.currentEpoch)
 					if err != nil {
 						klog.Errorf("Failed to emit inflation rewards, bailing out: %v", err)
@@ -222,9 +224,7 @@ func (c *SlotWatcher) trackEpoch(ctx context.Context, epoch *rpc.EpochInfo) {
 	ctx, cancel := context.WithTimeout(ctx, httpTimeout)
 	defer cancel()
 	klog.Infof("Updating leader schedule for epoch %v ...", c.currentEpoch)
-	leaderSchedule, err := GetTrimmedLeaderSchedule(
-		ctx, c.client, c.feeRewardAddresses, epoch.AbsoluteSlot, c.firstSlot,
-	)
+	leaderSchedule, err := GetTrimmedLeaderSchedule(ctx, c.client, c.nodekeys, epoch.AbsoluteSlot, c.firstSlot)
 	if err != nil {
 		klog.Errorf("Failed to get trimmed leader schedule, bailing out: %v", err)
 	}
@@ -286,13 +286,13 @@ func (c *SlotWatcher) fetchAndEmitBlockProduction(ctx context.Context, endSlot i
 		valid := float64(production.BlocksProduced)
 		skipped := float64(production.LeaderSlots - production.BlocksProduced)
 
-		leaderSlotsTotal.WithLabelValues("valid", address).Add(valid)
-		leaderSlotsTotal.WithLabelValues("skipped", address).Add(skipped)
+		leaderSlotsTotal.WithLabelValues(StatusValid, address).Add(valid)
+		leaderSlotsTotal.WithLabelValues(StatusSkipped, address).Add(skipped)
 
-		if len(c.leaderSlotAddresses) == 0 || slices.Contains(c.leaderSlotAddresses, address) {
+		if slices.Contains(c.nodekeys, address) || c.comprehensiveSlotTracking {
 			epochStr := toString(c.currentEpoch)
-			leaderSlotsByEpoch.WithLabelValues("valid", address, epochStr).Add(valid)
-			leaderSlotsByEpoch.WithLabelValues("skipped", address, epochStr).Add(skipped)
+			leaderSlotsByEpoch.WithLabelValues(StatusValid, address, epochStr).Add(valid)
+			leaderSlotsByEpoch.WithLabelValues(StatusSkipped, address, epochStr).Add(skipped)
 		}
 	}
 
@@ -376,15 +376,13 @@ func (c *SlotWatcher) fetchAndEmitInflationRewards(ctx context.Context, epoch in
 	ctx, cancel := context.WithTimeout(ctx, httpTimeout)
 	defer cancel()
 
-	rewardInfos, err := c.client.GetInflationReward(
-		ctx, rpc.CommitmentConfirmed, c.inflationRewardAddresses, &epoch, nil,
-	)
+	rewardInfos, err := c.client.GetInflationReward(ctx, rpc.CommitmentConfirmed, c.votekeys, &epoch, nil)
 	if err != nil {
 		return fmt.Errorf("error fetching inflation rewards: %w", err)
 	}
 
 	for i, rewardInfo := range rewardInfos {
-		address := c.inflationRewardAddresses[i]
+		address := c.votekeys[i]
 		reward := float64(rewardInfo.Amount) / float64(rpc.LamportsInSol)
 		inflationRewards.WithLabelValues(address, toString(epoch)).Set(reward)
 	}

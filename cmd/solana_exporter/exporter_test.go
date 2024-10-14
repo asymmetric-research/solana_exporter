@@ -43,7 +43,7 @@ type (
 var (
 	identities      = []string{"aaa", "bbb", "ccc"}
 	votekeys        = []string{"AAA", "BBB", "CCC"}
-	balances        = map[string]float64{"aaa": 1, "bbb": 2, "ccc": 3}
+	balances        = map[string]float64{"aaa": 1, "bbb": 2, "ccc": 3, "AAA": 4, "BBB": 5, "CCC": 6}
 	identityVotes   = map[string]string{"aaa": "AAA", "bbb": "BBB", "ccc": "CCC"}
 	nv              = len(identities)
 	staticEpochInfo = rpc.EpochInfo{
@@ -106,6 +106,16 @@ var (
 	staticLeaderSchedule = map[string][]int64{
 		"aaa": {0, 3, 6, 9, 12}, "bbb": {1, 4, 7, 10, 13}, "ccc": {2, 5, 8, 11, 14},
 	}
+	balanceMetricResponse = `
+# HELP solana_account_balance Solana account balances
+# TYPE solana_account_balance gauge
+solana_account_balance{address="AAA"} 4
+solana_account_balance{address="BBB"} 5
+solana_account_balance{address="CCC"} 6
+solana_account_balance{address="aaa"} 1
+solana_account_balance{address="bbb"} 2
+solana_account_balance{address="ccc"} 3
+		`
 )
 
 /*
@@ -394,9 +404,7 @@ func runCollectionTests(t *testing.T, collector prometheus.Collector, testCases 
 }
 
 func TestSolanaCollector_Collect_Static(t *testing.T) {
-	collector := createSolanaCollector(
-		&staticRPCClient{}, slotPacerSchedule, identities, []string{}, votekeys, identities,
-	)
+	collector := NewSolanaCollector(&staticRPCClient{}, slotPacerSchedule, nil, identities, votekeys)
 	prometheus.NewPedanticRegistry().MustRegister(collector)
 
 	testCases := []collectionTest{
@@ -414,9 +422,9 @@ solana_active_validators{state="delinquent"} 1
 			ExpectedResponse: `
 # HELP solana_validator_activated_stake Activated stake per validator
 # TYPE solana_validator_activated_stake gauge
-solana_validator_activated_stake{nodekey="aaa",pubkey="AAA"} 49
-solana_validator_activated_stake{nodekey="bbb",pubkey="BBB"} 42
-solana_validator_activated_stake{nodekey="ccc",pubkey="CCC"} 43
+solana_validator_activated_stake{nodekey="aaa",votekey="AAA"} 49
+solana_validator_activated_stake{nodekey="bbb",votekey="BBB"} 42
+solana_validator_activated_stake{nodekey="ccc",votekey="CCC"} 43
 `,
 		},
 		{
@@ -424,9 +432,9 @@ solana_validator_activated_stake{nodekey="ccc",pubkey="CCC"} 43
 			ExpectedResponse: `
 # HELP solana_validator_last_vote Last voted slot per validator
 # TYPE solana_validator_last_vote gauge
-solana_validator_last_vote{nodekey="aaa",pubkey="AAA"} 92
-solana_validator_last_vote{nodekey="bbb",pubkey="BBB"} 147
-solana_validator_last_vote{nodekey="ccc",pubkey="CCC"} 148
+solana_validator_last_vote{nodekey="aaa",votekey="AAA"} 92
+solana_validator_last_vote{nodekey="bbb",votekey="BBB"} 147
+solana_validator_last_vote{nodekey="ccc",votekey="CCC"} 148
 `,
 		},
 		{
@@ -434,9 +442,9 @@ solana_validator_last_vote{nodekey="ccc",pubkey="CCC"} 148
 			ExpectedResponse: `
 # HELP solana_validator_root_slot Root slot per validator
 # TYPE solana_validator_root_slot gauge
-solana_validator_root_slot{nodekey="aaa",pubkey="AAA"} 3
-solana_validator_root_slot{nodekey="bbb",pubkey="BBB"} 18
-solana_validator_root_slot{nodekey="ccc",pubkey="CCC"} 19
+solana_validator_root_slot{nodekey="aaa",votekey="AAA"} 3
+solana_validator_root_slot{nodekey="bbb",votekey="BBB"} 18
+solana_validator_root_slot{nodekey="ccc",votekey="CCC"} 19
 `,
 		},
 		{
@@ -444,9 +452,9 @@ solana_validator_root_slot{nodekey="ccc",pubkey="CCC"} 19
 			ExpectedResponse: `
 # HELP solana_validator_delinquent Whether a validator is delinquent
 # TYPE solana_validator_delinquent gauge
-solana_validator_delinquent{nodekey="aaa",pubkey="AAA"} 1
-solana_validator_delinquent{nodekey="bbb",pubkey="BBB"} 0
-solana_validator_delinquent{nodekey="ccc",pubkey="CCC"} 0
+solana_validator_delinquent{nodekey="aaa",votekey="AAA"} 1
+solana_validator_delinquent{nodekey="bbb",votekey="BBB"} 0
+solana_validator_delinquent{nodekey="ccc",votekey="CCC"} 0
 `,
 		},
 		{
@@ -458,14 +466,8 @@ solana_node_version{version="1.16.7"} 1
 		`,
 		},
 		{
-			Name: "solana_account_balance",
-			ExpectedResponse: `
-# HELP solana_account_balance Solana account balances
-# TYPE solana_account_balance gauge
-solana_account_balance{address="aaa"} 1
-solana_account_balance{address="bbb"} 2
-solana_account_balance{address="ccc"} 3
-		`,
+			Name:             "solana_account_balance",
+			ExpectedResponse: balanceMetricResponse,
 		},
 	}
 
@@ -474,7 +476,7 @@ solana_account_balance{address="ccc"} 3
 
 func TestSolanaCollector_Collect_Dynamic(t *testing.T) {
 	client := newDynamicRPCClient()
-	collector := createSolanaCollector(client, slotPacerSchedule, identities, []string{}, votekeys, identities)
+	collector := NewSolanaCollector(client, slotPacerSchedule, nil, identities, votekeys)
 	prometheus.NewPedanticRegistry().MustRegister(collector)
 
 	// start off by testing initial state:
@@ -493,9 +495,9 @@ solana_active_validators{state="delinquent"} 0
 			ExpectedResponse: `
 # HELP solana_validator_activated_stake Activated stake per validator
 # TYPE solana_validator_activated_stake gauge
-solana_validator_activated_stake{nodekey="aaa",pubkey="AAA"} 1000000
-solana_validator_activated_stake{nodekey="bbb",pubkey="BBB"} 1000000
-solana_validator_activated_stake{nodekey="ccc",pubkey="CCC"} 1000000
+solana_validator_activated_stake{nodekey="aaa",votekey="AAA"} 1000000
+solana_validator_activated_stake{nodekey="bbb",votekey="BBB"} 1000000
+solana_validator_activated_stake{nodekey="ccc",votekey="CCC"} 1000000
 `,
 		},
 		{
@@ -503,9 +505,9 @@ solana_validator_activated_stake{nodekey="ccc",pubkey="CCC"} 1000000
 			ExpectedResponse: `
 # HELP solana_validator_root_slot Root slot per validator
 # TYPE solana_validator_root_slot gauge
-solana_validator_root_slot{nodekey="aaa",pubkey="AAA"} 0
-solana_validator_root_slot{nodekey="bbb",pubkey="BBB"} 0
-solana_validator_root_slot{nodekey="ccc",pubkey="CCC"} 0
+solana_validator_root_slot{nodekey="aaa",votekey="AAA"} 0
+solana_validator_root_slot{nodekey="bbb",votekey="BBB"} 0
+solana_validator_root_slot{nodekey="ccc",votekey="CCC"} 0
 `,
 		},
 		{
@@ -513,9 +515,9 @@ solana_validator_root_slot{nodekey="ccc",pubkey="CCC"} 0
 			ExpectedResponse: `
 # HELP solana_validator_delinquent Whether a validator is delinquent
 # TYPE solana_validator_delinquent gauge
-solana_validator_delinquent{nodekey="aaa",pubkey="AAA"} 0
-solana_validator_delinquent{nodekey="bbb",pubkey="BBB"} 0
-solana_validator_delinquent{nodekey="ccc",pubkey="CCC"} 0
+solana_validator_delinquent{nodekey="aaa",votekey="AAA"} 0
+solana_validator_delinquent{nodekey="bbb",votekey="BBB"} 0
+solana_validator_delinquent{nodekey="ccc",votekey="CCC"} 0
 `,
 		},
 		{
@@ -527,14 +529,8 @@ solana_node_version{version="v1.0.0"} 1
 `,
 		},
 		{
-			Name: "solana_account_balance",
-			ExpectedResponse: `
-# HELP solana_account_balance Solana account balances
-# TYPE solana_account_balance gauge
-solana_account_balance{address="aaa"} 1
-solana_account_balance{address="bbb"} 2
-solana_account_balance{address="ccc"} 3
-`,
+			Name:             "solana_account_balance",
+			ExpectedResponse: balanceMetricResponse,
 		},
 	}
 
@@ -562,9 +558,9 @@ solana_active_validators{state="delinquent"} 1
 			ExpectedResponse: `
 # HELP solana_validator_activated_stake Activated stake per validator
 # TYPE solana_validator_activated_stake gauge
-solana_validator_activated_stake{nodekey="aaa",pubkey="AAA"} 2000000
-solana_validator_activated_stake{nodekey="bbb",pubkey="BBB"} 500000
-solana_validator_activated_stake{nodekey="ccc",pubkey="CCC"} 1000000
+solana_validator_activated_stake{nodekey="aaa",votekey="AAA"} 2000000
+solana_validator_activated_stake{nodekey="bbb",votekey="BBB"} 500000
+solana_validator_activated_stake{nodekey="ccc",votekey="CCC"} 1000000
 `,
 		},
 		{
@@ -572,9 +568,9 @@ solana_validator_activated_stake{nodekey="ccc",pubkey="CCC"} 1000000
 			ExpectedResponse: `
 # HELP solana_validator_root_slot Root slot per validator
 # TYPE solana_validator_root_slot gauge
-solana_validator_root_slot{nodekey="aaa",pubkey="AAA"} 0
-solana_validator_root_slot{nodekey="bbb",pubkey="BBB"} 0
-solana_validator_root_slot{nodekey="ccc",pubkey="CCC"} 0
+solana_validator_root_slot{nodekey="aaa",votekey="AAA"} 0
+solana_validator_root_slot{nodekey="bbb",votekey="BBB"} 0
+solana_validator_root_slot{nodekey="ccc",votekey="CCC"} 0
 `,
 		},
 		{
@@ -582,9 +578,9 @@ solana_validator_root_slot{nodekey="ccc",pubkey="CCC"} 0
 			ExpectedResponse: `
 # HELP solana_validator_delinquent Whether a validator is delinquent
 # TYPE solana_validator_delinquent gauge
-solana_validator_delinquent{nodekey="aaa",pubkey="AAA"} 0
-solana_validator_delinquent{nodekey="bbb",pubkey="BBB"} 0
-solana_validator_delinquent{nodekey="ccc",pubkey="CCC"} 1
+solana_validator_delinquent{nodekey="aaa",votekey="AAA"} 0
+solana_validator_delinquent{nodekey="bbb",votekey="BBB"} 0
+solana_validator_delinquent{nodekey="ccc",votekey="CCC"} 1
 `,
 		},
 		{
@@ -596,14 +592,8 @@ solana_node_version{version="v1.2.3"} 1
 `,
 		},
 		{
-			Name: "solana_account_balance",
-			ExpectedResponse: `
-# HELP solana_account_balance Solana account balances
-# TYPE solana_account_balance gauge
-solana_account_balance{address="aaa"} 1
-solana_account_balance{address="bbb"} 2
-solana_account_balance{address="ccc"} 3
-`,
+			Name:             "solana_account_balance",
+			ExpectedResponse: balanceMetricResponse,
 		},
 	}
 
