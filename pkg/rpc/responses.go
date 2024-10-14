@@ -72,6 +72,23 @@ type (
 		Epoch         int64 `json:"epoch"`
 		PostBalance   int64 `json:"postBalance"`
 	}
+
+	Block struct {
+		BlockHeight       int64         `json:"blockHeight"`
+		BlockTime         int64         `json:"blockTime,omitempty"`
+		Blockhash         string        `json:"blockhash"`
+		ParentSlot        int64         `json:"parentSlot"`
+		PreviousBlockhash string        `json:"previousBlockhash"`
+		Rewards           []BlockReward `json:"rewards"`
+	}
+
+	BlockReward struct {
+		Pubkey      string `json:"pubkey"`
+		Lamports    int64  `json:"lamports"`
+		PostBalance int64  `json:"postBalance"`
+		RewardType  string `json:"rewardType"`
+		Commission  uint8  `json:"commission"`
+	}
 )
 
 func (hp *HostProduction) UnmarshalJSON(data []byte) error {

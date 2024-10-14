@@ -39,7 +39,7 @@ type Provider interface {
 	// The method takes a context for cancellation, and pointers to the first and last slots of the range.
 	// It returns a BlockProduction struct containing the block production details, or an error if the operation fails.
 	GetBlockProduction(
-		ctx context.Context, identity *string, firstSlot *int64, lastSlot *int64,
+		ctx context.Context, commitment Commitment, identity *string, firstSlot *int64, lastSlot *int64,
 	) (*BlockProduction, error)
 
 	// GetEpochInfo retrieves the information regarding the current epoch.
@@ -50,7 +50,7 @@ type Provider interface {
 	// GetSlot retrieves the current slot number.
 	// The method takes a context for cancellation.
 	// It returns the current slot number as an int64, or an error if the operation fails.
-	GetSlot(ctx context.Context) (int64, error)
+	GetSlot(ctx context.Context, commitment Commitment) (int64, error)
 
 	// GetVoteAccounts retrieves the vote accounts information.
 	// The method takes a context for cancellation and a slice of parameters to filter the vote accounts.
@@ -64,13 +64,17 @@ type Provider interface {
 	GetVersion(ctx context.Context) (string, error)
 
 	// GetBalance returns the SOL balance of the account at the provided address
-	GetBalance(ctx context.Context, address string) (float64, error)
+	GetBalance(ctx context.Context, commitment Commitment, address string) (float64, error)
 
 	// GetInflationReward returns the inflation rewards (in lamports) awarded to the given addresses (vote accounts)
 	// during the given epoch.
 	GetInflationReward(
-		ctx context.Context, addresses []string, commitment Commitment, epoch *int64, minContextSlot *int64,
+		ctx context.Context, commitment Commitment, addresses []string, epoch *int64, minContextSlot *int64,
 	) ([]InflationReward, error)
+
+	GetLeaderSchedule(ctx context.Context, commitment Commitment, slot int64) (map[string][]int64, error)
+
+	GetBlock(ctx context.Context, commitment Commitment, slot int64) (*Block, error)
 }
 
 func (c Commitment) MarshalJSON() ([]byte, error) {
@@ -138,6 +142,8 @@ func (c *Client) getResponse(ctx context.Context, method string, params []any, r
 	return nil
 }
 
+// GetEpochInfo returns information about the current epoch.
+// See API docs: https://solana.com/docs/rpc/http/getepochinfo
 func (c *Client) GetEpochInfo(ctx context.Context, commitment Commitment) (*EpochInfo, error) {
 	var resp response[EpochInfo]
 	if err := c.getResponse(ctx, "getEpochInfo", []any{commitment}, &resp); err != nil {
@@ -146,6 +152,8 @@ func (c *Client) GetEpochInfo(ctx context.Context, commitment Commitment) (*Epoc
 	return &resp.Result, nil
 }
 
+// GetVoteAccounts returns the account info and associated stake for all the voting accounts in the current bank.
+// See API docs: https://solana.com/docs/rpc/http/getvoteaccounts
 func (c *Client) GetVoteAccounts(
 	ctx context.Context, commitment Commitment, votePubkey *string,
 ) (*VoteAccounts, error) {
@@ -162,6 +170,8 @@ func (c *Client) GetVoteAccounts(
 	return &resp.Result, nil
 }
 
+// GetVersion returns the current Solana version running on the node.
+// See API docs: https://solana.com/docs/rpc/http/getversion
 func (c *Client) GetVersion(ctx context.Context) (string, error) {
 	var resp response[struct {
 		Version string `json:"solana-core"`
@@ -172,16 +182,21 @@ func (c *Client) GetVersion(ctx context.Context) (string, error) {
 	return resp.Result.Version, nil
 }
 
-func (c *Client) GetSlot(ctx context.Context) (int64, error) {
+// GetSlot returns the slot that has reached the given or default commitment level.
+// See API docs: https://solana.com/docs/rpc/http/getslot
+func (c *Client) GetSlot(ctx context.Context, commitment Commitment) (int64, error) {
+	config := map[string]string{"commitment": string(commitment)}
 	var resp response[int64]
-	if err := c.getResponse(ctx, "getSlot", []any{}, &resp); err != nil {
+	if err := c.getResponse(ctx, "getSlot", []any{config}, &resp); err != nil {
 		return 0, err
 	}
 	return resp.Result, nil
 }
 
+// GetBlockProduction returns recent block production information from the current or previous epoch.
+// See API docs: https://solana.com/docs/rpc/http/getblockproduction
 func (c *Client) GetBlockProduction(
-	ctx context.Context, identity *string, firstSlot *int64, lastSlot *int64,
+	ctx context.Context, commitment Commitment, identity *string, firstSlot *int64, lastSlot *int64,
 ) (*BlockProduction, error) {
 	// can't provide a last slot without a first:
 	if firstSlot == nil && lastSlot != nil {
@@ -189,7 +204,7 @@ func (c *Client) GetBlockProduction(
 	}
 
 	// format params:
-	config := make(map[string]any)
+	config := map[string]any{"commitment": string(commitment)}
 	if identity != nil {
 		config["identity"] = *identity
 	}
@@ -206,29 +221,29 @@ func (c *Client) GetBlockProduction(
 		config["range"] = blockRange
 	}
 
-	var params []any
-	if len(config) > 0 {
-		params = append(params, config)
-	}
-
 	// make request:
 	var resp response[contextualResult[BlockProduction]]
-	if err := c.getResponse(ctx, "getBlockProduction", params, &resp); err != nil {
+	if err := c.getResponse(ctx, "getBlockProduction", []any{config}, &resp); err != nil {
 		return nil, err
 	}
 	return &resp.Result.Value, nil
 }
 
-func (c *Client) GetBalance(ctx context.Context, address string) (float64, error) {
+// GetBalance returns the lamport balance of the account of provided pubkey.
+// See API docs:https://solana.com/docs/rpc/http/getbalance
+func (c *Client) GetBalance(ctx context.Context, commitment Commitment, address string) (float64, error) {
+	config := map[string]string{"commitment": string(commitment)}
 	var resp response[contextualResult[int64]]
-	if err := c.getResponse(ctx, "getBalance", []any{address}, &resp); err != nil {
+	if err := c.getResponse(ctx, "getBalance", []any{address, config}, &resp); err != nil {
 		return 0, err
 	}
 	return float64(resp.Result.Value) / float64(LamportsInSol), nil
 }
 
+// GetInflationReward returns the inflation / staking reward for a list of addresses for an epoch.
+// See API docs: https://solana.com/docs/rpc/http/getinflationreward
 func (c *Client) GetInflationReward(
-	ctx context.Context, addresses []string, commitment Commitment, epoch *int64, minContextSlot *int64,
+	ctx context.Context, commitment Commitment, addresses []string, epoch *int64, minContextSlot *int64,
 ) ([]InflationReward, error) {
 	// format params:
 	config := map[string]any{"commitment": string(commitment)}
@@ -244,4 +259,34 @@ func (c *Client) GetInflationReward(
 		return nil, err
 	}
 	return resp.Result, nil
+}
+
+// GetLeaderSchedule returns the leader schedule for an epoch.
+// See API docs: https://solana.com/docs/rpc/http/getleaderschedule
+func (c *Client) GetLeaderSchedule(ctx context.Context, commitment Commitment, slot int64) (map[string][]int64, error) {
+	config := map[string]any{"commitment": string(commitment)}
+	var resp response[map[string][]int64]
+	if err := c.getResponse(ctx, "getLeaderSchedule", []any{slot, config}, &resp); err != nil {
+		return nil, err
+	}
+	return resp.Result, nil
+}
+
+// GetBlock returns identity and transaction information about a confirmed block in the ledger.
+// See API docs: https://solana.com/docs/rpc/http/getblock
+func (c *Client) GetBlock(ctx context.Context, commitment Commitment, slot int64) (*Block, error) {
+	if commitment == CommitmentProcessed {
+		klog.Fatalf("commitment %v is not supported for GetBlock", commitment)
+	}
+	config := map[string]any{
+		"commitment":         commitment,
+		"encoding":           "json", // this is default, but no harm in specifying it
+		"transactionDetails": "none", // for now, can hard-code this out, as we don't need it
+		"rewards":            true,   // what we here for!
+	}
+	var resp response[Block]
+	if err := c.getResponse(ctx, "getBlock", []any{slot, config}, &resp); err != nil {
+		return nil, err
+	}
+	return &resp.Result, nil
 }

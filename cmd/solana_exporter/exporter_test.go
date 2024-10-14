@@ -47,7 +47,7 @@ var (
 	identityVotes   = map[string]string{"aaa": "AAA", "bbb": "BBB", "ccc": "CCC"}
 	nv              = len(identities)
 	staticEpochInfo = rpc.EpochInfo{
-		AbsoluteSlot:     166598,
+		AbsoluteSlot:     166599,
 		BlockHeight:      166500,
 		Epoch:            27,
 		SlotIndex:        2790,
@@ -70,12 +70,9 @@ var (
 	staticVoteAccounts = rpc.VoteAccounts{
 		Current: []rpc.VoteAccount{
 			{
-				ActivatedStake: 42,
-				Commission:     0,
-				EpochCredits: [][]int{
-					{1, 64, 0},
-					{2, 192, 64},
-				},
+				ActivatedStake:   42,
+				Commission:       0,
+				EpochCredits:     [][]int{{1, 64, 0}, {2, 192, 64}},
 				EpochVoteAccount: true,
 				LastVote:         147,
 				NodePubkey:       "bbb",
@@ -83,12 +80,9 @@ var (
 				VotePubkey:       "BBB",
 			},
 			{
-				ActivatedStake: 43,
-				Commission:     1,
-				EpochCredits: [][]int{
-					{2, 65, 1},
-					{3, 193, 65},
-				},
+				ActivatedStake:   43,
+				Commission:       1,
+				EpochCredits:     [][]int{{2, 65, 1}, {3, 193, 65}},
 				EpochVoteAccount: true,
 				LastVote:         148,
 				NodePubkey:       "ccc",
@@ -98,12 +92,9 @@ var (
 		},
 		Delinquent: []rpc.VoteAccount{
 			{
-				ActivatedStake: 49,
-				Commission:     2,
-				EpochCredits: [][]int{
-					{10, 594, 6},
-					{9, 98, 4},
-				},
+				ActivatedStake:   49,
+				Commission:       2,
+				EpochCredits:     [][]int{{10, 594, 6}, {9, 98, 4}},
 				EpochVoteAccount: true,
 				LastVote:         92,
 				NodePubkey:       "aaa",
@@ -111,6 +102,9 @@ var (
 				VotePubkey:       "AAA",
 			},
 		},
+	}
+	staticLeaderSchedule = map[string][]int64{
+		"aaa": {0, 3, 6, 9, 12}, "bbb": {1, 4, 7, 10, 13}, "ccc": {2, 5, 8, 11, 14},
 	}
 )
 
@@ -124,7 +118,7 @@ func (c *staticRPCClient) GetEpochInfo(ctx context.Context, commitment rpc.Commi
 }
 
 //goland:noinspection GoUnusedParameter
-func (c *staticRPCClient) GetSlot(ctx context.Context) (int64, error) {
+func (c *staticRPCClient) GetSlot(ctx context.Context, commitment rpc.Commitment) (int64, error) {
 	return staticEpochInfo.AbsoluteSlot, nil
 }
 
@@ -143,21 +137,33 @@ func (c *staticRPCClient) GetVoteAccounts(
 
 //goland:noinspection GoUnusedParameter
 func (c *staticRPCClient) GetBlockProduction(
-	ctx context.Context, identity *string, firstSlot *int64, lastSlot *int64,
+	ctx context.Context, commitment rpc.Commitment, identity *string, firstSlot *int64, lastSlot *int64,
 ) (*rpc.BlockProduction, error) {
 	return &staticBlockProduction, nil
 }
 
 //goland:noinspection GoUnusedParameter
-func (c *staticRPCClient) GetBalance(ctx context.Context, address string) (float64, error) {
+func (c *staticRPCClient) GetBalance(ctx context.Context, commitment rpc.Commitment, address string) (float64, error) {
 	return balances[address], nil
 }
 
 //goland:noinspection GoUnusedParameter
 func (c *staticRPCClient) GetInflationReward(
-	ctx context.Context, addresses []string, commitment rpc.Commitment, epoch *int64, minContextSlot *int64,
+	ctx context.Context, commitment rpc.Commitment, addresses []string, epoch *int64, minContextSlot *int64,
 ) ([]rpc.InflationReward, error) {
 	return staticInflationRewards, nil
+}
+
+//goland:noinspection GoUnusedParameter
+func (c *staticRPCClient) GetLeaderSchedule(
+	ctx context.Context, commitment rpc.Commitment, slot int64,
+) (map[string][]int64, error) {
+	return staticLeaderSchedule, nil
+}
+
+//goland:noinspection GoUnusedParameter
+func (c *staticRPCClient) GetBlock(ctx context.Context, commitment rpc.Commitment, slot int64) (*rpc.Block, error) {
+	return nil, nil
 }
 
 /*
@@ -271,7 +277,7 @@ func (c *dynamicRPCClient) GetEpochInfo(ctx context.Context, commitment rpc.Comm
 }
 
 //goland:noinspection GoUnusedParameter
-func (c *dynamicRPCClient) GetSlot(ctx context.Context) (int64, error) {
+func (c *dynamicRPCClient) GetSlot(ctx context.Context, commitment rpc.Commitment) (int64, error) {
 	return int64(c.Slot), nil
 }
 
@@ -308,7 +314,7 @@ func (c *dynamicRPCClient) GetVoteAccounts(
 
 //goland:noinspection GoUnusedParameter
 func (c *dynamicRPCClient) GetBlockProduction(
-	ctx context.Context, identity *string, firstSlot *int64, lastSlot *int64,
+	ctx context.Context, commitment rpc.Commitment, identity *string, firstSlot *int64, lastSlot *int64,
 ) (*rpc.BlockProduction, error) {
 	byIdentity := make(map[string]rpc.HostProduction)
 	for _, identity := range identities {
@@ -330,15 +336,27 @@ func (c *dynamicRPCClient) GetBlockProduction(
 }
 
 //goland:noinspection GoUnusedParameter
-func (c *dynamicRPCClient) GetBalance(ctx context.Context, address string) (float64, error) {
+func (c *dynamicRPCClient) GetBalance(ctx context.Context, client rpc.Commitment, address string) (float64, error) {
 	return balances[address], nil
 }
 
 //goland:noinspection GoUnusedParameter
 func (c *dynamicRPCClient) GetInflationReward(
-	ctx context.Context, addresses []string, commitment rpc.Commitment, epoch *int64, minContextSlot *int64,
+	ctx context.Context, commitment rpc.Commitment, addresses []string, epoch *int64, minContextSlot *int64,
 ) ([]rpc.InflationReward, error) {
 	return staticInflationRewards, nil
+}
+
+//goland:noinspection GoUnusedParameter
+func (c *dynamicRPCClient) GetLeaderSchedule(
+	ctx context.Context, commitment rpc.Commitment, slot int64,
+) (map[string][]int64, error) {
+	return nil, nil
+}
+
+//goland:noinspection GoUnusedParameter
+func (c *dynamicRPCClient) GetBlock(ctx context.Context, commitment rpc.Commitment, slot int64) (*rpc.Block, error) {
+	return nil, nil
 }
 
 /*
@@ -376,7 +394,9 @@ func runCollectionTests(t *testing.T, collector prometheus.Collector, testCases 
 }
 
 func TestSolanaCollector_Collect_Static(t *testing.T) {
-	collector := createSolanaCollector(&staticRPCClient{}, slotPacerSchedule, identities, []string{}, votekeys)
+	collector := createSolanaCollector(
+		&staticRPCClient{}, slotPacerSchedule, identities, []string{}, votekeys, identities,
+	)
 	prometheus.NewPedanticRegistry().MustRegister(collector)
 
 	testCases := []collectionTest{
@@ -454,7 +474,7 @@ solana_account_balance{address="ccc"} 3
 
 func TestSolanaCollector_Collect_Dynamic(t *testing.T) {
 	client := newDynamicRPCClient()
-	collector := createSolanaCollector(client, slotPacerSchedule, identities, []string{}, votekeys)
+	collector := createSolanaCollector(client, slotPacerSchedule, identities, []string{}, votekeys, identities)
 	prometheus.NewPedanticRegistry().MustRegister(collector)
 
 	// start off by testing initial state:
