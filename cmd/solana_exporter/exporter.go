@@ -30,12 +30,25 @@ const (
 )
 
 var (
-	httpTimeout     = 60 * time.Second
-	rpcUrl          = flag.String("rpc-url", "", "Solana RPC URI (including protocol and path)")
-	listenAddress   = flag.String("listen-address", ":8080", "Listen address")
-	httpTimeoutSecs = flag.Int("http-timeout", 60, "HTTP timeout to use, in seconds.")
-
-	// addresses:
+	httpTimeout = 60 * time.Second
+	// general config:
+	rpcUrl = flag.String(
+		"rpc-url",
+		"http://localhost:8899",
+		"Solana RPC URL (including protocol and path), "+
+			"e.g., 'http://localhost:8899' or 'https://api.mainnet-beta.solana.com'",
+	)
+	listenAddress = flag.String(
+		"listen-address",
+		":8080",
+		"Listen address",
+	)
+	httpTimeoutSecs = flag.Int(
+		"http-timeout",
+		60,
+		"HTTP timeout to use, in seconds.",
+	)
+	// parameters to specify what we're tracking:
 	nodekeys = flag.String(
 		"nodekeys",
 		"",
@@ -228,10 +241,6 @@ func (c *SolanaCollector) Collect(ch chan<- prometheus.Metric) {
 func main() {
 	ctx := context.Background()
 	flag.Parse()
-
-	if *rpcUrl == "" {
-		klog.Fatal("Please specify -rpcURI")
-	}
 
 	if *comprehensiveSlotTracking {
 		klog.Warning(
