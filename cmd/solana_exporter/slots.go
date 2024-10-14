@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/asymmetric-research/solana_exporter/pkg/rpc"
@@ -131,7 +133,8 @@ func (c *SlotWatcher) WatchSlots(ctx context.Context, pace time.Duration) {
 
 			ctx_, cancel := context.WithTimeout(ctx, httpTimeout)
 			// TODO: separate fee-rewards watching from general slot watching, such that general slot watching commitment level can be dropped to confirmed
-			epochInfo, err := c.client.GetEpochInfo(ctx_, rpc.CommitmentFinalized)
+			commitment := rpc.CommitmentFinalized
+			epochInfo, err := c.client.GetEpochInfo(ctx_, commitment)
 			cancel()
 			if err != nil {
 				klog.Errorf("Failed to get epoch info, bailing out: %v", err)
@@ -149,7 +152,7 @@ func (c *SlotWatcher) WatchSlots(ctx context.Context, pace time.Duration) {
 			// if we get here, then the tracking numbers are set, so this is a "normal" run.
 			// start by checking if we have progressed since last run:
 			if epochInfo.AbsoluteSlot <= c.slotWatermark {
-				klog.Infof("confirmed slot number has not advanced from %v, skipping", c.slotWatermark)
+				klog.Infof("%v slot number has not advanced from %v, skipping", commitment, c.slotWatermark)
 				continue
 			}
 
@@ -331,6 +334,14 @@ func (c *SlotWatcher) fetchAndEmitSingleFeeReward(
 ) error {
 	block, err := c.client.GetBlock(ctx, rpc.CommitmentConfirmed, slot)
 	if err != nil {
+		var rpcError *rpc.RPCError
+		if errors.As(err, &rpcError) {
+			// this is the error code for slot was skipped:
+			if rpcError.Code == rpc.SlotSkippedCode && strings.Contains(rpcError.Message, "skipped") {
+				klog.Infof("slot %v was skipped, no fee rewards.", slot)
+				return nil
+			}
+		}
 		return err
 	}
 
