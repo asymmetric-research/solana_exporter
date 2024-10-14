@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"github.com/asymmetric-research/solana_exporter/pkg/rpc"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
@@ -44,4 +45,14 @@ func TestFetchBalances(t *testing.T) {
 	fetchedBalances, err := FetchBalances(ctx, &client, CombineUnique(identities, votekeys))
 	assert.NoError(t, err)
 	assert.Equal(t, balances, fetchedBalances)
+}
+
+func TestGetAssociatedVoteAccounts(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	client := staticRPCClient{}
+	voteAccounts, err := GetAssociatedVoteAccounts(ctx, &client, rpc.CommitmentFinalized, identities)
+	assert.NoError(t, err)
+	assert.Equal(t, votekeys, voteAccounts)
 }
