@@ -337,7 +337,7 @@ func (c *SlotWatcher) fetchAndEmitSingleFeeReward(
 		var rpcError *rpc.RPCError
 		if errors.As(err, &rpcError) {
 			// this is the error code for slot was skipped:
-			if rpcError.Code == -32007 && strings.Contains(rpcError.Message, "skipped") {
+			if rpcError.Code == rpc.SlotSkippedCode && strings.Contains(rpcError.Message, "skipped") {
 				klog.Infof("slot %v was skipped, no fee rewards.", slot)
 				return nil
 			}
