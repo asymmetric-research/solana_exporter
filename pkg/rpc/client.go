@@ -8,12 +8,14 @@ import (
 	"io"
 	"k8s.io/klog/v2"
 	"net/http"
+	"time"
 )
 
 type (
 	Client struct {
-		httpClient http.Client
-		rpcAddr    string
+		HttpClient  http.Client
+		RpcUrl      string
+		HttpTimeout time.Duration
 	}
 
 	rpcRequest struct {
@@ -90,12 +92,12 @@ const (
 	CommitmentProcessed Commitment = "processed"
 )
 
-func NewRPCClient(rpcAddr string) *Client {
-	return &Client{httpClient: http.Client{}, rpcAddr: rpcAddr}
+func NewRPCClient(rpcAddr string, httpTimeout time.Duration) *Client {
+	return &Client{HttpClient: http.Client{}, RpcUrl: rpcAddr, HttpTimeout: httpTimeout}
 }
 
 func getResponse[T any](
-	ctx context.Context, httpClient http.Client, url string, method string, params []any, rpcResponse *response[T],
+	ctx context.Context, client *Client, method string, params []any, rpcResponse *response[T],
 ) error {
 	// format request:
 	request := &rpcRequest{Version: "2.0", ID: 1, Method: method, Params: params}
@@ -106,13 +108,15 @@ func getResponse[T any](
 	klog.V(2).Infof("jsonrpc request: %s", string(buffer))
 
 	// make request:
-	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(buffer))
+	ctx, cancel := context.WithTimeout(ctx, client.HttpTimeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, "POST", client.RpcUrl, bytes.NewBuffer(buffer))
 	if err != nil {
 		klog.Fatalf("failed to create request: %v", err)
 	}
 	req.Header.Set("content-type", "application/json")
 
-	resp, err := httpClient.Do(req)
+	resp, err := client.HttpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("%s RPC call failed: %w", method, err)
 	}
@@ -142,7 +146,7 @@ func getResponse[T any](
 // See API docs: https://solana.com/docs/rpc/http/getepochinfo
 func (c *Client) GetEpochInfo(ctx context.Context, commitment Commitment) (*EpochInfo, error) {
 	var resp response[EpochInfo]
-	if err := getResponse(ctx, c.httpClient, c.rpcAddr, "getEpochInfo", []any{commitment}, &resp); err != nil {
+	if err := getResponse(ctx, c, "getEpochInfo", []any{commitment}, &resp); err != nil {
 		return nil, err
 	}
 	return &resp.Result, nil
@@ -160,7 +164,7 @@ func (c *Client) GetVoteAccounts(
 	}
 
 	var resp response[VoteAccounts]
-	if err := getResponse(ctx, c.httpClient, c.rpcAddr, "getVoteAccounts", []any{config}, &resp); err != nil {
+	if err := getResponse(ctx, c, "getVoteAccounts", []any{config}, &resp); err != nil {
 		return nil, err
 	}
 	return &resp.Result, nil
@@ -172,7 +176,7 @@ func (c *Client) GetVersion(ctx context.Context) (string, error) {
 	var resp response[struct {
 		Version string `json:"solana-core"`
 	}]
-	if err := getResponse(ctx, c.httpClient, c.rpcAddr, "getVersion", []any{}, &resp); err != nil {
+	if err := getResponse(ctx, c, "getVersion", []any{}, &resp); err != nil {
 		return "", err
 	}
 	return resp.Result.Version, nil
@@ -183,7 +187,7 @@ func (c *Client) GetVersion(ctx context.Context) (string, error) {
 func (c *Client) GetSlot(ctx context.Context, commitment Commitment) (int64, error) {
 	config := map[string]string{"commitment": string(commitment)}
 	var resp response[int64]
-	if err := getResponse(ctx, c.httpClient, c.rpcAddr, "getSlot", []any{config}, &resp); err != nil {
+	if err := getResponse(ctx, c, "getSlot", []any{config}, &resp); err != nil {
 		return 0, err
 	}
 	return resp.Result, nil
@@ -219,7 +223,7 @@ func (c *Client) GetBlockProduction(
 
 	// make request:
 	var resp response[contextualResult[BlockProduction]]
-	if err := getResponse(ctx, c.httpClient, c.rpcAddr, "getBlockProduction", []any{config}, &resp); err != nil {
+	if err := getResponse(ctx, c, "getBlockProduction", []any{config}, &resp); err != nil {
 		return nil, err
 	}
 	return &resp.Result.Value, nil
@@ -230,7 +234,7 @@ func (c *Client) GetBlockProduction(
 func (c *Client) GetBalance(ctx context.Context, commitment Commitment, address string) (float64, error) {
 	config := map[string]string{"commitment": string(commitment)}
 	var resp response[contextualResult[int64]]
-	if err := getResponse(ctx, c.httpClient, c.rpcAddr, "getBalance", []any{address, config}, &resp); err != nil {
+	if err := getResponse(ctx, c, "getBalance", []any{address, config}, &resp); err != nil {
 		return 0, err
 	}
 	return float64(resp.Result.Value) / float64(LamportsInSol), nil
@@ -251,7 +255,7 @@ func (c *Client) GetInflationReward(
 	}
 
 	var resp response[[]InflationReward]
-	if err := getResponse(ctx, c.httpClient, c.rpcAddr, "getInflationReward", []any{addresses, config}, &resp); err != nil {
+	if err := getResponse(ctx, c, "getInflationReward", []any{addresses, config}, &resp); err != nil {
 		return nil, err
 	}
 	return resp.Result, nil
@@ -262,7 +266,7 @@ func (c *Client) GetInflationReward(
 func (c *Client) GetLeaderSchedule(ctx context.Context, commitment Commitment, slot int64) (map[string][]int64, error) {
 	config := map[string]any{"commitment": string(commitment)}
 	var resp response[map[string][]int64]
-	if err := getResponse(ctx, c.httpClient, c.rpcAddr, "getLeaderSchedule", []any{slot, config}, &resp); err != nil {
+	if err := getResponse(ctx, c, "getLeaderSchedule", []any{slot, config}, &resp); err != nil {
 		return nil, err
 	}
 	return resp.Result, nil
@@ -282,7 +286,7 @@ func (c *Client) GetBlock(ctx context.Context, commitment Commitment, slot int64
 		"rewards":            true,   // what we here for!
 	}
 	var resp response[Block]
-	if err := getResponse(ctx, c.httpClient, c.rpcAddr, "getBlock", []any{slot, config}, &resp); err != nil {
+	if err := getResponse(ctx, c, "getBlock", []any{slot, config}, &resp); err != nil {
 		return nil, err
 	}
 	return &resp.Result, nil
