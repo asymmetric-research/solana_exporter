@@ -57,13 +57,13 @@ func NewSolanaCollector(
 		balanceAddresses: CombineUnique(balanceAddresses, nodekeys, votekeys),
 		totalValidatorsDesc: prometheus.NewDesc(
 			"solana_active_validators",
-			"Total number of active validators grouped by state (i.e., 'current' vs 'delinquent')",
+			"Total number of active validators by state",
 			[]string{StateLabel},
 			nil,
 		),
 		validatorActivatedStake: prometheus.NewDesc(
 			"solana_validator_activated_stake",
-			"Activated stake per validator, in SOL.",
+			"Activated stake per validator",
 			[]string{VotekeyLabel, NodekeyLabel},
 			nil,
 		),
