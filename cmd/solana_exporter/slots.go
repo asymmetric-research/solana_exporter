@@ -280,7 +280,7 @@ func (c *SlotWatcher) checkValidSlotRange(from, to int64) error {
 // moveSlotWatermark performs all the slot-watching tasks required to move the slotWatermark to the provided 'to' slot.
 func (c *SlotWatcher) moveSlotWatermark(ctx context.Context, to int64) {
 	c.fetchAndEmitBlockProduction(ctx, to)
-	c.fetchAndEmitFeeRewards(ctx, to)
+	c.fetchAndEmitBlockInfos(ctx, to)
 	c.slotWatermark = to
 }
 
@@ -321,9 +321,9 @@ func (c *SlotWatcher) fetchAndEmitBlockProduction(ctx context.Context, endSlot i
 	klog.Infof("Fetched block production in [%v -> %v]", startSlot, endSlot)
 }
 
-// fetchAndEmitFeeRewards fetches and emits all the fee rewards (+ block sizes) for the tracked addresses between the
+// fetchAndEmitBlockInfos fetches and emits all the fee rewards (+ block sizes) for the tracked addresses between the
 // slotWatermark and endSlot
-func (c *SlotWatcher) fetchAndEmitFeeRewards(ctx context.Context, endSlot int64) {
+func (c *SlotWatcher) fetchAndEmitBlockInfos(ctx context.Context, endSlot int64) {
 	startSlot := c.slotWatermark + 1
 	klog.Infof("Fetching fee rewards in [%v -> %v]", startSlot, endSlot)
 
@@ -338,7 +338,7 @@ func (c *SlotWatcher) fetchAndEmitFeeRewards(ctx context.Context, endSlot int64)
 
 		klog.Infof("Fetching fee rewards for %v in [%v -> %v]: %v ...", identity, startSlot, endSlot, leaderSlots)
 		for _, slot := range leaderSlots {
-			err := c.fetchAndEmitSingleFeeReward(ctx, identity, c.currentEpoch, slot)
+			err := c.fetchAndEmitSingleBlockInfo(ctx, identity, c.currentEpoch, slot)
 			if err != nil {
 				klog.Errorf("Failed to fetch fee rewards for %v at %v: %v", identity, slot, err)
 			}
@@ -348,8 +348,8 @@ func (c *SlotWatcher) fetchAndEmitFeeRewards(ctx context.Context, endSlot int64)
 	klog.Infof("Fetched fee rewards in [%v -> %v]", startSlot, endSlot)
 }
 
-// fetchAndEmitSingleFeeReward fetches and emits the fee reward + block size for a single block.
-func (c *SlotWatcher) fetchAndEmitSingleFeeReward(
+// fetchAndEmitSingleBlockInfo fetches and emits the fee reward + block size for a single block.
+func (c *SlotWatcher) fetchAndEmitSingleBlockInfo(
 	ctx context.Context, identity string, epoch int64, slot int64,
 ) error {
 	var transactionDetails string
