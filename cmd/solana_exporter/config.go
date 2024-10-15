@@ -16,6 +16,7 @@ type (
 		NodeKeys                  []string
 		BalanceAddresses          []string
 		ComprehensiveSlotTracking bool
+		MonitorBlockSizes         bool
 	}
 )
 
@@ -35,6 +36,7 @@ func NewExporterConfig(
 	nodeKeys []string,
 	balanceAddresses []string,
 	comprehensiveSlotTracking bool,
+	monitorBlockSizes bool,
 ) *ExporterConfig {
 	return &ExporterConfig{
 		HttpTimeout:               time.Duration(httpTimeout) * time.Second,
@@ -43,6 +45,7 @@ func NewExporterConfig(
 		NodeKeys:                  nodeKeys,
 		BalanceAddresses:          balanceAddresses,
 		ComprehensiveSlotTracking: comprehensiveSlotTracking,
+		MonitorBlockSizes:         monitorBlockSizes,
 	}
 }
 
@@ -54,6 +57,7 @@ func NewExporterConfigFromCLI() *ExporterConfig {
 		nodekeys                  arrayFlags
 		balanceAddresses          arrayFlags
 		comprehensiveSlotTracking bool
+		monitorBlockSizes         bool
 	)
 	flag.IntVar(
 		&httpTimeout,
@@ -92,7 +96,16 @@ func NewExporterConfigFromCLI() *ExporterConfig {
 		"Set this flag to track solana_leader_slots_by_epoch for ALL validators. "+
 			"Warning: this will lead to potentially thousands of new Prometheus metrics being created every epoch.",
 	)
+	flag.BoolVar(
+		&monitorBlockSizes,
+		"monitor-block-sizes",
+		false,
+		"Set this flag to track block sizes (number of transactions) for the configured validators. "+
+			"Warning: this might grind the RPC node.",
+	)
 	flag.Parse()
 
-	return NewExporterConfig(httpTimeout, rpcUrl, listenAddress, nodekeys, balanceAddresses, comprehensiveSlotTracking)
+	return NewExporterConfig(
+		httpTimeout, rpcUrl, listenAddress, nodekeys, balanceAddresses, comprehensiveSlotTracking, monitorBlockSizes,
+	)
 }

@@ -57,13 +57,13 @@ func NewSolanaCollector(
 		balanceAddresses: CombineUnique(balanceAddresses, nodekeys, votekeys),
 		totalValidatorsDesc: prometheus.NewDesc(
 			"solana_active_validators",
-			"Total number of active validators by state",
+			"Total number of active validators grouped by state (i.e., 'current' vs 'delinquent')",
 			[]string{StateLabel},
 			nil,
 		),
 		validatorActivatedStake: prometheus.NewDesc(
 			"solana_validator_activated_stake",
-			"Activated stake per validator",
+			"Activated stake per validator, in SOL.",
 			[]string{VotekeyLabel, NodekeyLabel},
 			nil,
 		),
@@ -215,7 +215,9 @@ func main() {
 	}
 
 	collector := NewSolanaCollector(client, slotPacerSchedule, config.BalanceAddresses, config.NodeKeys, votekeys)
-	slotWatcher := NewSlotWatcher(client, config.NodeKeys, votekeys, config.ComprehensiveSlotTracking)
+	slotWatcher := NewSlotWatcher(
+		client, config.NodeKeys, votekeys, config.ComprehensiveSlotTracking, config.MonitorBlockSizes,
+	)
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	go slotWatcher.WatchSlots(ctx, collector.slotPace)

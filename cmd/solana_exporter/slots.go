@@ -24,6 +24,7 @@ type SlotWatcher struct {
 	nodekeys                  []string
 	votekeys                  []string
 	comprehensiveSlotTracking bool
+	monitorBlockSizes         bool
 
 	// currentEpoch is the current epoch we are watching
 	currentEpoch int64
@@ -46,16 +47,22 @@ type SlotWatcher struct {
 	LeaderSlotsByEpochMetric *prometheus.CounterVec
 	InflationRewardsMetric   *prometheus.GaugeVec
 	FeeRewardsMetric         *prometheus.CounterVec
+	BlockSizeMetric          *prometheus.GaugeVec
 }
 
 func NewSlotWatcher(
-	client rpc.Provider, nodekeys []string, votekeys []string, comprehensiveSlotTracking bool,
+	client rpc.Provider,
+	nodekeys []string,
+	votekeys []string,
+	comprehensiveSlotTracking bool,
+	monitorBlockSizes bool,
 ) *SlotWatcher {
 	watcher := SlotWatcher{
 		client:                    client,
 		nodekeys:                  nodekeys,
 		votekeys:                  votekeys,
 		comprehensiveSlotTracking: comprehensiveSlotTracking,
+		monitorBlockSizes:         monitorBlockSizes,
 		// metrics:
 		TotalTransactionsMetric: prometheus.NewGauge(prometheus.GaugeOpts{
 			Name: "solana_confirmed_transactions_total",
@@ -105,6 +112,13 @@ func NewSlotWatcher(
 			},
 			[]string{NodekeyLabel, EpochLabel},
 		),
+		BlockSizeMetric: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "solana_block_size",
+				Help: "Number of transactions per block, grouped by validator nodekey (identity)",
+			},
+			[]string{NodekeyLabel},
+		),
 	}
 	// register:
 	for _, collector := range []prometheus.Collector{
@@ -117,6 +131,7 @@ func NewSlotWatcher(
 		watcher.LeaderSlotsByEpochMetric,
 		watcher.InflationRewardsMetric,
 		watcher.FeeRewardsMetric,
+		watcher.BlockSizeMetric,
 	} {
 		if err := prometheus.Register(collector); err != nil {
 			var (
@@ -306,7 +321,7 @@ func (c *SlotWatcher) fetchAndEmitBlockProduction(ctx context.Context, endSlot i
 	klog.Infof("Fetched block production in [%v -> %v]", startSlot, endSlot)
 }
 
-// fetchAndEmitFeeRewards fetches and emits all the fee rewards for the tracked addresses between the
+// fetchAndEmitFeeRewards fetches and emits all the fee rewards (+ block sizes) for the tracked addresses between the
 // slotWatermark and endSlot
 func (c *SlotWatcher) fetchAndEmitFeeRewards(ctx context.Context, endSlot int64) {
 	startSlot := c.slotWatermark + 1
@@ -333,11 +348,17 @@ func (c *SlotWatcher) fetchAndEmitFeeRewards(ctx context.Context, endSlot int64)
 	klog.Infof("Fetched fee rewards in [%v -> %v]", startSlot, endSlot)
 }
 
-// fetchAndEmitSingleFeeReward fetches and emits the fee reward for a single block.
+// fetchAndEmitSingleFeeReward fetches and emits the fee reward + block size for a single block.
 func (c *SlotWatcher) fetchAndEmitSingleFeeReward(
 	ctx context.Context, identity string, epoch int64, slot int64,
 ) error {
-	block, err := c.client.GetBlock(ctx, rpc.CommitmentConfirmed, slot)
+	var transactionDetails string
+	if c.monitorBlockSizes {
+		transactionDetails = "accounts"
+	} else {
+		transactionDetails = "none"
+	}
+	block, err := c.client.GetBlock(ctx, rpc.CommitmentConfirmed, slot, transactionDetails)
 	if err != nil {
 		var rpcError *rpc.RPCError
 		if errors.As(err, &rpcError) {
@@ -362,6 +383,11 @@ func (c *SlotWatcher) fetchAndEmitSingleFeeReward(
 			amount := float64(reward.Lamports) / float64(rpc.LamportsInSol)
 			c.FeeRewardsMetric.WithLabelValues(identity, toString(epoch)).Add(amount)
 		}
+	}
+
+	// track block size:
+	if c.monitorBlockSizes {
+		c.BlockSizeMetric.WithLabelValues(identity).Set(float64(len(block.Transactions)))
 	}
 
 	return nil

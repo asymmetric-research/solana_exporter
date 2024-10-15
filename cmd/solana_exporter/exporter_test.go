@@ -172,7 +172,9 @@ func (c *staticRPCClient) GetLeaderSchedule(
 }
 
 //goland:noinspection GoUnusedParameter
-func (c *staticRPCClient) GetBlock(ctx context.Context, commitment rpc.Commitment, slot int64) (*rpc.Block, error) {
+func (c *staticRPCClient) GetBlock(
+	ctx context.Context, commitment rpc.Commitment, slot int64, transactionDetails string,
+) (*rpc.Block, error) {
 	return nil, nil
 }
 
@@ -365,7 +367,9 @@ func (c *dynamicRPCClient) GetLeaderSchedule(
 }
 
 //goland:noinspection GoUnusedParameter
-func (c *dynamicRPCClient) GetBlock(ctx context.Context, commitment rpc.Commitment, slot int64) (*rpc.Block, error) {
+func (c *dynamicRPCClient) GetBlock(
+	ctx context.Context, commitment rpc.Commitment, slot int64, transactionDetails string,
+) (*rpc.Block, error) {
 	return nil, nil
 }
 
