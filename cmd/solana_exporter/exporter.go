@@ -209,15 +209,15 @@ func main() {
 	}
 
 	client := rpc.NewRPCClient(config.RpcUrl, config.HttpTimeout)
-	ctx_, cancel := context.WithTimeout(ctx, config.HttpTimeout)
-	defer cancel()
-	votekeys, err := GetAssociatedVoteAccounts(ctx_, client, rpc.CommitmentFinalized, config.NodeKeys)
+	votekeys, err := GetAssociatedVoteAccounts(ctx, client, rpc.CommitmentFinalized, config.NodeKeys)
 	if err != nil {
 		klog.Fatalf("Failed to get associated vote accounts for %v: %v", config.NodeKeys, err)
 	}
 
 	collector := NewSolanaCollector(client, slotPacerSchedule, config.BalanceAddresses, config.NodeKeys, votekeys)
 	slotWatcher := NewSlotWatcher(client, config.NodeKeys, votekeys, config.ComprehensiveSlotTracking)
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	go slotWatcher.WatchSlots(ctx, collector.slotPace)
 
 	prometheus.MustRegister(collector)

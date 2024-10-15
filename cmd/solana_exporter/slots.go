@@ -107,15 +107,29 @@ func NewSlotWatcher(
 		),
 	}
 	// register:
-	prometheus.MustRegister(watcher.TotalTransactionsMetric)
-	prometheus.MustRegister(watcher.SlotHeightMetric)
-	prometheus.MustRegister(watcher.EpochNumberMetric)
-	prometheus.MustRegister(watcher.EpochFirstSlotMetric)
-	prometheus.MustRegister(watcher.EpochLastSlotMetric)
-	prometheus.MustRegister(watcher.LeaderSlotsTotalMetric)
-	prometheus.MustRegister(watcher.LeaderSlotsByEpochMetric)
-	prometheus.MustRegister(watcher.InflationRewardsMetric)
-	prometheus.MustRegister(watcher.FeeRewardsMetric)
+	for _, collector := range []prometheus.Collector{
+		watcher.TotalTransactionsMetric,
+		watcher.SlotHeightMetric,
+		watcher.EpochNumberMetric,
+		watcher.EpochFirstSlotMetric,
+		watcher.EpochLastSlotMetric,
+		watcher.LeaderSlotsTotalMetric,
+		watcher.LeaderSlotsByEpochMetric,
+		watcher.InflationRewardsMetric,
+		watcher.FeeRewardsMetric,
+	} {
+		if err := prometheus.Register(collector); err != nil {
+			var (
+				alreadyRegisteredErr *prometheus.AlreadyRegisteredError
+				duplicateErr         = strings.Contains(err.Error(), "duplicate metrics collector registration attempted")
+			)
+			if errors.As(err, &alreadyRegisteredErr) || duplicateErr {
+				continue
+			} else {
+				klog.Fatal(fmt.Errorf("failed to register collector: %w", err))
+			}
+		}
+	}
 	return &watcher
 }
 
