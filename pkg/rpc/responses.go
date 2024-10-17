@@ -79,12 +79,13 @@ type (
 	}
 
 	Block struct {
-		BlockHeight       int64         `json:"blockHeight"`
-		BlockTime         int64         `json:"blockTime,omitempty"`
-		Blockhash         string        `json:"blockhash"`
-		ParentSlot        int64         `json:"parentSlot"`
-		PreviousBlockhash string        `json:"previousBlockhash"`
-		Rewards           []BlockReward `json:"rewards"`
+		BlockHeight       int64            `json:"blockHeight"`
+		BlockTime         int64            `json:"blockTime,omitempty"`
+		Blockhash         string           `json:"blockhash"`
+		ParentSlot        int64            `json:"parentSlot"`
+		PreviousBlockhash string           `json:"previousBlockhash"`
+		Rewards           []BlockReward    `json:"rewards"`
+		Transactions      []map[string]any `json:"transactions"`
 	}
 
 	BlockReward struct {

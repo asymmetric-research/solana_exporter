@@ -8,6 +8,7 @@ import (
 	"io"
 	"k8s.io/klog/v2"
 	"net/http"
+	"slices"
 	"time"
 )
 
@@ -71,7 +72,7 @@ type Provider interface {
 
 	GetLeaderSchedule(ctx context.Context, commitment Commitment, slot int64) (map[string][]int64, error)
 
-	GetBlock(ctx context.Context, commitment Commitment, slot int64) (*Block, error)
+	GetBlock(ctx context.Context, commitment Commitment, slot int64, transactionDetails string) (*Block, error)
 }
 
 func (c Commitment) MarshalJSON() ([]byte, error) {
@@ -274,16 +275,25 @@ func (c *Client) GetLeaderSchedule(ctx context.Context, commitment Commitment, s
 
 // GetBlock returns identity and transaction information about a confirmed block in the ledger.
 // See API docs: https://solana.com/docs/rpc/http/getblock
-func (c *Client) GetBlock(ctx context.Context, commitment Commitment, slot int64) (*Block, error) {
+func (c *Client) GetBlock(
+	ctx context.Context, commitment Commitment, slot int64, transactionDetails string,
+) (*Block, error) {
+	detailsOptions := []string{"full", "accounts", "none"}
+	if !slices.Contains(detailsOptions, transactionDetails) {
+		klog.Fatalf(
+			"%s is not a valid transaction-details option, must be one of %v", transactionDetails, detailsOptions,
+		)
+	}
 	if commitment == CommitmentProcessed {
 		// as per https://solana.com/docs/rpc/http/getblock
 		klog.Fatalf("commitment '%v' is not supported for GetBlock", CommitmentProcessed)
 	}
 	config := map[string]any{
-		"commitment":         commitment,
-		"encoding":           "json", // this is default, but no harm in specifying it
-		"transactionDetails": "none", // for now, can hard-code this out, as we don't need it
-		"rewards":            true,   // what we here for!
+		"commitment":                     commitment,
+		"encoding":                       "json", // this is default, but no harm in specifying it
+		"transactionDetails":             transactionDetails,
+		"rewards":                        true, // what we here for!
+		"maxSupportedTransactionVersion": 0,
 	}
 	var resp response[Block]
 	if err := getResponse(ctx, c, "getBlock", []any{slot, config}, &resp); err != nil {

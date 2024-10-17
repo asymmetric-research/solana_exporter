@@ -91,7 +91,7 @@ func assertSlotMetricsChangeCorrectly(t *testing.T, initial slotMetricValues, fi
 func TestSolanaCollector_WatchSlots_Static(t *testing.T) {
 	client := staticRPCClient{}
 	collector := NewSolanaCollector(&client, 100*time.Millisecond, nil, identities, votekeys)
-	watcher := NewSlotWatcher(&client, identities, votekeys, false)
+	watcher := NewSlotWatcher(&client, identities, votekeys, false, false)
 	// reset metrics before running tests:
 	watcher.LeaderSlotsTotalMetric.Reset()
 	watcher.LeaderSlotsByEpochMetric.Reset()
@@ -160,7 +160,7 @@ func TestSolanaCollector_WatchSlots_Dynamic(t *testing.T) {
 	// create clients:
 	client := newDynamicRPCClient()
 	collector := NewSolanaCollector(client, 300*time.Millisecond, nil, identities, votekeys)
-	watcher := NewSlotWatcher(client, identities, votekeys, false)
+	watcher := NewSlotWatcher(client, identities, votekeys, false, false)
 	// reset metrics before running tests:
 	watcher.LeaderSlotsTotalMetric.Reset()
 	watcher.LeaderSlotsByEpochMetric.Reset()

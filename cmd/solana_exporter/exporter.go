@@ -215,7 +215,9 @@ func main() {
 	}
 
 	collector := NewSolanaCollector(client, slotPacerSchedule, config.BalanceAddresses, config.NodeKeys, votekeys)
-	slotWatcher := NewSlotWatcher(client, config.NodeKeys, votekeys, config.ComprehensiveSlotTracking)
+	slotWatcher := NewSlotWatcher(
+		client, config.NodeKeys, votekeys, config.ComprehensiveSlotTracking, config.MonitorBlockSizes,
+	)
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	go slotWatcher.WatchSlots(ctx, collector.slotPace)
