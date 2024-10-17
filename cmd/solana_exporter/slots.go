@@ -35,88 +35,102 @@ type SlotWatcher struct {
 	slotWatermark int64
 
 	leaderSchedule map[string][]int64
+
+	// prometheus:
+	TotalTransactionsMetric  prometheus.Gauge
+	SlotHeightMetric         prometheus.Gauge
+	EpochNumberMetric        prometheus.Gauge
+	EpochFirstSlotMetric     prometheus.Gauge
+	EpochLastSlotMetric      prometheus.Gauge
+	LeaderSlotsTotalMetric   *prometheus.CounterVec
+	LeaderSlotsByEpochMetric *prometheus.CounterVec
+	InflationRewardsMetric   *prometheus.GaugeVec
+	FeeRewardsMetric         *prometheus.CounterVec
 }
-
-var (
-	totalTransactionsTotal = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "solana_confirmed_transactions_total",
-		Help: "Total number of transactions processed since genesis (max confirmation)",
-	})
-
-	confirmedSlotHeight = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "solana_confirmed_slot_height",
-		Help: "Last confirmed slot height processed by watcher routine (max confirmation)",
-	})
-
-	currentEpochNumber = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "solana_confirmed_epoch_number",
-		Help: "Current epoch (max confirmation)",
-	})
-
-	epochFirstSlot = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "solana_confirmed_epoch_first_slot",
-		Help: "Current epoch's first slot (max confirmation)",
-	})
-
-	epochLastSlot = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "solana_confirmed_epoch_last_slot",
-		Help: "Current epoch's last slot (max confirmation)",
-	})
-
-	leaderSlotsTotal = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "solana_leader_slots_total",
-			Help: "(DEPRECATED) Number of leader slots per leader, grouped by skip status",
-		},
-		[]string{SkipStatusLabel, NodekeyLabel},
-	)
-
-	leaderSlotsByEpoch = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "solana_leader_slots_by_epoch",
-			Help: "Number of leader slots per leader, grouped by skip status and epoch",
-		},
-		[]string{SkipStatusLabel, NodekeyLabel, EpochLabel},
-	)
-
-	inflationRewards = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "solana_inflation_rewards",
-			Help: "Inflation reward earned per validator vote account, per epoch",
-		},
-		[]string{VotekeyLabel, EpochLabel},
-	)
-
-	feeRewards = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "solana_fee_rewards",
-			Help: "Transaction fee rewards earned per validator identity account, per epoch",
-		},
-		[]string{NodekeyLabel, EpochLabel},
-	)
-)
 
 func NewSlotWatcher(
 	client rpc.Provider, nodekeys []string, votekeys []string, comprehensiveSlotTracking bool,
 ) *SlotWatcher {
-	return &SlotWatcher{
+	watcher := SlotWatcher{
 		client:                    client,
 		nodekeys:                  nodekeys,
 		votekeys:                  votekeys,
 		comprehensiveSlotTracking: comprehensiveSlotTracking,
+		// metrics:
+		TotalTransactionsMetric: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "solana_confirmed_transactions_total",
+			Help: "Total number of transactions processed since genesis (max confirmation)",
+		}),
+		SlotHeightMetric: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "solana_confirmed_slot_height",
+			Help: "Last confirmed slot height processed by watcher routine (max confirmation)",
+		}),
+		EpochNumberMetric: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "solana_confirmed_epoch_number",
+			Help: "Current epoch (max confirmation)",
+		}),
+		EpochFirstSlotMetric: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "solana_confirmed_epoch_first_slot",
+			Help: "Current epoch's first slot (max confirmation)",
+		}),
+		EpochLastSlotMetric: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "solana_confirmed_epoch_last_slot",
+			Help: "Current epoch's last slot (max confirmation)",
+		}),
+		LeaderSlotsTotalMetric: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "solana_leader_slots_total",
+				Help: "(DEPRECATED) Number of leader slots per leader, grouped by skip status",
+			},
+			[]string{SkipStatusLabel, NodekeyLabel},
+		),
+		LeaderSlotsByEpochMetric: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "solana_leader_slots_by_epoch",
+				Help: "Number of leader slots per leader, grouped by skip status and epoch",
+			},
+			[]string{SkipStatusLabel, NodekeyLabel, EpochLabel},
+		),
+		InflationRewardsMetric: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "solana_inflation_rewards",
+				Help: "Inflation reward earned per validator vote account, per epoch",
+			},
+			[]string{VotekeyLabel, EpochLabel},
+		),
+		FeeRewardsMetric: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "solana_fee_rewards",
+				Help: "Transaction fee rewards earned per validator identity account, per epoch",
+			},
+			[]string{NodekeyLabel, EpochLabel},
+		),
 	}
-}
-
-func init() {
-	prometheus.MustRegister(totalTransactionsTotal)
-	prometheus.MustRegister(confirmedSlotHeight)
-	prometheus.MustRegister(currentEpochNumber)
-	prometheus.MustRegister(epochFirstSlot)
-	prometheus.MustRegister(epochLastSlot)
-	prometheus.MustRegister(leaderSlotsTotal)
-	prometheus.MustRegister(leaderSlotsByEpoch)
-	prometheus.MustRegister(inflationRewards)
-	prometheus.MustRegister(feeRewards)
+	// register:
+	for _, collector := range []prometheus.Collector{
+		watcher.TotalTransactionsMetric,
+		watcher.SlotHeightMetric,
+		watcher.EpochNumberMetric,
+		watcher.EpochFirstSlotMetric,
+		watcher.EpochLastSlotMetric,
+		watcher.LeaderSlotsTotalMetric,
+		watcher.LeaderSlotsByEpochMetric,
+		watcher.InflationRewardsMetric,
+		watcher.FeeRewardsMetric,
+	} {
+		if err := prometheus.Register(collector); err != nil {
+			var (
+				alreadyRegisteredErr *prometheus.AlreadyRegisteredError
+				duplicateErr         = strings.Contains(err.Error(), "duplicate metrics collector registration attempted")
+			)
+			if errors.As(err, &alreadyRegisteredErr) || duplicateErr {
+				continue
+			} else {
+				klog.Fatal(fmt.Errorf("failed to register collector: %w", err))
+			}
+		}
+	}
+	return &watcher
 }
 
 func (c *SlotWatcher) WatchSlots(ctx context.Context, pace time.Duration) {
@@ -132,12 +146,9 @@ func (c *SlotWatcher) WatchSlots(ctx context.Context, pace time.Duration) {
 			return
 		default:
 			<-ticker.C
-
-			ctx_, cancel := context.WithTimeout(ctx, httpTimeout)
 			// TODO: separate fee-rewards watching from general slot watching, such that general slot watching commitment level can be dropped to confirmed
 			commitment := rpc.CommitmentFinalized
-			epochInfo, err := c.client.GetEpochInfo(ctx_, commitment)
-			cancel()
+			epochInfo, err := c.client.GetEpochInfo(ctx, commitment)
 			if err != nil {
 				klog.Errorf("Failed to get epoch info, bailing out: %v", err)
 				continue
@@ -148,8 +159,8 @@ func (c *SlotWatcher) WatchSlots(ctx context.Context, pace time.Duration) {
 				c.trackEpoch(ctx, epochInfo)
 			}
 
-			totalTransactionsTotal.Set(float64(epochInfo.TransactionCount))
-			confirmedSlotHeight.Set(float64(epochInfo.AbsoluteSlot))
+			c.TotalTransactionsMetric.Set(float64(epochInfo.TransactionCount))
+			c.SlotHeightMetric.Set(float64(epochInfo.AbsoluteSlot))
 
 			// if we get here, then the tracking numbers are set, so this is a "normal" run.
 			// start by checking if we have progressed since last run:
@@ -216,13 +227,11 @@ func (c *SlotWatcher) trackEpoch(ctx context.Context, epoch *rpc.EpochInfo) {
 
 	// emit epoch bounds:
 	klog.Infof("Emitting epoch bounds: %v (slots %v -> %v)", c.currentEpoch, c.firstSlot, c.lastSlot)
-	currentEpochNumber.Set(float64(c.currentEpoch))
-	epochFirstSlot.Set(float64(c.firstSlot))
-	epochLastSlot.Set(float64(c.lastSlot))
+	c.EpochNumberMetric.Set(float64(c.currentEpoch))
+	c.EpochFirstSlotMetric.Set(float64(c.firstSlot))
+	c.EpochLastSlotMetric.Set(float64(c.lastSlot))
 
 	// update leader schedule:
-	ctx, cancel := context.WithTimeout(ctx, httpTimeout)
-	defer cancel()
 	klog.Infof("Updating leader schedule for epoch %v ...", c.currentEpoch)
 	leaderSchedule, err := GetTrimmedLeaderSchedule(ctx, c.client, c.nodekeys, epoch.AbsoluteSlot, c.firstSlot)
 	if err != nil {
@@ -273,8 +282,6 @@ func (c *SlotWatcher) fetchAndEmitBlockProduction(ctx context.Context, endSlot i
 	}
 
 	// fetch block production:
-	ctx, cancel := context.WithTimeout(ctx, httpTimeout)
-	defer cancel()
 	blockProduction, err := c.client.GetBlockProduction(ctx, rpc.CommitmentFinalized, nil, &startSlot, &endSlot)
 	if err != nil {
 		klog.Errorf("Failed to get block production, bailing out: %v", err)
@@ -286,13 +293,13 @@ func (c *SlotWatcher) fetchAndEmitBlockProduction(ctx context.Context, endSlot i
 		valid := float64(production.BlocksProduced)
 		skipped := float64(production.LeaderSlots - production.BlocksProduced)
 
-		leaderSlotsTotal.WithLabelValues(StatusValid, address).Add(valid)
-		leaderSlotsTotal.WithLabelValues(StatusSkipped, address).Add(skipped)
+		c.LeaderSlotsTotalMetric.WithLabelValues(StatusValid, address).Add(valid)
+		c.LeaderSlotsTotalMetric.WithLabelValues(StatusSkipped, address).Add(skipped)
 
 		if slices.Contains(c.nodekeys, address) || c.comprehensiveSlotTracking {
 			epochStr := toString(c.currentEpoch)
-			leaderSlotsByEpoch.WithLabelValues(StatusValid, address, epochStr).Add(valid)
-			leaderSlotsByEpoch.WithLabelValues(StatusSkipped, address, epochStr).Add(skipped)
+			c.LeaderSlotsByEpochMetric.WithLabelValues(StatusValid, address, epochStr).Add(valid)
+			c.LeaderSlotsByEpochMetric.WithLabelValues(StatusSkipped, address, epochStr).Add(skipped)
 		}
 	}
 
@@ -316,9 +323,7 @@ func (c *SlotWatcher) fetchAndEmitFeeRewards(ctx context.Context, endSlot int64)
 
 		klog.Infof("Fetching fee rewards for %v in [%v -> %v]: %v ...", identity, startSlot, endSlot, leaderSlots)
 		for _, slot := range leaderSlots {
-			ctx, cancel := context.WithTimeout(ctx, httpTimeout)
 			err := c.fetchAndEmitSingleFeeReward(ctx, identity, c.currentEpoch, slot)
-			cancel()
 			if err != nil {
 				klog.Errorf("Failed to fetch fee rewards for %v at %v: %v", identity, slot, err)
 			}
@@ -355,7 +360,7 @@ func (c *SlotWatcher) fetchAndEmitSingleFeeReward(
 				reward.Pubkey,
 			)
 			amount := float64(reward.Lamports) / float64(rpc.LamportsInSol)
-			feeRewards.WithLabelValues(identity, toString(epoch)).Add(amount)
+			c.FeeRewardsMetric.WithLabelValues(identity, toString(epoch)).Add(amount)
 		}
 	}
 
@@ -372,10 +377,6 @@ func getEpochBounds(info *rpc.EpochInfo) (int64, int64) {
 // at the provided epoch
 func (c *SlotWatcher) fetchAndEmitInflationRewards(ctx context.Context, epoch int64) error {
 	klog.Infof("Fetching inflation reward for epoch %v ...", toString(epoch))
-
-	ctx, cancel := context.WithTimeout(ctx, httpTimeout)
-	defer cancel()
-
 	rewardInfos, err := c.client.GetInflationReward(ctx, rpc.CommitmentConfirmed, c.votekeys, &epoch, nil)
 	if err != nil {
 		return fmt.Errorf("error fetching inflation rewards: %w", err)
@@ -384,7 +385,7 @@ func (c *SlotWatcher) fetchAndEmitInflationRewards(ctx context.Context, epoch in
 	for i, rewardInfo := range rewardInfos {
 		address := c.votekeys[i]
 		reward := float64(rewardInfo.Amount) / float64(rpc.LamportsInSol)
-		inflationRewards.WithLabelValues(address, toString(epoch)).Set(reward)
+		c.InflationRewardsMetric.WithLabelValues(address, toString(epoch)).Set(reward)
 	}
 	klog.Infof("Fetched inflation reward for epoch %v.", epoch)
 	return nil

@@ -19,18 +19,19 @@ type slotMetricValues struct {
 	EpochLastSlot     float64
 }
 
-func getSlotMetricValues() slotMetricValues {
+func getSlotMetricValues(watcher *SlotWatcher) slotMetricValues {
 	return slotMetricValues{
-		SlotHeight:        testutil.ToFloat64(confirmedSlotHeight),
-		TotalTransactions: testutil.ToFloat64(totalTransactionsTotal),
-		EpochNumber:       testutil.ToFloat64(currentEpochNumber),
-		EpochFirstSlot:    testutil.ToFloat64(epochFirstSlot),
-		EpochLastSlot:     testutil.ToFloat64(epochLastSlot),
+		SlotHeight:        testutil.ToFloat64(watcher.SlotHeightMetric),
+		TotalTransactions: testutil.ToFloat64(watcher.TotalTransactionsMetric),
+		EpochNumber:       testutil.ToFloat64(watcher.EpochNumberMetric),
+		EpochFirstSlot:    testutil.ToFloat64(watcher.EpochFirstSlotMetric),
+		EpochLastSlot:     testutil.ToFloat64(watcher.EpochLastSlotMetric),
 	}
 }
 
 func testBlockProductionMetric(
 	t *testing.T,
+	watcher *SlotWatcher,
 	metric *prometheus.CounterVec,
 	host string,
 	status string,
@@ -46,7 +47,7 @@ func testBlockProductionMetric(
 	}
 	// get labels (leaderSlotsByEpoch requires an extra one)
 	labels := []string{status, host}
-	if metric == leaderSlotsByEpoch {
+	if metric == watcher.LeaderSlotsByEpochMetric {
 		labels = append(labels, fmt.Sprintf("%d", staticEpochInfo.Epoch))
 	}
 	// now we can do the assertion:
@@ -88,13 +89,13 @@ func assertSlotMetricsChangeCorrectly(t *testing.T, initial slotMetricValues, fi
 }
 
 func TestSolanaCollector_WatchSlots_Static(t *testing.T) {
-	// reset metrics before running tests:
-	leaderSlotsTotal.Reset()
-	leaderSlotsByEpoch.Reset()
-
 	client := staticRPCClient{}
 	collector := NewSolanaCollector(&client, 100*time.Millisecond, nil, identities, votekeys)
 	watcher := NewSlotWatcher(&client, identities, votekeys, false)
+	// reset metrics before running tests:
+	watcher.LeaderSlotsTotalMetric.Reset()
+	watcher.LeaderSlotsByEpochMetric.Reset()
+
 	prometheus.NewPedanticRegistry().MustRegister(collector)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -111,11 +112,11 @@ func TestSolanaCollector_WatchSlots_Static(t *testing.T) {
 		metric        prometheus.Gauge
 	}
 	tests := []testCase{
-		{expectedValue: float64(staticEpochInfo.AbsoluteSlot), metric: confirmedSlotHeight},
-		{expectedValue: float64(staticEpochInfo.TransactionCount), metric: totalTransactionsTotal},
-		{expectedValue: float64(staticEpochInfo.Epoch), metric: currentEpochNumber},
-		{expectedValue: float64(firstSlot), metric: epochFirstSlot},
-		{expectedValue: float64(lastSlot), metric: epochLastSlot},
+		{expectedValue: float64(staticEpochInfo.AbsoluteSlot), metric: watcher.SlotHeightMetric},
+		{expectedValue: float64(staticEpochInfo.TransactionCount), metric: watcher.TotalTransactionsMetric},
+		{expectedValue: float64(staticEpochInfo.Epoch), metric: watcher.EpochNumberMetric},
+		{expectedValue: float64(firstSlot), metric: watcher.EpochFirstSlotMetric},
+		{expectedValue: float64(lastSlot), metric: watcher.EpochLastSlotMetric},
 	}
 
 	// add inflation reward tests:
@@ -123,7 +124,7 @@ func TestSolanaCollector_WatchSlots_Static(t *testing.T) {
 		epoch := fmt.Sprintf("%v", staticEpochInfo.Epoch)
 		test := testCase{
 			expectedValue: float64(rewardInfo.Amount) / float64(rpc.LamportsInSol),
-			metric:        inflationRewards.WithLabelValues(votekeys[i], epoch),
+			metric:        watcher.InflationRewardsMetric.WithLabelValues(votekeys[i], epoch),
 		}
 		tests = append(tests, test)
 	}
@@ -136,8 +137,8 @@ func TestSolanaCollector_WatchSlots_Static(t *testing.T) {
 	}
 
 	metrics := map[string]*prometheus.CounterVec{
-		"solana_leader_slots_total":    leaderSlotsTotal,
-		"solana_leader_slots_by_epoch": leaderSlotsByEpoch,
+		"solana_leader_slots_total":    watcher.LeaderSlotsTotalMetric,
+		"solana_leader_slots_by_epoch": watcher.LeaderSlotsByEpochMetric,
 	}
 	statuses := []string{"valid", "skipped"}
 	for name, metric := range metrics {
@@ -147,7 +148,7 @@ func TestSolanaCollector_WatchSlots_Static(t *testing.T) {
 				// sub subtest for each status (as each one requires a different calc)
 				t.Run(status, func(t *testing.T) {
 					for _, identity := range identities {
-						testBlockProductionMetric(t, metric, identity, status)
+						testBlockProductionMetric(t, watcher, metric, identity, status)
 					}
 				})
 			}
@@ -156,14 +157,13 @@ func TestSolanaCollector_WatchSlots_Static(t *testing.T) {
 }
 
 func TestSolanaCollector_WatchSlots_Dynamic(t *testing.T) {
-	// reset metrics before running tests:
-	leaderSlotsTotal.Reset()
-	leaderSlotsByEpoch.Reset()
-
 	// create clients:
 	client := newDynamicRPCClient()
 	collector := NewSolanaCollector(client, 300*time.Millisecond, nil, identities, votekeys)
 	watcher := NewSlotWatcher(client, identities, votekeys, false)
+	// reset metrics before running tests:
+	watcher.LeaderSlotsTotalMetric.Reset()
+	watcher.LeaderSlotsByEpochMetric.Reset()
 	prometheus.NewPedanticRegistry().MustRegister(collector)
 
 	// start client/collector and wait a bit:
@@ -177,14 +177,14 @@ func TestSolanaCollector_WatchSlots_Dynamic(t *testing.T) {
 	go watcher.WatchSlots(slotsCtx, collector.slotPace)
 	time.Sleep(time.Second)
 
-	initial := getSlotMetricValues()
+	initial := getSlotMetricValues(watcher)
 
 	// wait a bit:
 	var epochChanged bool
 	for i := 0; i < 5; i++ {
 		// wait a bit then get new metrics
 		time.Sleep(time.Second)
-		final := getSlotMetricValues()
+		final := getSlotMetricValues(watcher)
 
 		// make sure things are changing correctly:
 		assertSlotMetricsChangeCorrectly(t, initial, final)

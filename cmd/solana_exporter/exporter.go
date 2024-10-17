@@ -2,12 +2,10 @@ package main
 
 import (
 	"context"
-	"flag"
 	"github.com/asymmetric-research/solana_exporter/pkg/rpc"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"net/http"
-	"strings"
 	"time"
 
 	"k8s.io/klog/v2"
@@ -27,45 +25,6 @@ const (
 
 	StateCurrent    = "current"
 	StateDelinquent = "delinquent"
-)
-
-var (
-	httpTimeout = 60 * time.Second
-	// general config:
-	rpcUrl = flag.String(
-		"rpc-url",
-		"http://localhost:8899",
-		"Solana RPC URL (including protocol and path), "+
-			"e.g., 'http://localhost:8899' or 'https://api.mainnet-beta.solana.com'",
-	)
-	listenAddress = flag.String(
-		"listen-address",
-		":8080",
-		"Listen address",
-	)
-	httpTimeoutSecs = flag.Int(
-		"http-timeout",
-		60,
-		"HTTP timeout to use, in seconds.",
-	)
-	// parameters to specify what we're tracking:
-	nodekeys = flag.String(
-		"nodekeys",
-		"",
-		"Comma-separated list of nodekeys (identity accounts) representing validators to monitor.",
-	)
-	comprehensiveSlotTracking = flag.Bool(
-		"comprehensive-slot-tracking",
-		false,
-		"Set this flag to track solana_leader_slots_by_epoch for ALL validators. "+
-			"Warning: this will lead to potentially thousands of new Prometheus metrics being created every epoch.",
-	)
-	balanceAddresses = flag.String(
-		"balance-addresses",
-		"",
-		"Comma-separated list of addresses to monitor SOL balances for, "+
-			"in addition to the identity and vote accounts of the provided nodekeys.",
-	)
 )
 
 func init() {
@@ -230,7 +189,7 @@ func (c *SolanaCollector) collectBalances(ctx context.Context, ch chan<- prometh
 }
 
 func (c *SolanaCollector) Collect(ch chan<- prometheus.Metric) {
-	ctx, cancel := context.WithTimeout(context.Background(), httpTimeout)
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	c.collectVoteAccounts(ctx, ch)
@@ -240,43 +199,30 @@ func (c *SolanaCollector) Collect(ch chan<- prometheus.Metric) {
 
 func main() {
 	ctx := context.Background()
-	flag.Parse()
 
-	if *comprehensiveSlotTracking {
+	config := NewExporterConfigFromCLI()
+	if config.ComprehensiveSlotTracking {
 		klog.Warning(
 			"Comprehensive slot tracking will lead to potentially thousands of new " +
 				"Prometheus metrics being created every epoch.",
 		)
 	}
 
-	httpTimeout = time.Duration(*httpTimeoutSecs) * time.Second
-
-	var (
-		balAddresses      []string
-		validatorNodekeys []string
-	)
-	if *balanceAddresses != "" {
-		balAddresses = strings.Split(*balanceAddresses, ",")
-	}
-	if *nodekeys != "" {
-		validatorNodekeys = strings.Split(*nodekeys, ",")
-		klog.Infof("Monitoring the following validators: %v", validatorNodekeys)
-	}
-
-	client := rpc.NewRPCClient(*rpcUrl)
-	ctx_, cancel := context.WithTimeout(ctx, httpTimeout)
-	defer cancel()
-	votekeys, err := GetAssociatedVoteAccounts(ctx_, client, rpc.CommitmentFinalized, validatorNodekeys)
+	client := rpc.NewRPCClient(config.RpcUrl, config.HttpTimeout)
+	votekeys, err := GetAssociatedVoteAccounts(ctx, client, rpc.CommitmentFinalized, config.NodeKeys)
 	if err != nil {
-		klog.Fatalf("Failed to get associated vote accounts for %v: %v", nodekeys, err)
+		klog.Fatalf("Failed to get associated vote accounts for %v: %v", config.NodeKeys, err)
 	}
-	collector := NewSolanaCollector(client, slotPacerSchedule, balAddresses, validatorNodekeys, votekeys)
-	slotWatcher := NewSlotWatcher(client, validatorNodekeys, votekeys, *comprehensiveSlotTracking)
+
+	collector := NewSolanaCollector(client, slotPacerSchedule, config.BalanceAddresses, config.NodeKeys, votekeys)
+	slotWatcher := NewSlotWatcher(client, config.NodeKeys, votekeys, config.ComprehensiveSlotTracking)
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	go slotWatcher.WatchSlots(ctx, collector.slotPace)
 
 	prometheus.MustRegister(collector)
 	http.Handle("/metrics", promhttp.Handler())
 
-	klog.Infof("listening on %s", *listenAddress)
-	klog.Fatal(http.ListenAndServe(*listenAddress, nil))
+	klog.Infof("listening on %s", config.ListenAddress)
+	klog.Fatal(http.ListenAndServe(config.ListenAddress, nil))
 }
