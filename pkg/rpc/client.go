@@ -136,7 +136,7 @@ func getResponse[T any](
 		return fmt.Errorf("failed to decode %s response body: %w", method, err)
 	}
 
-	// last error check:
+	// check for an actual rpc error
 	if rpcResponse.Error.Code != 0 {
 		return &rpcResponse.Error
 	}

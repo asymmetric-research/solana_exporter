@@ -7,8 +7,9 @@ import (
 
 type (
 	RPCError struct {
-		Message string `json:"message"`
-		Code    int64  `json:"code"`
+		Message string         `json:"message"`
+		Code    int64          `json:"code"`
+		Data    map[string]any `json:"data"`
 	}
 
 	response[T any] struct {
@@ -98,7 +99,7 @@ type (
 )
 
 func (e *RPCError) Error() string {
-	return fmt.Sprintf("RPC Error (%d): %s", e.Code, e.Message)
+	return fmt.Sprintf("rpc error (code: %d): %s (data: %v)", e.Code, e.Message, e.Data)
 }
 
 func (hp *HostProduction) UnmarshalJSON(data []byte) error {
