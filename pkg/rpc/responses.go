@@ -10,6 +10,8 @@ type (
 		Message string         `json:"message"`
 		Code    int64          `json:"code"`
 		Data    map[string]any `json:"data"`
+		// Method is not returned by the RPC, rather added by the client for visibility purposes
+		Method string
 	}
 
 	response[T any] struct {
@@ -99,7 +101,7 @@ type (
 )
 
 func (e *RPCError) Error() string {
-	return fmt.Sprintf("rpc error (code: %d): %s (data: %v)", e.Code, e.Message, e.Data)
+	return fmt.Sprintf("%s rpc error (code: %d): %s (data: %v)", e.Method, e.Code, e.Message, e.Data)
 }
 
 func (hp *HostProduction) UnmarshalJSON(data []byte) error {

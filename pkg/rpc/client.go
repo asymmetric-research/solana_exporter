@@ -140,6 +140,7 @@ func getResponse[T any](
 
 	// check for an actual rpc error
 	if rpcResponse.Error.Code != 0 {
+		rpcResponse.Error.Method = method
 		return &rpcResponse.Error
 	}
 	return nil
