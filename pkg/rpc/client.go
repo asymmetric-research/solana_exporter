@@ -73,6 +73,7 @@ type Provider interface {
 	GetLeaderSchedule(ctx context.Context, commitment Commitment, slot int64) (map[string][]int64, error)
 
 	GetBlock(ctx context.Context, commitment Commitment, slot int64, transactionDetails string) (*Block, error)
+
 	GetHealth(ctx context.Context) (*string, error)
 }
 
@@ -298,6 +299,17 @@ func (c *Client) GetBlock(
 	}
 	var resp response[Block]
 	if err := getResponse(ctx, c, "getBlock", []any{slot, config}, &resp); err != nil {
+		return nil, err
+	}
+	return &resp.Result, nil
+}
+
+// GetHealth returns the current health of the node. A healthy node is one that is within a blockchain-configured slots
+// of the latest cluster confirmed slot.
+// See API docs: https://solana.com/docs/rpc/http/gethealth
+func (c *Client) GetHealth(ctx context.Context) (*string, error) {
+	var resp response[string]
+	if err := getResponse(ctx, c, "getHealth", []any{}, &resp); err != nil {
 		return nil, err
 	}
 	return &resp.Result, nil
