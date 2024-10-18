@@ -221,6 +221,7 @@ func main() {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	go slotWatcher.WatchSlots(ctx, collector.slotPace)
+	go collector.WatchHealth(context.Background())
 
 	prometheus.MustRegister(collector)
 	http.Handle("/metrics", promhttp.Handler())

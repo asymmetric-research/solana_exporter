@@ -73,6 +73,7 @@ type Provider interface {
 	GetLeaderSchedule(ctx context.Context, commitment Commitment, slot int64) (map[string][]int64, error)
 
 	GetBlock(ctx context.Context, commitment Commitment, slot int64, transactionDetails string) (*Block, error)
+	GetHealth(ctx context.Context) (*string, error)
 }
 
 func (c Commitment) MarshalJSON() ([]byte, error) {
