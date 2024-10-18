@@ -98,6 +98,9 @@ type (
 		RewardType  string `json:"rewardType"`
 		Commission  uint8  `json:"commission"`
 	}
+	Identity struct {
+		Identity string `json:"identity"`
+	}
 )
 
 func (e *RPCError) Error() string {
