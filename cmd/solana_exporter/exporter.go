@@ -20,6 +20,7 @@ const (
 	VersionLabel    = "version"
 	AddressLabel    = "address"
 	EpochLabel      = "epoch"
+	IdentityLabel   = "identity"
 
 	StatusSkipped = "skipped"
 	StatusValid   = "valid"
@@ -38,6 +39,7 @@ type SolanaCollector struct {
 	// config:
 	slotPace         time.Duration
 	balanceAddresses []string
+	identity         *string
 
 	/// descriptors:
 	totalValidatorsDesc     *prometheus.Desc
@@ -51,13 +53,12 @@ type SolanaCollector struct {
 	numSlotsBehind          *prometheus.Desc
 }
 
-func NewSolanaCollector(
-	provider rpc.Provider, slotPace time.Duration, balanceAddresses []string, nodekeys []string, votekeys []string,
-) *SolanaCollector {
+func NewSolanaCollector(provider rpc.Provider, slotPace time.Duration, balanceAddresses []string, nodekeys []string, votekeys []string, identity *string) *SolanaCollector {
 	collector := &SolanaCollector{
 		rpcClient:        provider,
 		slotPace:         slotPace,
 		balanceAddresses: CombineUnique(balanceAddresses, nodekeys, votekeys),
+		identity:         identity,
 		totalValidatorsDesc: prometheus.NewDesc(
 			"solana_active_validators",
 			"Total number of active validators by state",
@@ -103,13 +104,13 @@ func NewSolanaCollector(
 		isHealthy: prometheus.NewDesc(
 			"solana_is_healthy",
 			"Whether the node is healthy or not.",
-			nil,
+			[]string{IdentityLabel},
 			nil,
 		),
 		numSlotsBehind: prometheus.NewDesc(
 			"solana_num_slots_behind",
 			"The number of slots that the node is behind the latest cluster confirmed slot.",
-			nil,
+			[]string{IdentityLabel},
 			nil,
 		),
 	}
@@ -241,8 +242,8 @@ func (c *SolanaCollector) collectHealth(ctx context.Context, ch chan<- prometheu
 		}
 	}
 
-	ch <- prometheus.MustNewConstMetric(c.isHealthy, prometheus.GaugeValue, float64(isHealthy))
-	ch <- prometheus.MustNewConstMetric(c.numSlotsBehind, prometheus.GaugeValue, float64(numSlotsBehind))
+	ch <- prometheus.MustNewConstMetric(c.isHealthy, prometheus.GaugeValue, float64(isHealthy), *c.identity)
+	ch <- prometheus.MustNewConstMetric(c.numSlotsBehind, prometheus.GaugeValue, float64(numSlotsBehind), *c.identity)
 
 	return
 }
@@ -273,8 +274,11 @@ func main() {
 	if err != nil {
 		klog.Fatalf("Failed to get associated vote accounts for %v: %v", config.NodeKeys, err)
 	}
-
-	collector := NewSolanaCollector(client, slotPacerSchedule, config.BalanceAddresses, config.NodeKeys, votekeys)
+	identity, err := client.GetIdentity(ctx)
+	if err != nil {
+		klog.Fatalf("Failed to get identity: %v", err)
+	}
+	collector := NewSolanaCollector(client, slotPacerSchedule, config.BalanceAddresses, config.NodeKeys, votekeys, identity)
 	slotWatcher := NewSlotWatcher(
 		client, config.NodeKeys, votekeys, config.ComprehensiveSlotTracking, config.MonitorBlockSizes,
 	)
