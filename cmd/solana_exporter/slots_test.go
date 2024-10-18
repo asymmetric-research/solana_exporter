@@ -106,7 +106,7 @@ func TestSolanaCollector_WatchSlots_Static(t *testing.T) {
 	assert.NoError(t, err)
 	time.Sleep(1 * time.Second)
 
-	firstSlot, lastSlot := getEpochBounds(&staticEpochInfo)
+	firstSlot, lastSlot := GetEpochBounds(&staticEpochInfo)
 	type testCase struct {
 		expectedValue float64
 		metric        prometheus.Gauge

@@ -178,6 +178,12 @@ func (c *staticRPCClient) GetBlock(
 	return nil, nil
 }
 
+//goland:noinspection GoUnusedParameter
+func (c *staticRPCClient) GetHealth(ctx context.Context) (*string, error) {
+	health := "ok"
+	return &health, nil
+}
+
 /*
 ===== DYNAMIC CLIENT =====:
 */
@@ -371,6 +377,12 @@ func (c *dynamicRPCClient) GetBlock(
 	ctx context.Context, commitment rpc.Commitment, slot int64, transactionDetails string,
 ) (*rpc.Block, error) {
 	return nil, nil
+}
+
+//goland:noinspection GoUnusedParameter
+func (c *dynamicRPCClient) GetHealth(ctx context.Context) (*string, error) {
+	health := "ok"
+	return &health, nil
 }
 
 /*
