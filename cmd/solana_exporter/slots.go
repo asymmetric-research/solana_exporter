@@ -205,7 +205,7 @@ func (c *SlotWatcher) WatchSlots(ctx context.Context, pace time.Duration) {
 // and updates the prometheus gauges associated with those metrics.
 func (c *SlotWatcher) trackEpoch(ctx context.Context, epoch *rpc.EpochInfo) {
 	klog.Infof("Tracking epoch %v (from %v)", epoch.Epoch, c.currentEpoch)
-	firstSlot, lastSlot := getEpochBounds(epoch)
+	firstSlot, lastSlot := GetEpochBounds(epoch)
 	// if we haven't yet set c.currentEpoch, that (hopefully) means this is the initial setup,
 	// and so we can simply store the tracking numbers
 	if c.currentEpoch == 0 {
@@ -391,12 +391,6 @@ func (c *SlotWatcher) fetchAndEmitSingleBlockInfo(
 	}
 
 	return nil
-}
-
-// getEpochBounds returns the first slot and last slot within an [inclusive] Epoch
-func getEpochBounds(info *rpc.EpochInfo) (int64, int64) {
-	firstSlot := info.AbsoluteSlot - info.SlotIndex
-	return firstSlot, firstSlot + info.SlotsInEpoch - 1
 }
 
 // fetchAndEmitInflationRewards fetches and emits the inflation rewards for the configured inflationRewardAddresses

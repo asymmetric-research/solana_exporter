@@ -113,3 +113,9 @@ func CombineUnique[T comparable](args ...[]T) []T {
 	}
 	return uniqueItems
 }
+
+// GetEpochBounds returns the first slot and last slot within an [inclusive] Epoch
+func GetEpochBounds(info *rpc.EpochInfo) (int64, int64) {
+	firstSlot := info.AbsoluteSlot - info.SlotIndex
+	return firstSlot, firstSlot + info.SlotsInEpoch - 1
+}
