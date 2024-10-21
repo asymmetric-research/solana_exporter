@@ -51,6 +51,9 @@ type SolanaCollector struct {
 	balances                *prometheus.Desc
 	isHealthy               *prometheus.Desc
 	numSlotsBehind          *prometheus.Desc
+	minimumLedgerSlot       *prometheus.Desc
+	firstAvailableBlock     *prometheus.Desc
+	blockHeight             *prometheus.Desc
 }
 
 func NewSolanaCollector(provider rpc.Provider, slotPace time.Duration, balanceAddresses []string, nodekeys []string, votekeys []string, identity *string) *SolanaCollector {
@@ -113,6 +116,24 @@ func NewSolanaCollector(provider rpc.Provider, slotPace time.Duration, balanceAd
 			[]string{IdentityLabel},
 			nil,
 		),
+		minimumLedgerSlot: prometheus.NewDesc(
+			"solana_minimum_ledger_slot",
+			"The lowest slot that the node has information about in its ledger.",
+			[]string{IdentityLabel},
+			nil,
+		),
+		firstAvailableBlock: prometheus.NewDesc(
+			"solana_first_available_block",
+			"The slot of the lowest confirmed block that has not been purged from the ledger.",
+			[]string{IdentityLabel},
+			nil,
+		),
+		blockHeight: prometheus.NewDesc(
+			"solana_block_height",
+			"The current block height of the node.",
+			[]string{IdentityLabel},
+			nil,
+		),
 	}
 	return collector
 }
@@ -127,6 +148,9 @@ func (c *SolanaCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.balances
 	ch <- c.isHealthy
 	ch <- c.numSlotsBehind
+	ch <- c.minimumLedgerSlot
+	ch <- c.firstAvailableBlock
+	ch <- c.blockHeight
 }
 
 func (c *SolanaCollector) collectVoteAccounts(ctx context.Context, ch chan<- prometheus.Metric) {
@@ -195,6 +219,39 @@ func (c *SolanaCollector) collectVersion(ctx context.Context, ch chan<- promethe
 
 	ch <- prometheus.MustNewConstMetric(c.solanaVersion, prometheus.GaugeValue, 1, version)
 }
+func (c *SolanaCollector) collectMinimumLedgerSlot(ctx context.Context, ch chan<- prometheus.Metric) {
+	slot, err := c.rpcClient.GetMinimumLedgerSlot(ctx)
+
+	if err != nil {
+		klog.Errorf("failed to get minimum lidger slot: %v", err)
+		ch <- prometheus.NewInvalidMetric(c.minimumLedgerSlot, err)
+		return
+	}
+
+	ch <- prometheus.MustNewConstMetric(c.minimumLedgerSlot, prometheus.GaugeValue, float64(*slot), *c.identity)
+}
+func (c *SolanaCollector) collectFirstAvailableBlock(ctx context.Context, ch chan<- prometheus.Metric) {
+	block, err := c.rpcClient.GetFirstAvailableBlock(ctx)
+
+	if err != nil {
+		klog.Errorf("failed to get first available block: %v", err)
+		ch <- prometheus.NewInvalidMetric(c.firstAvailableBlock, err)
+		return
+	}
+
+	ch <- prometheus.MustNewConstMetric(c.firstAvailableBlock, prometheus.GaugeValue, float64(*block), *c.identity)
+}
+func (c *SolanaCollector) collectBlockHeight(ctx context.Context, ch chan<- prometheus.Metric) {
+	height, err := c.rpcClient.GetBlockHeight(ctx)
+
+	if err != nil {
+		klog.Errorf("failed to get block height: %v", err)
+		ch <- prometheus.NewInvalidMetric(c.blockHeight, err)
+		return
+	}
+
+	ch <- prometheus.MustNewConstMetric(c.blockHeight, prometheus.GaugeValue, float64(*height), *c.identity)
+}
 
 func (c *SolanaCollector) collectBalances(ctx context.Context, ch chan<- prometheus.Metric) {
 	balances, err := FetchBalances(ctx, c.rpcClient, c.balanceAddresses)
@@ -256,6 +313,9 @@ func (c *SolanaCollector) Collect(ch chan<- prometheus.Metric) {
 	c.collectVersion(ctx, ch)
 	c.collectBalances(ctx, ch)
 	c.collectHealth(ctx, ch)
+	c.collectMinimumLedgerSlot(ctx, ch)
+	c.collectFirstAvailableBlock(ctx, ch)
+	c.collectBlockHeight(ctx, ch)
 }
 
 func main() {
