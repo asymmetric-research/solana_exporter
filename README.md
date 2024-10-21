@@ -27,6 +27,16 @@ Metrics with no confirmation level:
 
 - **solana_node_version** - Current solana-validator node version.
 
+## Installation
+
+`solana_exporter` can be installed by doing the following. It's assumed you already have `go` installed.
+
+```sh
+git clone https://github.com/asymmetric-research/solana_exporter.git
+cd solana_exporter
+CGO_ENABLED=0 go build github.com/asymmetric-research/solana_exporter/cmd/solana_exporter
+```
+
 ## Command line arguments
 
 You typically only need to set the RPC URL, pointing to one of your own nodes:
