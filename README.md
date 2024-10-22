@@ -39,35 +39,43 @@ verbosity level is fine. If you want detailed log output for missed blocks, run 
 ```
 Usage of solana_exporter:
   -add_dir_header
-        If true, adds the file directory to the header of the log messages
-  -addr string
-        Listen address (default ":8080")
+    	If true, adds the file directory to the header of the log messages
   -alsologtostderr
-        log to standard error as well as files
+    	log to standard error as well as files (no effect when -logtostderr=true)
+  -balance-address value
+    	Address to monitor SOL balances for, in addition to the identity and vote accounts of the provided nodekeys - can be set multiple times.
+  -comprehensive-slot-tracking
+    	Set this flag to track solana_leader_slots_by_epoch for ALL validators. Warning: this will lead to potentially thousands of new Prometheus metrics being created every epoch.
+  -http-timeout int
+    	HTTP timeout to use, in seconds. (default 60)
+  -listen-address string
+    	Listen address (default ":8080")
   -log_backtrace_at value
-        when logging hits line file:N, emit a stack trace
+    	when logging hits line file:N, emit a stack trace
   -log_dir string
-        If non-empty, write log files in this directory
+    	If non-empty, write log files in this directory (no effect when -logtostderr=true)
   -log_file string
-        If non-empty, use this log file
+    	If non-empty, use this log file (no effect when -logtostderr=true)
   -log_file_max_size uint
-        Defines the maximum size a log file can grow to. Unit is megabytes. If the value is 0, the maximum file size is unlimited. (default 1800)
+    	Defines the maximum size a log file can grow to (no effect when -logtostderr=true). Unit is megabytes. If the value is 0, the maximum file size is unlimited. (default 1800)
   -logtostderr
-        log to standard error instead of files (default true)
+    	log to standard error instead of files (default true)
+  -monitor-block-sizes
+    	Set this flag to track block sizes (number of transactions) for the configured validators. Warning: this might grind the RPC node.
+  -nodekey value
+    	Solana nodekey (identity account) representing validator to monitor - can set multiple times.
   -one_output
-        If true, only write logs to their native severity level (vs also writing to each lower severity level
+    	If true, only write logs to their native severity level (vs also writing to each lower severity level; no effect when -logtostderr=true)
   -rpc-url string
-        Solana RPC URI (including protocol and path)
+    	Solana RPC URL (including protocol and path), e.g., 'http://localhost:8899' or 'https://api.mainnet-beta.solana.com' (default "http://localhost:8899")
   -skip_headers
-        If true, avoid header prefixes in the log messages
+    	If true, avoid header prefixes in the log messages
   -skip_log_headers
-        If true, avoid headers when opening log files
+    	If true, avoid headers when opening log files (no effect when -logtostderr=true)
   -stderrthreshold value
-        logs at or above this threshold go to stderr (default 2)
+    	logs at or above this threshold go to stderr when writing to files and stderr (no effect when -logtostderr=true or -alsologtostderr=true) (default 2)
   -v value
-        number for the log level verbosity
+    	number for the log level verbosity
   -vmodule value
-        comma-separated list of pattern=N settings for file-filtered logging
-  -votepubkey
-        Validator vote address (will only return results of this address)
+    	comma-separated list of pattern=N settings for file-filtered logging
 ```
