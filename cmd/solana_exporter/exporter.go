@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"github.com/asymmetric-research/solana_exporter/pkg/rpc"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -46,6 +47,8 @@ type SolanaCollector struct {
 	validatorDelinquent     *prometheus.Desc
 	solanaVersion           *prometheus.Desc
 	balances                *prometheus.Desc
+	isHealthy               *prometheus.Desc
+	numSlotsBehind          *prometheus.Desc
 }
 
 func NewSolanaCollector(
@@ -97,6 +100,18 @@ func NewSolanaCollector(
 			[]string{AddressLabel},
 			nil,
 		),
+		isHealthy: prometheus.NewDesc(
+			"solana_is_healthy",
+			"Whether the node is healthy or not.",
+			nil,
+			nil,
+		),
+		numSlotsBehind: prometheus.NewDesc(
+			"solana_num_slots_behind",
+			"The number of slots that the node is behind the latest cluster confirmed slot.",
+			nil,
+			nil,
+		),
 	}
 	return collector
 }
@@ -109,11 +124,14 @@ func (c *SolanaCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.validatorRootSlot
 	ch <- c.validatorDelinquent
 	ch <- c.balances
+	ch <- c.isHealthy
+	ch <- c.numSlotsBehind
 }
 
 func (c *SolanaCollector) collectVoteAccounts(ctx context.Context, ch chan<- prometheus.Metric) {
 	voteAccounts, err := c.rpcClient.GetVoteAccounts(ctx, rpc.CommitmentConfirmed, nil)
 	if err != nil {
+		klog.Errorf("failed to get vote accounts: %v", err)
 		ch <- prometheus.NewInvalidMetric(c.totalValidatorsDesc, err)
 		ch <- prometheus.NewInvalidMetric(c.validatorActivatedStake, err)
 		ch <- prometheus.NewInvalidMetric(c.validatorLastVote, err)
@@ -169,6 +187,7 @@ func (c *SolanaCollector) collectVersion(ctx context.Context, ch chan<- promethe
 	version, err := c.rpcClient.GetVersion(ctx)
 
 	if err != nil {
+		klog.Errorf("failed to get version: %v", err)
 		ch <- prometheus.NewInvalidMetric(c.solanaVersion, err)
 		return
 	}
@@ -179,6 +198,7 @@ func (c *SolanaCollector) collectVersion(ctx context.Context, ch chan<- promethe
 func (c *SolanaCollector) collectBalances(ctx context.Context, ch chan<- prometheus.Metric) {
 	balances, err := FetchBalances(ctx, c.rpcClient, c.balanceAddresses)
 	if err != nil {
+		klog.Errorf("failed to get balances: %v", err)
 		ch <- prometheus.NewInvalidMetric(c.solanaVersion, err)
 		return
 	}
@@ -188,6 +208,45 @@ func (c *SolanaCollector) collectBalances(ctx context.Context, ch chan<- prometh
 	}
 }
 
+func (c *SolanaCollector) collectHealth(ctx context.Context, ch chan<- prometheus.Metric) {
+	var (
+		isHealthy      = 1
+		numSlotsBehind int64
+	)
+
+	_, err := c.rpcClient.GetHealth(ctx)
+	if err != nil {
+		var rpcError *rpc.RPCError
+		if errors.As(err, &rpcError) {
+			var errorData rpc.NodeUnhealthyErrorData
+			if rpcError.Data == nil {
+				// if there is no data, then this is some unexpected error and should just be logged
+				klog.Errorf("failed to get health: %v", err)
+				ch <- prometheus.NewInvalidMetric(c.isHealthy, err)
+				ch <- prometheus.NewInvalidMetric(c.numSlotsBehind, err)
+				return
+			}
+			if err = rpc.UnpackRpcErrorData(rpcError, errorData); err != nil {
+				// if we error here, it means we have the incorrect format
+				klog.Fatalf("failed to unpack %s rpc error: %v", rpcError.Method, err.Error())
+			}
+			isHealthy = 0
+			numSlotsBehind = errorData.NumSlotsBehind
+		} else {
+			// if it's not an RPC error, log it
+			klog.Errorf("failed to get health: %v", err)
+			ch <- prometheus.NewInvalidMetric(c.isHealthy, err)
+			ch <- prometheus.NewInvalidMetric(c.numSlotsBehind, err)
+			return
+		}
+	}
+
+	ch <- prometheus.MustNewConstMetric(c.isHealthy, prometheus.GaugeValue, float64(isHealthy))
+	ch <- prometheus.MustNewConstMetric(c.numSlotsBehind, prometheus.GaugeValue, float64(numSlotsBehind))
+
+	return
+}
+
 func (c *SolanaCollector) Collect(ch chan<- prometheus.Metric) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -195,6 +254,7 @@ func (c *SolanaCollector) Collect(ch chan<- prometheus.Metric) {
 	c.collectVoteAccounts(ctx, ch)
 	c.collectVersion(ctx, ch)
 	c.collectBalances(ctx, ch)
+	c.collectHealth(ctx, ch)
 }
 
 func main() {

@@ -56,3 +56,10 @@ func TestGetAssociatedVoteAccounts(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, votekeys, voteAccounts)
 }
+
+func TestGetEpochBounds(t *testing.T) {
+	epoch := rpc.EpochInfo{AbsoluteSlot: 25, SlotIndex: 5, SlotsInEpoch: 10}
+	first, last := GetEpochBounds(&epoch)
+	assert.Equal(t, int64(20), first)
+	assert.Equal(t, int64(29), last)
+}
