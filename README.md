@@ -31,7 +31,7 @@ Metrics with no confirmation level:
 
 You typically only need to set the RPC URL, pointing to one of your own nodes:
 
-    ./solana_exporter -rpcURI=http://yournode:8899
+    ./solana_exporter -rpc-url=http://yournode:8899
 
 If you want verbose logs, specify `-v=<num>`. Higher verbosity means more debug output. For most users, the default
 verbosity level is fine. If you want detailed log output for missed blocks, run with `-v=1`.
@@ -56,7 +56,7 @@ Usage of solana_exporter:
         log to standard error instead of files (default true)
   -one_output
         If true, only write logs to their native severity level (vs also writing to each lower severity level
-  -rpcURI string
+  -rpc-url string
         Solana RPC URI (including protocol and path)
   -skip_headers
         If true, avoid header prefixes in the log messages
