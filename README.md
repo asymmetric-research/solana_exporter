@@ -34,7 +34,7 @@ Metrics with no confirmation level:
 ```sh
 git clone https://github.com/asymmetric-research/solana_exporter.git
 cd solana_exporter
-CGO_ENABLED=0 go build github.com/asymmetric-research/solana_exporter/cmd/solana_exporter
+CGO_ENABLED=0 go build ./cmd/solana_exporter
 ```
 
 ## Command line arguments
