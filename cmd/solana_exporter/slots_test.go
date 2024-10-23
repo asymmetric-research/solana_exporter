@@ -93,7 +93,7 @@ func TestSolanaCollector_WatchSlots_Static(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	nodeIdentity, _ := client.GetIdentity(ctx)
 	collector := NewSolanaCollector(&client, 100*time.Millisecond, nil, identities, votekeys, nodeIdentity)
-	watcher := NewSlotWatcher(&client, identities, votekeys, false, false)
+	watcher := NewSlotWatcher(&client, identities, votekeys, *nodeIdentity, false, false)
 	// reset metrics before running tests:
 	watcher.LeaderSlotsTotalMetric.Reset()
 	watcher.LeaderSlotsByEpochMetric.Reset()
@@ -164,7 +164,7 @@ func TestSolanaCollector_WatchSlots_Dynamic(t *testing.T) {
 	runCtx, runCancel := context.WithCancel(context.Background())
 	nodeIdentity, _ := client.GetIdentity(runCtx)
 	collector := NewSolanaCollector(client, 300*time.Millisecond, nil, identities, votekeys, nodeIdentity)
-	watcher := NewSlotWatcher(client, identities, votekeys, false, false)
+	watcher := NewSlotWatcher(client, identities, votekeys, *nodeIdentity, false, false)
 	// reset metrics before running tests:
 	watcher.LeaderSlotsTotalMetric.Reset()
 	watcher.LeaderSlotsByEpochMetric.Reset()

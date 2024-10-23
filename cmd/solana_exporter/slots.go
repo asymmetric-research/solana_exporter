@@ -23,6 +23,7 @@ type SlotWatcher struct {
 	// config:
 	nodekeys                  []string
 	votekeys                  []string
+	identity                  string
 	comprehensiveSlotTracking bool
 	monitorBlockSizes         bool
 
@@ -48,12 +49,14 @@ type SlotWatcher struct {
 	InflationRewardsMetric   *prometheus.GaugeVec
 	FeeRewardsMetric         *prometheus.CounterVec
 	BlockSizeMetric          *prometheus.GaugeVec
+	BlockHeight              *prometheus.GaugeVec
 }
 
 func NewSlotWatcher(
 	client rpc.Provider,
 	nodekeys []string,
 	votekeys []string,
+	identity string,
 	comprehensiveSlotTracking bool,
 	monitorBlockSizes bool,
 ) *SlotWatcher {
@@ -61,6 +64,7 @@ func NewSlotWatcher(
 		client:                    client,
 		nodekeys:                  nodekeys,
 		votekeys:                  votekeys,
+		identity:                  identity,
 		comprehensiveSlotTracking: comprehensiveSlotTracking,
 		monitorBlockSizes:         monitorBlockSizes,
 		// metrics:
@@ -119,6 +123,13 @@ func NewSlotWatcher(
 			},
 			[]string{NodekeyLabel},
 		),
+		BlockHeight: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "solana_block_height",
+				Help: "The current block height of the node.",
+			},
+			[]string{IdentityLabel},
+		),
 	}
 	// register:
 	for _, collector := range []prometheus.Collector{
@@ -132,6 +143,7 @@ func NewSlotWatcher(
 		watcher.InflationRewardsMetric,
 		watcher.FeeRewardsMetric,
 		watcher.BlockSizeMetric,
+		watcher.BlockHeight,
 	} {
 		if err := prometheus.Register(collector); err != nil {
 			var (
@@ -176,6 +188,7 @@ func (c *SlotWatcher) WatchSlots(ctx context.Context, pace time.Duration) {
 
 			c.TotalTransactionsMetric.Set(float64(epochInfo.TransactionCount))
 			c.SlotHeightMetric.Set(float64(epochInfo.AbsoluteSlot))
+			c.BlockHeight.WithLabelValues(c.identity).Set(float64(epochInfo.BlockHeight))
 
 			// if we get here, then the tracking numbers are set, so this is a "normal" run.
 			// start by checking if we have progressed since last run:

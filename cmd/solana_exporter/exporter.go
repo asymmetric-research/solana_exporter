@@ -53,7 +53,6 @@ type SolanaCollector struct {
 	numSlotsBehind          *prometheus.Desc
 	minimumLedgerSlot       *prometheus.Desc
 	firstAvailableBlock     *prometheus.Desc
-	blockHeight             *prometheus.Desc
 }
 
 func NewSolanaCollector(provider rpc.Provider, slotPace time.Duration, balanceAddresses []string, nodekeys []string, votekeys []string, identity *string) *SolanaCollector {
@@ -128,12 +127,6 @@ func NewSolanaCollector(provider rpc.Provider, slotPace time.Duration, balanceAd
 			[]string{IdentityLabel},
 			nil,
 		),
-		blockHeight: prometheus.NewDesc(
-			"solana_block_height",
-			"The current block height of the node.",
-			[]string{IdentityLabel},
-			nil,
-		),
 	}
 	return collector
 }
@@ -150,7 +143,6 @@ func (c *SolanaCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.numSlotsBehind
 	ch <- c.minimumLedgerSlot
 	ch <- c.firstAvailableBlock
-	ch <- c.blockHeight
 }
 
 func (c *SolanaCollector) collectVoteAccounts(ctx context.Context, ch chan<- prometheus.Metric) {
@@ -241,17 +233,6 @@ func (c *SolanaCollector) collectFirstAvailableBlock(ctx context.Context, ch cha
 
 	ch <- prometheus.MustNewConstMetric(c.firstAvailableBlock, prometheus.GaugeValue, float64(*block), *c.identity)
 }
-func (c *SolanaCollector) collectBlockHeight(ctx context.Context, ch chan<- prometheus.Metric) {
-	height, err := c.rpcClient.GetBlockHeight(ctx)
-
-	if err != nil {
-		klog.Errorf("failed to get block height: %v", err)
-		ch <- prometheus.NewInvalidMetric(c.blockHeight, err)
-		return
-	}
-
-	ch <- prometheus.MustNewConstMetric(c.blockHeight, prometheus.GaugeValue, float64(*height), *c.identity)
-}
 
 func (c *SolanaCollector) collectBalances(ctx context.Context, ch chan<- prometheus.Metric) {
 	balances, err := FetchBalances(ctx, c.rpcClient, c.balanceAddresses)
@@ -315,7 +296,6 @@ func (c *SolanaCollector) Collect(ch chan<- prometheus.Metric) {
 	c.collectHealth(ctx, ch)
 	c.collectMinimumLedgerSlot(ctx, ch)
 	c.collectFirstAvailableBlock(ctx, ch)
-	c.collectBlockHeight(ctx, ch)
 }
 
 func main() {
@@ -340,7 +320,7 @@ func main() {
 	}
 	collector := NewSolanaCollector(client, slotPacerSchedule, config.BalanceAddresses, config.NodeKeys, votekeys, identity)
 	slotWatcher := NewSlotWatcher(
-		client, config.NodeKeys, votekeys, config.ComprehensiveSlotTracking, config.MonitorBlockSizes,
+		client, config.NodeKeys, votekeys, *identity, config.ComprehensiveSlotTracking, config.MonitorBlockSizes,
 	)
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()

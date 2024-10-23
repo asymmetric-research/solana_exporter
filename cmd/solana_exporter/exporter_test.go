@@ -192,12 +192,6 @@ func (c *staticRPCClient) GetIdentity(ctx context.Context) (*string, error) {
 }
 
 //goland:noinspection GoUnusedParameter
-func (c *staticRPCClient) GetBlockHeight(ctx context.Context) (*int64, error) {
-	blockHeight := int64(1233)
-	return &blockHeight, nil
-}
-
-//goland:noinspection GoUnusedParameter
 func (c *staticRPCClient) GetFirstAvailableBlock(ctx context.Context) (*int64, error) {
 	firstAvailiableBlock := int64(33)
 	return &firstAvailiableBlock, nil
@@ -414,12 +408,6 @@ func (c *dynamicRPCClient) GetHealth(ctx context.Context) (*string, error) {
 func (c *dynamicRPCClient) GetIdentity(ctx context.Context) (*string, error) {
 	nodeIdentity := "aaa"
 	return &nodeIdentity, nil
-}
-
-//goland:noinspection GoUnusedParameter
-func (c *dynamicRPCClient) GetBlockHeight(ctx context.Context) (*int64, error) {
-	blockHeight := int64(1233)
-	return &blockHeight, nil
 }
 
 //goland:noinspection GoUnusedParameter

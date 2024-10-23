@@ -78,7 +78,6 @@ type Provider interface {
 	GetIdentity(ctx context.Context) (*string, error)
 	GetMinimumLedgerSlot(ctx context.Context) (*int64, error)
 	GetFirstAvailableBlock(ctx context.Context) (*int64, error)
-	GetBlockHeight(ctx context.Context) (*int64, error)
 }
 
 func (c Commitment) MarshalJSON() ([]byte, error) {
@@ -320,7 +319,7 @@ func (c *Client) GetHealth(ctx context.Context) (*string, error) {
 	return &resp.Result, nil
 }
 
-// GetIdentity Returns the identity pubkey for the current node
+// GetIdentity returns the identity pubkey for the current node
 // See API docs: https://solana.com/docs/rpc/http/getidentity
 func (c *Client) GetIdentity(ctx context.Context) (*string, error) {
 	var resp response[Identity]
@@ -330,7 +329,7 @@ func (c *Client) GetIdentity(ctx context.Context) (*string, error) {
 	return &resp.Result.Identity, nil
 }
 
-// MinimumLedgerSlot Returns the lowest slot that the node has information about in its ledger.
+// MinimumLedgerSlot returns the lowest slot that the node has information about in its ledger.
 // See API docs: https://solana.com/docs/rpc/http/minimumledgerslot
 func (c *Client) GetMinimumLedgerSlot(ctx context.Context) (*int64, error) {
 	var resp response[int64]
@@ -340,21 +339,11 @@ func (c *Client) GetMinimumLedgerSlot(ctx context.Context) (*int64, error) {
 	return &resp.Result, nil
 }
 
-// GetFirstAvailableBlock Returns the slot of the lowest confirmed block that has not been purged from the ledger
+// GetFirstAvailableBlock returns the slot of the lowest confirmed block that has not been purged from the ledger
 // See API docs: https://solana.com/docs/rpc/http/getfirstavailableblock
 func (c *Client) GetFirstAvailableBlock(ctx context.Context) (*int64, error) {
 	var resp response[int64]
 	if err := getResponse(ctx, c, "getFirstAvailableBlock", []any{}, &resp); err != nil {
-		return nil, err
-	}
-	return &resp.Result, nil
-}
-
-// GetBlockHeight Returns the current block height of the node
-// See API docs: https://solana.com/docs/rpc/http/getblockheight
-func (c *Client) GetBlockHeight(ctx context.Context) (*int64, error) {
-	var resp response[int64]
-	if err := getResponse(ctx, c, "getBlockHeight", []any{}, &resp); err != nil {
 		return nil, err
 	}
 	return &resp.Result, nil
