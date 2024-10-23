@@ -90,14 +90,16 @@ func assertSlotMetricsChangeCorrectly(t *testing.T, initial slotMetricValues, fi
 
 func TestSolanaCollector_WatchSlots_Static(t *testing.T) {
 	client := staticRPCClient{}
-	collector := NewSolanaCollector(&client, 100*time.Millisecond, nil, identities, votekeys)
+	ctx, cancel := context.WithCancel(context.Background())
+	nodeIdentity, _ := client.GetIdentity(ctx)
+	collector := NewSolanaCollector(&client, 100*time.Millisecond, nil, identities, votekeys, nodeIdentity)
 	watcher := NewSlotWatcher(&client, identities, votekeys, false, false)
 	// reset metrics before running tests:
 	watcher.LeaderSlotsTotalMetric.Reset()
 	watcher.LeaderSlotsByEpochMetric.Reset()
 
 	prometheus.NewPedanticRegistry().MustRegister(collector)
-	ctx, cancel := context.WithCancel(context.Background())
+
 	defer cancel()
 	go watcher.WatchSlots(ctx, collector.slotPace)
 
@@ -159,7 +161,9 @@ func TestSolanaCollector_WatchSlots_Static(t *testing.T) {
 func TestSolanaCollector_WatchSlots_Dynamic(t *testing.T) {
 	// create clients:
 	client := newDynamicRPCClient()
-	collector := NewSolanaCollector(client, 300*time.Millisecond, nil, identities, votekeys)
+	runCtx, runCancel := context.WithCancel(context.Background())
+	nodeIdentity, _ := client.GetIdentity(runCtx)
+	collector := NewSolanaCollector(client, 300*time.Millisecond, nil, identities, votekeys, nodeIdentity)
 	watcher := NewSlotWatcher(client, identities, votekeys, false, false)
 	// reset metrics before running tests:
 	watcher.LeaderSlotsTotalMetric.Reset()
@@ -167,7 +171,7 @@ func TestSolanaCollector_WatchSlots_Dynamic(t *testing.T) {
 	prometheus.NewPedanticRegistry().MustRegister(collector)
 
 	// start client/collector and wait a bit:
-	runCtx, runCancel := context.WithCancel(context.Background())
+
 	defer runCancel()
 	go client.Run(runCtx)
 	time.Sleep(time.Second)
