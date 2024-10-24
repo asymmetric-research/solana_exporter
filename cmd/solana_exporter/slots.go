@@ -44,7 +44,7 @@ type SlotWatcher struct {
 	EpochNumberMetric        prometheus.Gauge
 	EpochFirstSlotMetric     prometheus.Gauge
 	EpochLastSlotMetric      prometheus.Gauge
-	LeaderSlotsTotalMetric   *prometheus.CounterVec
+	LeaderSlotsMetric        *prometheus.CounterVec
 	LeaderSlotsByEpochMetric *prometheus.CounterVec
 	InflationRewardsMetric   *prometheus.GaugeVec
 	FeeRewardsMetric         *prometheus.CounterVec
@@ -69,64 +69,70 @@ func NewSlotWatcher(
 		monitorBlockSizes:         monitorBlockSizes,
 		// metrics:
 		TotalTransactionsMetric: prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "solana_confirmed_transactions_total",
-			Help: "Total number of transactions processed since genesis (max confirmation)",
+			Name: "solana_total_transactions",
+			Help: "Total number of transactions processed without error since genesis.",
 		}),
 		SlotHeightMetric: prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "solana_confirmed_slot_height",
-			Help: "Last confirmed slot height processed by watcher routine (max confirmation)",
+			Name: "solana_slot_height",
+			Help: "The current slot number",
 		}),
 		EpochNumberMetric: prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "solana_confirmed_epoch_number",
-			Help: "Current epoch (max confirmation)",
+			Name: "solana_epoch_number",
+			Help: "The current epoch number.",
 		}),
 		EpochFirstSlotMetric: prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "solana_confirmed_epoch_first_slot",
-			Help: "Current epoch's first slot (max confirmation)",
+			Name: "solana_epoch_first_slot",
+			Help: "Current epoch's first slot [inclusive].",
 		}),
 		EpochLastSlotMetric: prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "solana_confirmed_epoch_last_slot",
-			Help: "Current epoch's last slot (max confirmation)",
+			Name: "solana_epoch_last_slot",
+			Help: "Current epoch's last slot [inclusive].",
 		}),
-		LeaderSlotsTotalMetric: prometheus.NewCounterVec(
+		LeaderSlotsMetric: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
-				Name: "solana_leader_slots_total",
-				Help: "(DEPRECATED) Number of leader slots per leader, grouped by skip status",
+				Name: "solana_leader_slots",
+				Help: fmt.Sprintf(
+					"Number of slots processed, grouped by %s, and %s ('%s' or '%s')",
+					NodekeyLabel, SkipStatusLabel, StatusValid, StatusSkipped,
+				),
 			},
 			[]string{SkipStatusLabel, NodekeyLabel},
 		),
 		LeaderSlotsByEpochMetric: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: "solana_leader_slots_by_epoch",
-				Help: "Number of leader slots per leader, grouped by skip status and epoch",
+				Help: fmt.Sprintf(
+					"Number of slots processed, grouped by %s, %s ('%s' or '%s'), and %s",
+					NodekeyLabel, SkipStatusLabel, StatusValid, StatusSkipped, EpochLabel,
+				),
 			},
 			[]string{SkipStatusLabel, NodekeyLabel, EpochLabel},
 		),
 		InflationRewardsMetric: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "solana_inflation_rewards",
-				Help: "Inflation reward earned per validator vote account, per epoch",
+				Help: fmt.Sprintf("Inflation reward earned, grouped by %s and %s", VotekeyLabel, EpochLabel),
 			},
 			[]string{VotekeyLabel, EpochLabel},
 		),
 		FeeRewardsMetric: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: "solana_fee_rewards",
-				Help: "Transaction fee rewards earned per validator identity account, per epoch",
+				Help: fmt.Sprintf("Transaction fee rewards earned, grouped by %s and %s", NodekeyLabel, EpochLabel),
 			},
 			[]string{NodekeyLabel, EpochLabel},
 		),
 		BlockSizeMetric: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "solana_block_size",
-				Help: "Number of transactions per block, grouped by validator nodekey (identity)",
+				Help: fmt.Sprintf("Number of transactions per block, grouped by %s", NodekeyLabel),
 			},
 			[]string{NodekeyLabel},
 		),
 		BlockHeight: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "solana_block_height",
-				Help: "The current block height of the node.",
+				Help: fmt.Sprintf("The current block height of the node, grouped by %s", IdentityLabel),
 			},
 			[]string{IdentityLabel},
 		),
@@ -138,7 +144,7 @@ func NewSlotWatcher(
 		watcher.EpochNumberMetric,
 		watcher.EpochFirstSlotMetric,
 		watcher.EpochLastSlotMetric,
-		watcher.LeaderSlotsTotalMetric,
+		watcher.LeaderSlotsMetric,
 		watcher.LeaderSlotsByEpochMetric,
 		watcher.InflationRewardsMetric,
 		watcher.FeeRewardsMetric,
@@ -321,8 +327,8 @@ func (c *SlotWatcher) fetchAndEmitBlockProduction(ctx context.Context, endSlot i
 		valid := float64(production.BlocksProduced)
 		skipped := float64(production.LeaderSlots - production.BlocksProduced)
 
-		c.LeaderSlotsTotalMetric.WithLabelValues(StatusValid, address).Add(valid)
-		c.LeaderSlotsTotalMetric.WithLabelValues(StatusSkipped, address).Add(skipped)
+		c.LeaderSlotsMetric.WithLabelValues(StatusValid, address).Add(valid)
+		c.LeaderSlotsMetric.WithLabelValues(StatusSkipped, address).Add(skipped)
 
 		if slices.Contains(c.nodekeys, address) || c.comprehensiveSlotTracking {
 			epochStr := toString(c.currentEpoch)
