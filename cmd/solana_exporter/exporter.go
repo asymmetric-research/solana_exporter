@@ -43,17 +43,17 @@ type SolanaCollector struct {
 	identity         string
 
 	/// descriptors:
-	ValidatorActive         *prometheus.Desc
-	ValidatorActiveStake    *prometheus.Desc
-	ValidatorLastVote       *prometheus.Desc
-	ValidatorRootSlot       *prometheus.Desc
-	ValidatorDelinquent     *prometheus.Desc
-	AccountBalances         *prometheus.Desc
-	NodeVersion             *prometheus.Desc
-	NodeIsHealthy           *prometheus.Desc
-	NodeNumSlotsBehind      *prometheus.Desc
-	NodeMinimumLedgerSlot   *prometheus.Desc
-	NodeFirstAvailableBlock *prometheus.Desc
+	ValidatorActive         *GaugeDesc
+	ValidatorActiveStake    *GaugeDesc
+	ValidatorLastVote       *GaugeDesc
+	ValidatorRootSlot       *GaugeDesc
+	ValidatorDelinquent     *GaugeDesc
+	AccountBalances         *GaugeDesc
+	NodeVersion             *GaugeDesc
+	NodeIsHealthy           *GaugeDesc
+	NodeNumSlotsBehind      *GaugeDesc
+	NodeMinimumLedgerSlot   *GaugeDesc
+	NodeFirstAvailableBlock *GaugeDesc
 }
 
 func NewSolanaCollector(
@@ -64,151 +64,115 @@ func NewSolanaCollector(
 		slotPace:         slotPace,
 		balanceAddresses: CombineUnique(balanceAddresses, nodekeys, votekeys),
 		identity:         identity,
-		ValidatorActive: prometheus.NewDesc(
+		ValidatorActive: NewGaugeDesc(
 			"solana_validator_active",
 			fmt.Sprintf(
 				"Total number of active validators, grouped by %s ('%s' or '%s')",
 				StateLabel, StateCurrent, StateDelinquent,
 			),
-			[]string{StateLabel},
-			nil,
+			StateLabel,
 		),
-		ValidatorActiveStake: prometheus.NewDesc(
+		ValidatorActiveStake: NewGaugeDesc(
 			"solana_validator_active_stake",
 			fmt.Sprintf("Active stake per validator (represented by %s and %s)", VotekeyLabel, NodekeyLabel),
-			[]string{VotekeyLabel, NodekeyLabel},
-			nil,
+			VotekeyLabel, NodekeyLabel,
 		),
-		ValidatorLastVote: prometheus.NewDesc(
+		ValidatorLastVote: NewGaugeDesc(
 			"solana_validator_last_vote",
 			fmt.Sprintf("Last voted-on slot per validator (represented by %s and %s)", VotekeyLabel, NodekeyLabel),
-			[]string{VotekeyLabel, NodekeyLabel},
-			nil,
+			VotekeyLabel, NodekeyLabel,
 		),
-		ValidatorRootSlot: prometheus.NewDesc(
+		ValidatorRootSlot: NewGaugeDesc(
 			"solana_validator_root_slot",
 			fmt.Sprintf("Root slot per validator (represented by %s and %s)", VotekeyLabel, NodekeyLabel),
-			[]string{VotekeyLabel, NodekeyLabel},
-			nil,
+			VotekeyLabel, NodekeyLabel,
 		),
-		ValidatorDelinquent: prometheus.NewDesc(
+		ValidatorDelinquent: NewGaugeDesc(
 			"solana_validator_delinquent",
 			fmt.Sprintf("Whether a validator (represented by %s and %s) is delinquent", VotekeyLabel, NodekeyLabel),
-			[]string{VotekeyLabel, NodekeyLabel},
-			nil,
+			VotekeyLabel, NodekeyLabel,
 		),
-		AccountBalances: prometheus.NewDesc(
+		AccountBalances: NewGaugeDesc(
 			"solana_account_balance",
 			fmt.Sprintf("Solana account balances, grouped by %s", AddressLabel),
-			[]string{AddressLabel},
-			nil,
+			AddressLabel,
 		),
-		NodeVersion: prometheus.NewDesc(
+		NodeVersion: NewGaugeDesc(
 			"solana_node_version",
 			"Node version of solana",
-			[]string{VersionLabel},
-			nil,
+			VersionLabel,
 		),
-		NodeIsHealthy: prometheus.NewDesc(
+		NodeIsHealthy: NewGaugeDesc(
 			"solana_node_is_healthy",
 			fmt.Sprintf("Whether a node (%s) is healthy", IdentityLabel),
-			[]string{IdentityLabel},
-			nil,
+			IdentityLabel,
 		),
-		NodeNumSlotsBehind: prometheus.NewDesc(
+		NodeNumSlotsBehind: NewGaugeDesc(
 			"solana_node_num_slots_behind",
 			fmt.Sprintf(
 				"The number of slots that the node (%s) is behind the latest cluster confirmed slot.",
 				IdentityLabel,
 			),
-			[]string{IdentityLabel},
-			nil,
+			IdentityLabel,
 		),
-		NodeMinimumLedgerSlot: prometheus.NewDesc(
+		NodeMinimumLedgerSlot: NewGaugeDesc(
 			"solana_node_minimum_ledger_slot",
 			fmt.Sprintf("The lowest slot that the node (%s) has information about in its ledger.", IdentityLabel),
-			[]string{IdentityLabel},
-			nil,
+			IdentityLabel,
 		),
-		NodeFirstAvailableBlock: prometheus.NewDesc(
+		NodeFirstAvailableBlock: NewGaugeDesc(
 			"solana_node_first_available_block",
 			fmt.Sprintf(
 				"The slot of the lowest confirmed block that has not been purged from the node's (%s) ledger.",
 				IdentityLabel,
 			),
-			[]string{IdentityLabel},
-			nil,
+			IdentityLabel,
 		),
 	}
 	return collector
 }
 
 func (c *SolanaCollector) Describe(ch chan<- *prometheus.Desc) {
-	ch <- c.ValidatorActive
-	ch <- c.NodeVersion
-	ch <- c.ValidatorActiveStake
-	ch <- c.ValidatorLastVote
-	ch <- c.ValidatorRootSlot
-	ch <- c.ValidatorDelinquent
-	ch <- c.AccountBalances
-	ch <- c.NodeIsHealthy
-	ch <- c.NodeNumSlotsBehind
-	ch <- c.NodeMinimumLedgerSlot
-	ch <- c.NodeFirstAvailableBlock
+	ch <- c.ValidatorActive.Desc
+	ch <- c.NodeVersion.Desc
+	ch <- c.ValidatorActiveStake.Desc
+	ch <- c.ValidatorLastVote.Desc
+	ch <- c.ValidatorRootSlot.Desc
+	ch <- c.ValidatorDelinquent.Desc
+	ch <- c.AccountBalances.Desc
+	ch <- c.NodeIsHealthy.Desc
+	ch <- c.NodeNumSlotsBehind.Desc
+	ch <- c.NodeMinimumLedgerSlot.Desc
+	ch <- c.NodeFirstAvailableBlock.Desc
 }
 
 func (c *SolanaCollector) collectVoteAccounts(ctx context.Context, ch chan<- prometheus.Metric) {
 	voteAccounts, err := c.rpcClient.GetVoteAccounts(ctx, rpc.CommitmentConfirmed, nil)
 	if err != nil {
 		klog.Errorf("failed to get vote accounts: %v", err)
-		ch <- prometheus.NewInvalidMetric(c.ValidatorActive, err)
-		ch <- prometheus.NewInvalidMetric(c.ValidatorActiveStake, err)
-		ch <- prometheus.NewInvalidMetric(c.ValidatorLastVote, err)
-		ch <- prometheus.NewInvalidMetric(c.ValidatorRootSlot, err)
-		ch <- prometheus.NewInvalidMetric(c.ValidatorDelinquent, err)
+		ch <- c.ValidatorActive.NewInvalidMetric(err)
+		ch <- c.ValidatorActiveStake.NewInvalidMetric(err)
+		ch <- c.ValidatorLastVote.NewInvalidMetric(err)
+		ch <- c.ValidatorRootSlot.NewInvalidMetric(err)
+		ch <- c.ValidatorDelinquent.NewInvalidMetric(err)
 		return
 	}
 
-	ch <- prometheus.MustNewConstMetric(
-		c.ValidatorActive, prometheus.GaugeValue, float64(len(voteAccounts.Delinquent)), StateDelinquent,
-	)
-	ch <- prometheus.MustNewConstMetric(
-		c.ValidatorActive, prometheus.GaugeValue, float64(len(voteAccounts.Current)), StateCurrent,
-	)
+	ch <- c.ValidatorActive.MustNewConstMetric(float64(len(voteAccounts.Delinquent)), StateDelinquent)
+	ch <- c.ValidatorActive.MustNewConstMetric(float64(len(voteAccounts.Current)), StateCurrent)
 
 	for _, account := range append(voteAccounts.Current, voteAccounts.Delinquent...) {
-		ch <- prometheus.MustNewConstMetric(
-			c.ValidatorActiveStake,
-			prometheus.GaugeValue,
-			float64(account.ActivatedStake),
-			account.VotePubkey,
-			account.NodePubkey,
-		)
-		ch <- prometheus.MustNewConstMetric(
-			c.ValidatorLastVote,
-			prometheus.GaugeValue,
-			float64(account.LastVote),
-			account.VotePubkey,
-			account.NodePubkey,
-		)
-		ch <- prometheus.MustNewConstMetric(
-			c.ValidatorRootSlot,
-			prometheus.GaugeValue,
-			float64(account.RootSlot),
-			account.VotePubkey,
-			account.NodePubkey,
-		)
+		accounts := []string{account.VotePubkey, account.NodePubkey}
+		ch <- c.ValidatorActiveStake.MustNewConstMetric(float64(account.ActivatedStake), accounts...)
+		ch <- c.ValidatorLastVote.MustNewConstMetric(float64(account.LastVote), accounts...)
+		ch <- c.ValidatorRootSlot.MustNewConstMetric(float64(account.RootSlot), accounts...)
 	}
 
 	for _, account := range voteAccounts.Current {
-		ch <- prometheus.MustNewConstMetric(
-			c.ValidatorDelinquent, prometheus.GaugeValue, 0, account.VotePubkey, account.NodePubkey,
-		)
+		ch <- c.ValidatorDelinquent.MustNewConstMetric(0, account.VotePubkey, account.NodePubkey)
 	}
 	for _, account := range voteAccounts.Delinquent {
-		ch <- prometheus.MustNewConstMetric(
-			c.ValidatorDelinquent, prometheus.GaugeValue, 1, account.VotePubkey, account.NodePubkey,
-		)
+		ch <- c.ValidatorDelinquent.MustNewConstMetric(1, account.VotePubkey, account.NodePubkey)
 	}
 }
 
@@ -217,45 +181,45 @@ func (c *SolanaCollector) collectVersion(ctx context.Context, ch chan<- promethe
 
 	if err != nil {
 		klog.Errorf("failed to get version: %v", err)
-		ch <- prometheus.NewInvalidMetric(c.NodeVersion, err)
+		ch <- c.NodeVersion.NewInvalidMetric(err)
 		return
 	}
 
-	ch <- prometheus.MustNewConstMetric(c.NodeVersion, prometheus.GaugeValue, 1, version)
+	ch <- c.NodeVersion.MustNewConstMetric(1, version)
 }
 func (c *SolanaCollector) collectMinimumLedgerSlot(ctx context.Context, ch chan<- prometheus.Metric) {
 	slot, err := c.rpcClient.GetMinimumLedgerSlot(ctx)
 
 	if err != nil {
 		klog.Errorf("failed to get minimum lidger slot: %v", err)
-		ch <- prometheus.NewInvalidMetric(c.NodeMinimumLedgerSlot, err)
+		ch <- c.NodeMinimumLedgerSlot.NewInvalidMetric(err)
 		return
 	}
 
-	ch <- prometheus.MustNewConstMetric(c.NodeMinimumLedgerSlot, prometheus.GaugeValue, float64(*slot), c.identity)
+	ch <- c.NodeMinimumLedgerSlot.MustNewConstMetric(float64(*slot), c.identity)
 }
 func (c *SolanaCollector) collectFirstAvailableBlock(ctx context.Context, ch chan<- prometheus.Metric) {
 	block, err := c.rpcClient.GetFirstAvailableBlock(ctx)
 
 	if err != nil {
 		klog.Errorf("failed to get first available block: %v", err)
-		ch <- prometheus.NewInvalidMetric(c.NodeFirstAvailableBlock, err)
+		ch <- c.NodeFirstAvailableBlock.NewInvalidMetric(err)
 		return
 	}
 
-	ch <- prometheus.MustNewConstMetric(c.NodeFirstAvailableBlock, prometheus.GaugeValue, float64(*block), c.identity)
+	ch <- c.NodeFirstAvailableBlock.MustNewConstMetric(float64(*block), c.identity)
 }
 
 func (c *SolanaCollector) collectBalances(ctx context.Context, ch chan<- prometheus.Metric) {
 	balances, err := FetchBalances(ctx, c.rpcClient, c.balanceAddresses)
 	if err != nil {
 		klog.Errorf("failed to get balances: %v", err)
-		ch <- prometheus.NewInvalidMetric(c.NodeVersion, err)
+		ch <- c.AccountBalances.NewInvalidMetric(err)
 		return
 	}
 
 	for address, balance := range balances {
-		ch <- prometheus.MustNewConstMetric(c.AccountBalances, prometheus.GaugeValue, balance, address)
+		ch <- c.AccountBalances.MustNewConstMetric(balance, address)
 	}
 }
 
@@ -273,8 +237,8 @@ func (c *SolanaCollector) collectHealth(ctx context.Context, ch chan<- prometheu
 			if rpcError.Data == nil {
 				// if there is no data, then this is some unexpected error and should just be logged
 				klog.Errorf("failed to get health: %v", err)
-				ch <- prometheus.NewInvalidMetric(c.NodeIsHealthy, err)
-				ch <- prometheus.NewInvalidMetric(c.NodeNumSlotsBehind, err)
+				ch <- c.NodeIsHealthy.NewInvalidMetric(err)
+				ch <- c.NodeNumSlotsBehind.NewInvalidMetric(err)
 				return
 			}
 			if err = rpc.UnpackRpcErrorData(rpcError, errorData); err != nil {
@@ -286,14 +250,14 @@ func (c *SolanaCollector) collectHealth(ctx context.Context, ch chan<- prometheu
 		} else {
 			// if it's not an RPC error, log it
 			klog.Errorf("failed to get health: %v", err)
-			ch <- prometheus.NewInvalidMetric(c.NodeIsHealthy, err)
-			ch <- prometheus.NewInvalidMetric(c.NodeNumSlotsBehind, err)
+			ch <- c.NodeIsHealthy.NewInvalidMetric(err)
+			ch <- c.NodeNumSlotsBehind.NewInvalidMetric(err)
 			return
 		}
 	}
 
-	ch <- prometheus.MustNewConstMetric(c.NodeIsHealthy, prometheus.GaugeValue, float64(isHealthy), c.identity)
-	ch <- prometheus.MustNewConstMetric(c.NodeNumSlotsBehind, prometheus.GaugeValue, float64(numSlotsBehind), c.identity)
+	ch <- c.NodeIsHealthy.MustNewConstMetric(float64(isHealthy), c.identity)
+	ch <- c.NodeNumSlotsBehind.MustNewConstMetric(float64(numSlotsBehind), c.identity)
 
 	return
 }
