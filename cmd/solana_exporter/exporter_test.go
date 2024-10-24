@@ -43,6 +43,7 @@ type (
 var (
 	identities      = []string{"aaa", "bbb", "ccc"}
 	votekeys        = []string{"AAA", "BBB", "CCC"}
+	identity        = "aaa"
 	balances        = map[string]float64{"aaa": 1, "bbb": 2, "ccc": 3, "AAA": 4, "BBB": 5, "CCC": 6}
 	identityVotes   = map[string]string{"aaa": "AAA", "bbb": "BBB", "ccc": "CCC"}
 	nv              = len(identities)
@@ -182,6 +183,24 @@ func (c *staticRPCClient) GetBlock(
 func (c *staticRPCClient) GetHealth(ctx context.Context) (*string, error) {
 	health := "ok"
 	return &health, nil
+}
+
+//goland:noinspection GoUnusedParameter
+func (c *staticRPCClient) GetIdentity(ctx context.Context) (*string, error) {
+	nodeIdentity := "aaa"
+	return &nodeIdentity, nil
+}
+
+//goland:noinspection GoUnusedParameter
+func (c *staticRPCClient) GetFirstAvailableBlock(ctx context.Context) (*int64, error) {
+	firstAvailiableBlock := int64(33)
+	return &firstAvailiableBlock, nil
+}
+
+//goland:noinspection GoUnusedParameter
+func (c *staticRPCClient) GetMinimumLedgerSlot(ctx context.Context) (*int64, error) {
+	minimumLedgerSlot := int64(23)
+	return &minimumLedgerSlot, nil
 }
 
 /*
@@ -385,6 +404,24 @@ func (c *dynamicRPCClient) GetHealth(ctx context.Context) (*string, error) {
 	return &health, nil
 }
 
+//goland:noinspection GoUnusedParameter
+func (c *dynamicRPCClient) GetIdentity(ctx context.Context) (*string, error) {
+	nodeIdentity := "aaa"
+	return &nodeIdentity, nil
+}
+
+//goland:noinspection GoUnusedParameter
+func (c *dynamicRPCClient) GetFirstAvailableBlock(ctx context.Context) (*int64, error) {
+	firstAvailiableBlock := int64(33)
+	return &firstAvailiableBlock, nil
+}
+
+//goland:noinspection GoUnusedParameter
+func (c *dynamicRPCClient) GetMinimumLedgerSlot(ctx context.Context) (*int64, error) {
+	minimumLedgerSlot := int64(23)
+	return &minimumLedgerSlot, nil
+}
+
 /*
 ===== OTHER TEST UTILITIES =====:
 */
@@ -420,7 +457,7 @@ func runCollectionTests(t *testing.T, collector prometheus.Collector, testCases 
 }
 
 func TestSolanaCollector_Collect_Static(t *testing.T) {
-	collector := NewSolanaCollector(&staticRPCClient{}, slotPacerSchedule, nil, identities, votekeys)
+	collector := NewSolanaCollector(&staticRPCClient{}, slotPacerSchedule, nil, identities, votekeys, &identity)
 	prometheus.NewPedanticRegistry().MustRegister(collector)
 
 	testCases := []collectionTest{
@@ -492,7 +529,7 @@ solana_node_version{version="1.16.7"} 1
 
 func TestSolanaCollector_Collect_Dynamic(t *testing.T) {
 	client := newDynamicRPCClient()
-	collector := NewSolanaCollector(client, slotPacerSchedule, nil, identities, votekeys)
+	collector := NewSolanaCollector(client, slotPacerSchedule, nil, identities, votekeys, &identity)
 	prometheus.NewPedanticRegistry().MustRegister(collector)
 
 	// start off by testing initial state:
