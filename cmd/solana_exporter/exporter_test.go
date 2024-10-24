@@ -459,67 +459,15 @@ func TestSolanaCollector_Collect_Static(t *testing.T) {
 	prometheus.NewPedanticRegistry().MustRegister(collector)
 
 	testCases := []collectionTest{
-		{
-			Name: "solana_validator_active",
-			ExpectedResponse: `
-# HELP solana_validator_active Total number of active validators, grouped by state ('current' or 'delinquent')
-# TYPE solana_validator_active gauge
-solana_validator_active{state="current"} 2
-solana_validator_active{state="delinquent"} 1
-`,
-		},
-		{
-			Name: "solana_validator_active_stake",
-			ExpectedResponse: `
-# HELP solana_validator_active_stake Active stake per validator (represented by votekey and nodekey)
-# TYPE solana_validator_active_stake gauge
-solana_validator_active_stake{nodekey="aaa",votekey="AAA"} 49
-solana_validator_active_stake{nodekey="bbb",votekey="BBB"} 42
-solana_validator_active_stake{nodekey="ccc",votekey="CCC"} 43
-`,
-		},
-		{
-			Name: "solana_validator_last_vote",
-			ExpectedResponse: `
-# HELP solana_validator_last_vote Last voted-on slot per validator (represented by votekey and nodekey)
-# TYPE solana_validator_last_vote gauge
-solana_validator_last_vote{nodekey="aaa",votekey="AAA"} 92
-solana_validator_last_vote{nodekey="bbb",votekey="BBB"} 147
-solana_validator_last_vote{nodekey="ccc",votekey="CCC"} 148
-`,
-		},
-		{
-			Name: "solana_validator_root_slot",
-			ExpectedResponse: `
-# HELP solana_validator_root_slot Root slot per validator (represented by votekey and nodekey)
-# TYPE solana_validator_root_slot gauge
-solana_validator_root_slot{nodekey="aaa",votekey="AAA"} 3
-solana_validator_root_slot{nodekey="bbb",votekey="BBB"} 18
-solana_validator_root_slot{nodekey="ccc",votekey="CCC"} 19
-`,
-		},
-		{
-			Name: "solana_validator_delinquent",
-			ExpectedResponse: `
-# HELP solana_validator_delinquent Whether a validator (represented by votekey and nodekey) is delinquent
-# TYPE solana_validator_delinquent gauge
-solana_validator_delinquent{nodekey="aaa",votekey="AAA"} 1
-solana_validator_delinquent{nodekey="bbb",votekey="BBB"} 0
-solana_validator_delinquent{nodekey="ccc",votekey="CCC"} 0
-`,
-		},
-		{
-			Name: "solana_node_version",
-			ExpectedResponse: `
-# HELP solana_node_version Node version of solana
-# TYPE solana_node_version gauge
-solana_node_version{version="1.16.7"} 1
-		`,
-		},
-		{
-			Name:             "solana_account_balance",
-			ExpectedResponse: balanceMetricResponse,
-		},
+		collector.ValidatorActive.makeCollectionTest(NewLV(2, "current"), NewLV(1, "delinquent")),
+		collector.ValidatorActiveStake.makeCollectionTest(abcValues(49, 42, 43)...),
+		collector.ValidatorLastVote.makeCollectionTest(abcValues(92, 147, 148)...),
+		collector.ValidatorRootSlot.makeCollectionTest(abcValues(3, 18, 19)...),
+		collector.ValidatorDelinquent.makeCollectionTest(abcValues(1, 0, 0)...),
+		{Name: "solana_account_balance", ExpectedResponse: balanceMetricResponse},
+		collector.NodeVersion.makeCollectionTest(NewLV(1, "1.16.7")),
+		collector.NodeIsHealthy.makeCollectionTest(NewLV(1, identity)),
+		collector.NodeNumSlotsBehind.makeCollectionTest(NewLV(0, identity)),
 	}
 
 	runCollectionTests(t, collector, testCases)
@@ -532,57 +480,14 @@ func TestSolanaCollector_Collect_Dynamic(t *testing.T) {
 
 	// start off by testing initial state:
 	testCases := []collectionTest{
-		{
-			Name: "solana_validator_active",
-			ExpectedResponse: `
-# HELP solana_validator_active Total number of active validators, grouped by state ('current' or 'delinquent')
-# TYPE solana_validator_active gauge
-solana_validator_active{state="current"} 3
-solana_validator_active{state="delinquent"} 0
-`,
-		},
-		{
-			Name: "solana_validator_active_stake",
-			ExpectedResponse: `
-# HELP solana_validator_active_stake Active stake per validator (represented by votekey and nodekey)
-# TYPE solana_validator_active_stake gauge
-solana_validator_active_stake{nodekey="aaa",votekey="AAA"} 1000000
-solana_validator_active_stake{nodekey="bbb",votekey="BBB"} 1000000
-solana_validator_active_stake{nodekey="ccc",votekey="CCC"} 1000000
-`,
-		},
-		{
-			Name: "solana_validator_root_slot",
-			ExpectedResponse: `
-# HELP solana_validator_root_slot Root slot per validator (represented by votekey and nodekey)
-# TYPE solana_validator_root_slot gauge
-solana_validator_root_slot{nodekey="aaa",votekey="AAA"} 0
-solana_validator_root_slot{nodekey="bbb",votekey="BBB"} 0
-solana_validator_root_slot{nodekey="ccc",votekey="CCC"} 0
-`,
-		},
-		{
-			Name: "solana_validator_delinquent",
-			ExpectedResponse: `
-# HELP solana_validator_delinquent Whether a validator (represented by votekey and nodekey) is delinquent
-# TYPE solana_validator_delinquent gauge
-solana_validator_delinquent{nodekey="aaa",votekey="AAA"} 0
-solana_validator_delinquent{nodekey="bbb",votekey="BBB"} 0
-solana_validator_delinquent{nodekey="ccc",votekey="CCC"} 0
-`,
-		},
-		{
-			Name: "solana_node_version",
-			ExpectedResponse: `
-# HELP solana_node_version Node version of solana
-# TYPE solana_node_version gauge
-solana_node_version{version="v1.0.0"} 1
-`,
-		},
-		{
-			Name:             "solana_account_balance",
-			ExpectedResponse: balanceMetricResponse,
-		},
+		collector.ValidatorActive.makeCollectionTest(NewLV(3, "current"), NewLV(0, "delinquent")),
+		collector.ValidatorActiveStake.makeCollectionTest(abcValues(1_000_000, 1_000_000, 1_000_000)...),
+		collector.ValidatorRootSlot.makeCollectionTest(abcValues(0, 0, 0)...),
+		collector.ValidatorDelinquent.makeCollectionTest(abcValues(0, 0, 0)...),
+		collector.NodeVersion.makeCollectionTest(NewLV(1, "v1.0.0")),
+		{Name: "solana_account_balance", ExpectedResponse: balanceMetricResponse},
+		collector.NodeIsHealthy.makeCollectionTest(NewLV(1, identity)),
+		collector.NodeNumSlotsBehind.makeCollectionTest(NewLV(0, identity)),
 	}
 
 	runCollectionTests(t, collector, testCases)
@@ -595,57 +500,14 @@ solana_node_version{version="v1.0.0"} 1
 
 	// now test the final state
 	testCases = []collectionTest{
-		{
-			Name: "solana_validator_active",
-			ExpectedResponse: `
-# HELP solana_validator_active Total number of active validators, grouped by state ('current' or 'delinquent')
-# TYPE solana_validator_active gauge
-solana_validator_active{state="current"} 2
-solana_validator_active{state="delinquent"} 1
-`,
-		},
-		{
-			Name: "solana_validator_active_stake",
-			ExpectedResponse: `
-# HELP solana_validator_active_stake Active stake per validator (represented by votekey and nodekey)
-# TYPE solana_validator_active_stake gauge
-solana_validator_active_stake{nodekey="aaa",votekey="AAA"} 2000000
-solana_validator_active_stake{nodekey="bbb",votekey="BBB"} 500000
-solana_validator_active_stake{nodekey="ccc",votekey="CCC"} 1000000
-`,
-		},
-		{
-			Name: "solana_validator_root_slot",
-			ExpectedResponse: `
-# HELP solana_validator_root_slot Root slot per validator (represented by votekey and nodekey)
-# TYPE solana_validator_root_slot gauge
-solana_validator_root_slot{nodekey="aaa",votekey="AAA"} 0
-solana_validator_root_slot{nodekey="bbb",votekey="BBB"} 0
-solana_validator_root_slot{nodekey="ccc",votekey="CCC"} 0
-`,
-		},
-		{
-			Name: "solana_validator_delinquent",
-			ExpectedResponse: `
-# HELP solana_validator_delinquent Whether a validator (represented by votekey and nodekey) is delinquent
-# TYPE solana_validator_delinquent gauge
-solana_validator_delinquent{nodekey="aaa",votekey="AAA"} 0
-solana_validator_delinquent{nodekey="bbb",votekey="BBB"} 0
-solana_validator_delinquent{nodekey="ccc",votekey="CCC"} 1
-`,
-		},
-		{
-			Name: "solana_node_version",
-			ExpectedResponse: `
-# HELP solana_node_version Node version of solana
-# TYPE solana_node_version gauge
-solana_node_version{version="v1.2.3"} 1
-`,
-		},
-		{
-			Name:             "solana_account_balance",
-			ExpectedResponse: balanceMetricResponse,
-		},
+		collector.ValidatorActive.makeCollectionTest(NewLV(2, "current"), NewLV(1, "delinquent")),
+		collector.ValidatorActiveStake.makeCollectionTest(abcValues(2_000_000, 500_000, 1_000_000)...),
+		collector.ValidatorRootSlot.makeCollectionTest(abcValues(0, 0, 0)...),
+		collector.ValidatorDelinquent.makeCollectionTest(abcValues(0, 0, 1)...),
+		collector.NodeVersion.makeCollectionTest(NewLV(1, "v1.2.3")),
+		{Name: "solana_account_balance", ExpectedResponse: balanceMetricResponse},
+		collector.NodeIsHealthy.makeCollectionTest(NewLV(1, identity)),
+		collector.NodeNumSlotsBehind.makeCollectionTest(NewLV(0, identity)),
 	}
 
 	runCollectionTests(t, collector, testCases)
