@@ -93,9 +93,9 @@ func TestSolanaCollector_WatchSlots_Static(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	nodeIdentity, _ := client.GetIdentity(ctx)
 	collector := NewSolanaCollector(&client, 100*time.Millisecond, nil, identities, votekeys, nodeIdentity)
-	watcher := NewSlotWatcher(&client, identities, votekeys, *nodeIdentity, false, false)
+	watcher := NewSlotWatcher(&client, identities, votekeys, nodeIdentity, false, false)
 	// reset metrics before running tests:
-	watcher.LeaderSlotsTotalMetric.Reset()
+	watcher.LeaderSlotsMetric.Reset()
 	watcher.LeaderSlotsByEpochMetric.Reset()
 
 	prometheus.NewPedanticRegistry().MustRegister(collector)
@@ -139,7 +139,7 @@ func TestSolanaCollector_WatchSlots_Static(t *testing.T) {
 	}
 
 	metrics := map[string]*prometheus.CounterVec{
-		"solana_leader_slots_total":    watcher.LeaderSlotsTotalMetric,
+		"solana_leader_slots_total":    watcher.LeaderSlotsMetric,
 		"solana_leader_slots_by_epoch": watcher.LeaderSlotsByEpochMetric,
 	}
 	statuses := []string{"valid", "skipped"}
@@ -164,9 +164,9 @@ func TestSolanaCollector_WatchSlots_Dynamic(t *testing.T) {
 	runCtx, runCancel := context.WithCancel(context.Background())
 	nodeIdentity, _ := client.GetIdentity(runCtx)
 	collector := NewSolanaCollector(client, 300*time.Millisecond, nil, identities, votekeys, nodeIdentity)
-	watcher := NewSlotWatcher(client, identities, votekeys, *nodeIdentity, false, false)
+	watcher := NewSlotWatcher(client, identities, votekeys, nodeIdentity, false, false)
 	// reset metrics before running tests:
-	watcher.LeaderSlotsTotalMetric.Reset()
+	watcher.LeaderSlotsMetric.Reset()
 	watcher.LeaderSlotsByEpochMetric.Reset()
 	prometheus.NewPedanticRegistry().MustRegister(collector)
 
