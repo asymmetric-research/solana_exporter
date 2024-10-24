@@ -5,7 +5,16 @@ import (
 	"sort"
 )
 
-func (c *GaugeDesc) expectedCollection(labeledValues ...labeledValue) string {
+type LV struct {
+	labels []string
+	value  float64
+}
+
+func NewLV(value float64, labels ...string) LV {
+	return LV{labels, value}
+}
+
+func (c *GaugeDesc) expectedCollection(labeledValues ...LV) string {
 	helpLine := fmt.Sprintf("# HELP %s %s", c.Name, c.Help)
 	typeLine := fmt.Sprintf("# TYPE %s gauge", c.Name)
 	result := fmt.Sprintf("%s\n%s", helpLine, typeLine)
@@ -16,12 +25,6 @@ func (c *GaugeDesc) expectedCollection(labeledValues ...labeledValue) string {
 	sort.Strings(sortedVariableLabels)
 
 	for _, lv := range labeledValues {
-		assertf(
-			len(lv.labels) == len(sortedVariableLabels),
-			"expected %v labels but got %v",
-			len(sortedVariableLabels),
-			len(lv.labels),
-		)
 		description := ""
 		if len(lv.labels) > 0 {
 			for i, label := range lv.labels {
@@ -35,14 +38,10 @@ func (c *GaugeDesc) expectedCollection(labeledValues ...labeledValue) string {
 	return "\n" + result + "\n"
 }
 
-func (c *GaugeDesc) makeCollectionTest(labeledValues ...labeledValue) collectionTest {
+func (c *GaugeDesc) makeCollectionTest(labeledValues ...LV) collectionTest {
 	return collectionTest{Name: c.Name, ExpectedResponse: c.expectedCollection(labeledValues...)}
 }
 
-func abcValues(a, b, c float64) []labeledValue {
-	return []labeledValue{
-		newLabeledValue(a, "aaa", "AAA"),
-		newLabeledValue(b, "bbb", "BBB"),
-		newLabeledValue(c, "ccc", "CCC"),
-	}
+func abcValues(a, b, c float64) []LV {
+	return []LV{NewLV(a, "aaa", "AAA"), NewLV(b, "bbb", "BBB"), NewLV(c, "ccc", "CCC")}
 }
