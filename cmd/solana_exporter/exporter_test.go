@@ -454,8 +454,29 @@ func runCollectionTests(t *testing.T, collector prometheus.Collector, testCases 
 	}
 }
 
+func newTestConfig(fast bool) *ExporterConfig {
+	pace := time.Duration(100) * time.Second
+	if fast {
+		pace = time.Duration(500) * time.Millisecond
+	}
+	config := ExporterConfig{
+		time.Second * time.Duration(1),
+		"http://localhost:8899",
+		":8080",
+		identities,
+		votekeys,
+		nil,
+		identity,
+		true,
+		true,
+		false,
+		pace,
+	}
+	return &config
+}
+
 func TestSolanaCollector_Collect_Static(t *testing.T) {
-	collector := NewSolanaCollector(&staticRPCClient{}, slotPacerSchedule, nil, identities, votekeys, identity, false)
+	collector := NewSolanaCollector(&staticRPCClient{}, newTestConfig(false))
 	prometheus.NewPedanticRegistry().MustRegister(collector)
 
 	testCases := []collectionTest{
@@ -475,7 +496,7 @@ func TestSolanaCollector_Collect_Static(t *testing.T) {
 
 func TestSolanaCollector_Collect_Dynamic(t *testing.T) {
 	client := newDynamicRPCClient()
-	collector := NewSolanaCollector(client, slotPacerSchedule, nil, identities, votekeys, identity, false)
+	collector := NewSolanaCollector(client, newTestConfig(false))
 	prometheus.NewPedanticRegistry().MustRegister(collector)
 
 	// start off by testing initial state:

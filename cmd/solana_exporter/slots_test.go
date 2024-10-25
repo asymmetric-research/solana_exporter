@@ -89,19 +89,19 @@ func assertSlotMetricsChangeCorrectly(t *testing.T, initial slotMetricValues, fi
 }
 
 func TestSolanaCollector_WatchSlots_Static(t *testing.T) {
-	client := staticRPCClient{}
 	ctx, cancel := context.WithCancel(context.Background())
-	nodeIdentity, _ := client.GetIdentity(ctx)
-	collector := NewSolanaCollector(&client, 100*time.Millisecond, nil, identities, votekeys, nodeIdentity, false)
-	watcher := NewSlotWatcher(&client, identities, votekeys, nodeIdentity, false, false, false)
+	defer cancel()
+
+	config := newTestConfig(true)
+	collector := NewSolanaCollector(&staticRPCClient{}, config)
+	watcher := NewSlotWatcher(&staticRPCClient{}, config)
 	// reset metrics before running tests:
 	watcher.LeaderSlotsMetric.Reset()
 	watcher.LeaderSlotsByEpochMetric.Reset()
 
 	prometheus.NewPedanticRegistry().MustRegister(collector)
 
-	defer cancel()
-	go watcher.WatchSlots(ctx, collector.slotPace)
+	go watcher.WatchSlots(ctx)
 
 	// make sure inflation rewards are collected:
 	err := watcher.fetchAndEmitInflationRewards(ctx, staticEpochInfo.Epoch)
@@ -161,10 +161,11 @@ func TestSolanaCollector_WatchSlots_Static(t *testing.T) {
 func TestSolanaCollector_WatchSlots_Dynamic(t *testing.T) {
 	// create clients:
 	client := newDynamicRPCClient()
-	runCtx, runCancel := context.WithCancel(context.Background())
-	nodeIdentity, _ := client.GetIdentity(runCtx)
-	collector := NewSolanaCollector(client, 300*time.Millisecond, nil, identities, votekeys, nodeIdentity, false)
-	watcher := NewSlotWatcher(client, identities, votekeys, nodeIdentity, false, false, false)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	config := newTestConfig(true)
+	collector := NewSolanaCollector(client, config)
+	watcher := NewSlotWatcher(client, config)
 	// reset metrics before running tests:
 	watcher.LeaderSlotsMetric.Reset()
 	watcher.LeaderSlotsByEpochMetric.Reset()
@@ -172,13 +173,10 @@ func TestSolanaCollector_WatchSlots_Dynamic(t *testing.T) {
 
 	// start client/collector and wait a bit:
 
-	defer runCancel()
-	go client.Run(runCtx)
+	go client.Run(ctx)
 	time.Sleep(time.Second)
 
-	slotsCtx, slotsCancel := context.WithCancel(context.Background())
-	defer slotsCancel()
-	go watcher.WatchSlots(slotsCtx, collector.slotPace)
+	go watcher.WatchSlots(ctx)
 	time.Sleep(time.Second)
 
 	initial := getSlotMetricValues(watcher)

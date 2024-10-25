@@ -10,7 +10,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 	"net/http"
-	"time"
 )
 
 const (
@@ -34,11 +33,7 @@ type SolanaCollector struct {
 	rpcClient rpc.Provider
 	logger    *zap.SugaredLogger
 
-	// config:
-	slotPace         time.Duration
-	balanceAddresses []string
-	identity         string
-	lightMode        bool
+	config *ExporterConfig
 
 	/// descriptors:
 	ValidatorActive         *GaugeDesc
@@ -58,22 +53,11 @@ func init() {
 	slog.Init()
 }
 
-func NewSolanaCollector(
-	provider rpc.Provider,
-	slotPace time.Duration,
-	balanceAddresses,
-	nodekeys,
-	votekeys []string,
-	identity string,
-	lightMode bool,
-) *SolanaCollector {
+func NewSolanaCollector(provider rpc.Provider, config *ExporterConfig) *SolanaCollector {
 	collector := &SolanaCollector{
-		rpcClient:        provider,
-		logger:           slog.Get(),
-		slotPace:         slotPace,
-		balanceAddresses: CombineUnique(balanceAddresses, nodekeys, votekeys),
-		identity:         identity,
-		lightMode:        lightMode,
+		rpcClient: provider,
+		logger:    slog.Get(),
+		config:    config,
 		ValidatorActive: NewGaugeDesc(
 			"solana_validator_active",
 			fmt.Sprintf(
@@ -157,7 +141,7 @@ func (c *SolanaCollector) Describe(ch chan<- *prometheus.Desc) {
 }
 
 func (c *SolanaCollector) collectVoteAccounts(ctx context.Context, ch chan<- prometheus.Metric) {
-	if c.lightMode {
+	if c.config.LightMode {
 		c.logger.Debug("Skipping vote-accounts collection in light mode.")
 		return
 	}
@@ -214,7 +198,7 @@ func (c *SolanaCollector) collectMinimumLedgerSlot(ctx context.Context, ch chan<
 		return
 	}
 
-	ch <- c.NodeMinimumLedgerSlot.MustNewConstMetric(float64(*slot), c.identity)
+	ch <- c.NodeMinimumLedgerSlot.MustNewConstMetric(float64(*slot), c.config.Identity)
 	c.logger.Info("Minimum ledger slot collected.")
 }
 func (c *SolanaCollector) collectFirstAvailableBlock(ctx context.Context, ch chan<- prometheus.Metric) {
@@ -226,17 +210,19 @@ func (c *SolanaCollector) collectFirstAvailableBlock(ctx context.Context, ch cha
 		return
 	}
 
-	ch <- c.NodeFirstAvailableBlock.MustNewConstMetric(float64(*block), c.identity)
+	ch <- c.NodeFirstAvailableBlock.MustNewConstMetric(float64(*block), c.config.Identity)
 	c.logger.Info("First available block collected.")
 }
 
 func (c *SolanaCollector) collectBalances(ctx context.Context, ch chan<- prometheus.Metric) {
-	if c.lightMode {
+	if c.config.LightMode {
 		c.logger.Debug("Skipping balance collection in light mode.")
 		return
 	}
 	c.logger.Info("Collecting balances...")
-	balances, err := FetchBalances(ctx, c.rpcClient, c.balanceAddresses)
+	balances, err := FetchBalances(
+		ctx, c.rpcClient, CombineUnique(c.config.BalanceAddresses, c.config.NodeKeys, c.config.VoteKeys),
+	)
 	if err != nil {
 		c.logger.Errorf("failed to get balances: %v", err)
 		ch <- c.AccountBalances.NewInvalidMetric(err)
@@ -283,8 +269,8 @@ func (c *SolanaCollector) collectHealth(ctx context.Context, ch chan<- prometheu
 		}
 	}
 
-	ch <- c.NodeIsHealthy.MustNewConstMetric(float64(isHealthy), c.identity)
-	ch <- c.NodeNumSlotsBehind.MustNewConstMetric(float64(numSlotsBehind), c.identity)
+	ch <- c.NodeIsHealthy.MustNewConstMetric(float64(isHealthy), c.config.Identity)
+	ch <- c.NodeNumSlotsBehind.MustNewConstMetric(float64(numSlotsBehind), c.config.Identity)
 	c.logger.Info("Health collected.")
 	return
 }
@@ -308,7 +294,7 @@ func main() {
 	logger := slog.Get()
 	ctx := context.Background()
 
-	config, err := NewExporterConfigFromCLI()
+	config, err := NewExporterConfigFromCLI(ctx)
 	if err != nil {
 		logger.Fatal(err)
 	}
@@ -320,23 +306,11 @@ func main() {
 	}
 
 	client := rpc.NewRPCClient(config.RpcUrl, config.HttpTimeout)
-	votekeys, err := GetAssociatedVoteAccounts(ctx, client, rpc.CommitmentFinalized, config.NodeKeys)
-	if err != nil {
-		logger.Fatalf("Failed to get associated vote accounts for %v: %v", config.NodeKeys, err)
-	}
-	identity, err := client.GetIdentity(ctx)
-	if err != nil {
-		logger.Fatalf("Failed to get identity: %v", err)
-	}
-	collector := NewSolanaCollector(
-		client, slotPacerSchedule, config.BalanceAddresses, config.NodeKeys, votekeys, identity, config.LightMode,
-	)
-	slotWatcher := NewSlotWatcher(
-		client, config.NodeKeys, votekeys, identity, config.ComprehensiveSlotTracking, config.MonitorBlockSizes, config.LightMode,
-	)
+	collector := NewSolanaCollector(client, config)
+	slotWatcher := NewSlotWatcher(client, config)
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	go slotWatcher.WatchSlots(ctx, collector.slotPace)
+	go slotWatcher.WatchSlots(ctx)
 
 	prometheus.MustRegister(collector)
 	http.Handle("/metrics", promhttp.Handler())
