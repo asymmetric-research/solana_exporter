@@ -26,6 +26,7 @@ func (c *GaugeDesc) MustNewConstMetric(value float64, labels ...string) promethe
 	if len(labels) != len(c.VariableLabels) {
 		logger.Fatalf("Provided labels (%v) do not match %s labels (%v)", labels, c.Name, c.VariableLabels)
 	}
+	logger.Debugf("Emitting %v to %s(%v)", value, labels, c.Name)
 	return prometheus.MustNewConstMetric(c.Desc, prometheus.GaugeValue, value, labels...)
 }
 

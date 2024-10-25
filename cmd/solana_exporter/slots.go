@@ -63,6 +63,14 @@ func NewSlotWatcher(
 	monitorBlockSizes bool,
 ) *SlotWatcher {
 	logger := slog.Get()
+	logger.Infow(
+		"Creating slot watcher with ",
+		"nodekeys", nodekeys,
+		"votekeys", votekeys,
+		"identity", identity,
+		"comprehensiveSlotTracking", comprehensiveSlotTracking,
+		"monitorBlockSizes", monitorBlockSizes,
+	)
 	watcher := SlotWatcher{
 		client:                    client,
 		logger:                    logger,
@@ -141,7 +149,8 @@ func NewSlotWatcher(
 			[]string{IdentityLabel},
 		),
 	}
-	// register:
+	// register
+	logger.Info("Registering slot watcher metrics:")
 	for _, collector := range []prometheus.Collector{
 		watcher.TotalTransactionsMetric,
 		watcher.SlotHeightMetric,
@@ -174,7 +183,7 @@ func (c *SlotWatcher) WatchSlots(ctx context.Context, pace time.Duration) {
 	ticker := time.NewTicker(pace)
 	defer ticker.Stop()
 
-	c.logger.Infof("Starting slot watcher")
+	c.logger.Infof("Starting slot watcher, running every %v", pace)
 
 	for {
 		select {
@@ -281,6 +290,7 @@ func (c *SlotWatcher) trackEpoch(ctx context.Context, epoch *rpc.EpochInfo) {
 // closeCurrentEpoch is called when an epoch change-over happens, and we need to make sure we track the last
 // remaining slots in the "current" epoch before we start tracking the new one.
 func (c *SlotWatcher) closeCurrentEpoch(ctx context.Context, newEpoch *rpc.EpochInfo) {
+	c.logger.Infof("Closing current epoch %v, moving into epoch %v", c.currentEpoch, newEpoch.Epoch)
 	c.moveSlotWatermark(ctx, c.lastSlot)
 	c.trackEpoch(ctx, newEpoch)
 }
