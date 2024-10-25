@@ -38,6 +38,7 @@ type SolanaCollector struct {
 	slotPace         time.Duration
 	balanceAddresses []string
 	identity         string
+	lightMode        bool
 
 	/// descriptors:
 	ValidatorActive         *GaugeDesc
@@ -58,7 +59,13 @@ func init() {
 }
 
 func NewSolanaCollector(
-	provider rpc.Provider, slotPace time.Duration, balanceAddresses, nodekeys, votekeys []string, identity string,
+	provider rpc.Provider,
+	slotPace time.Duration,
+	balanceAddresses,
+	nodekeys,
+	votekeys []string,
+	identity string,
+	lightMode bool,
 ) *SolanaCollector {
 	collector := &SolanaCollector{
 		rpcClient:        provider,
@@ -66,6 +73,7 @@ func NewSolanaCollector(
 		slotPace:         slotPace,
 		balanceAddresses: CombineUnique(balanceAddresses, nodekeys, votekeys),
 		identity:         identity,
+		lightMode:        lightMode,
 		ValidatorActive: NewGaugeDesc(
 			"solana_validator_active",
 			fmt.Sprintf(
@@ -149,6 +157,10 @@ func (c *SolanaCollector) Describe(ch chan<- *prometheus.Desc) {
 }
 
 func (c *SolanaCollector) collectVoteAccounts(ctx context.Context, ch chan<- prometheus.Metric) {
+	if c.lightMode {
+		c.logger.Debug("Skipping vote-accounts collection in light mode.")
+		return
+	}
 	c.logger.Info("Collecting vote accounts...")
 	voteAccounts, err := c.rpcClient.GetVoteAccounts(ctx, rpc.CommitmentConfirmed, nil)
 	if err != nil {
@@ -219,6 +231,10 @@ func (c *SolanaCollector) collectFirstAvailableBlock(ctx context.Context, ch cha
 }
 
 func (c *SolanaCollector) collectBalances(ctx context.Context, ch chan<- prometheus.Metric) {
+	if c.lightMode {
+		c.logger.Debug("Skipping balance collection in light mode.")
+		return
+	}
 	c.logger.Info("Collecting balances...")
 	balances, err := FetchBalances(ctx, c.rpcClient, c.balanceAddresses)
 	if err != nil {
@@ -278,12 +294,12 @@ func (c *SolanaCollector) Collect(ch chan<- prometheus.Metric) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	c.collectVoteAccounts(ctx, ch)
-	c.collectVersion(ctx, ch)
-	c.collectBalances(ctx, ch)
 	c.collectHealth(ctx, ch)
 	c.collectMinimumLedgerSlot(ctx, ch)
 	c.collectFirstAvailableBlock(ctx, ch)
+	c.collectVoteAccounts(ctx, ch)
+	c.collectVersion(ctx, ch)
+	c.collectBalances(ctx, ch)
 
 	c.logger.Info("=========== END COLLECTION ===========")
 }
@@ -292,7 +308,10 @@ func main() {
 	logger := slog.Get()
 	ctx := context.Background()
 
-	config := NewExporterConfigFromCLI()
+	config, err := NewExporterConfigFromCLI()
+	if err != nil {
+		logger.Fatal(err)
+	}
 	if config.ComprehensiveSlotTracking {
 		logger.Warn(
 			"Comprehensive slot tracking will lead to potentially thousands of new " +
@@ -310,10 +329,10 @@ func main() {
 		logger.Fatalf("Failed to get identity: %v", err)
 	}
 	collector := NewSolanaCollector(
-		client, slotPacerSchedule, config.BalanceAddresses, config.NodeKeys, votekeys, identity,
+		client, slotPacerSchedule, config.BalanceAddresses, config.NodeKeys, votekeys, identity, config.LightMode,
 	)
 	slotWatcher := NewSlotWatcher(
-		client, config.NodeKeys, votekeys, identity, config.ComprehensiveSlotTracking, config.MonitorBlockSizes,
+		client, config.NodeKeys, votekeys, identity, config.ComprehensiveSlotTracking, config.MonitorBlockSizes, config.LightMode,
 	)
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()

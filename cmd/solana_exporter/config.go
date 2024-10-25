@@ -18,6 +18,7 @@ type (
 		BalanceAddresses          []string
 		ComprehensiveSlotTracking bool
 		MonitorBlockSizes         bool
+		LightMode                 bool
 	}
 )
 
@@ -38,7 +39,8 @@ func NewExporterConfig(
 	balanceAddresses []string,
 	comprehensiveSlotTracking bool,
 	monitorBlockSizes bool,
-) *ExporterConfig {
+	lightMode bool,
+) (*ExporterConfig, error) {
 	logger := slog.Get()
 	logger.Infow(
 		"Setting up export config with ",
@@ -49,8 +51,12 @@ func NewExporterConfig(
 		"balanceAddresses", balanceAddresses,
 		"comprehensiveSlotTracking", comprehensiveSlotTracking,
 		"monitorBlockSizes", monitorBlockSizes,
+		"lightMode", lightMode,
 	)
-	return &ExporterConfig{
+	if lightMode && (monitorBlockSizes || comprehensiveSlotTracking) {
+		return nil, fmt.Errorf("-light-mode is not compatible with -comprehensiveSlotTracking or -monitorBlockSizes")
+	}
+	config := ExporterConfig{
 		HttpTimeout:               time.Duration(httpTimeout) * time.Second,
 		RpcUrl:                    rpcUrl,
 		ListenAddress:             listenAddress,
@@ -58,10 +64,12 @@ func NewExporterConfig(
 		BalanceAddresses:          balanceAddresses,
 		ComprehensiveSlotTracking: comprehensiveSlotTracking,
 		MonitorBlockSizes:         monitorBlockSizes,
+		LightMode:                 lightMode,
 	}
+	return &config, nil
 }
 
-func NewExporterConfigFromCLI() *ExporterConfig {
+func NewExporterConfigFromCLI() (*ExporterConfig, error) {
 	var (
 		httpTimeout               int
 		rpcUrl                    string
@@ -70,6 +78,7 @@ func NewExporterConfigFromCLI() *ExporterConfig {
 		balanceAddresses          arrayFlags
 		comprehensiveSlotTracking bool
 		monitorBlockSizes         bool
+		lightMode                 bool
 	)
 	flag.IntVar(
 		&httpTimeout,
@@ -115,9 +124,28 @@ func NewExporterConfigFromCLI() *ExporterConfig {
 		"Set this flag to track block sizes (number of transactions) for the configured validators. "+
 			"Warning: this might grind the RPC node.",
 	)
+	flag.BoolVar(
+		&lightMode,
+		"light-mode",
+		false,
+		"Set this flag to enable light-mode. In light mode, only metrics specific to the node being queried "+
+			"are reported (i.e., metrics such as inflation rewards which are visible from any RPC node, "+
+			"are not reported).",
+	)
 	flag.Parse()
 
-	return NewExporterConfig(
-		httpTimeout, rpcUrl, listenAddress, nodekeys, balanceAddresses, comprehensiveSlotTracking, monitorBlockSizes,
+	config, err := NewExporterConfig(
+		httpTimeout,
+		rpcUrl,
+		listenAddress,
+		nodekeys,
+		balanceAddresses,
+		comprehensiveSlotTracking,
+		monitorBlockSizes,
+		lightMode,
 	)
+	if err != nil {
+		return nil, err
+	}
+	return config, nil
 }

@@ -28,6 +28,7 @@ type SlotWatcher struct {
 	identity                  string
 	comprehensiveSlotTracking bool
 	monitorBlockSizes         bool
+	lightMode                 bool
 
 	// currentEpoch is the current epoch we are watching
 	currentEpoch int64
@@ -61,6 +62,7 @@ func NewSlotWatcher(
 	identity string,
 	comprehensiveSlotTracking bool,
 	monitorBlockSizes bool,
+	lightMode bool,
 ) *SlotWatcher {
 	logger := slog.Get()
 	logger.Infow(
@@ -79,6 +81,7 @@ func NewSlotWatcher(
 		identity:                  identity,
 		comprehensiveSlotTracking: comprehensiveSlotTracking,
 		monitorBlockSizes:         monitorBlockSizes,
+		lightMode:                 lightMode,
 		// metrics:
 		TotalTransactionsMetric: prometheus.NewGauge(prometheus.GaugeOpts{
 			Name: "solana_total_transactions",
@@ -320,6 +323,10 @@ func (c *SlotWatcher) moveSlotWatermark(ctx context.Context, to int64) {
 // fetchAndEmitBlockProduction fetches block production up to the provided endSlot, emits the prometheus metrics,
 // and updates the SlotWatcher.slotWatermark accordingly
 func (c *SlotWatcher) fetchAndEmitBlockProduction(ctx context.Context, endSlot int64) {
+	if c.lightMode {
+		c.logger.Debug("Skipping block-production fetching in light mode.")
+		return
+	}
 	// add 1 because GetBlockProduction's range is inclusive, and the watermark is already tracked
 	startSlot := c.slotWatermark + 1
 	c.logger.Infof("Fetching block production in [%v -> %v]", startSlot, endSlot)
@@ -357,6 +364,10 @@ func (c *SlotWatcher) fetchAndEmitBlockProduction(ctx context.Context, endSlot i
 // fetchAndEmitBlockInfos fetches and emits all the fee rewards (+ block sizes) for the tracked addresses between the
 // slotWatermark and endSlot
 func (c *SlotWatcher) fetchAndEmitBlockInfos(ctx context.Context, endSlot int64) {
+	if c.lightMode {
+		c.logger.Debug("Skipping block-infos fetching in light mode.")
+		return
+	}
 	startSlot := c.slotWatermark + 1
 	c.logger.Infof("Fetching fee rewards in [%v -> %v]", startSlot, endSlot)
 
@@ -429,6 +440,10 @@ func (c *SlotWatcher) fetchAndEmitSingleBlockInfo(
 // fetchAndEmitInflationRewards fetches and emits the inflation rewards for the configured inflationRewardAddresses
 // at the provided epoch
 func (c *SlotWatcher) fetchAndEmitInflationRewards(ctx context.Context, epoch int64) error {
+	if c.lightMode {
+		c.logger.Debug("Skipping inflation-rewards fetching in light mode.")
+		return nil
+	}
 	c.logger.Infof("Fetching inflation reward for epoch %v ...", toString(epoch))
 	rewardInfos, err := c.client.GetInflationReward(ctx, rpc.CommitmentConfirmed, c.votekeys, &epoch, nil)
 	if err != nil {
