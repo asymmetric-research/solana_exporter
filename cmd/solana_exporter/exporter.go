@@ -53,6 +53,10 @@ type SolanaCollector struct {
 	NodeFirstAvailableBlock *GaugeDesc
 }
 
+func init() {
+	slog.Init()
+}
+
 func NewSolanaCollector(
 	provider rpc.Provider, slotPace time.Duration, balanceAddresses, nodekeys, votekeys []string, identity string,
 ) *SolanaCollector {
