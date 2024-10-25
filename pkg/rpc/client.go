@@ -21,9 +21,9 @@ type (
 		logger      *zap.SugaredLogger
 	}
 
-	rpcRequest struct {
-		Version string `json:"jsonrpc"`
-		ID      int    `json:"id"`
+	Request struct {
+		Jsonrpc string `json:"jsonrpc"`
+		Id      int    `json:"id"`
 		Method  string `json:"method"`
 		Params  []any  `json:"params"`
 	}
@@ -108,7 +108,7 @@ func getResponse[T any](
 ) error {
 	logger := slog.Get()
 	// format request:
-	request := &rpcRequest{Version: "2.0", ID: 1, Method: method, Params: params}
+	request := &Request{Jsonrpc: "2.0", Id: 1, Method: method, Params: params}
 	buffer, err := json.Marshal(request)
 	if err != nil {
 		logger.Fatalf("failed to marshal request: %v", err)
