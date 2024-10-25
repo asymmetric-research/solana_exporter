@@ -4,13 +4,14 @@ import (
 	"context"
 	"fmt"
 	"github.com/asymmetric-research/solana_exporter/pkg/rpc"
-	"k8s.io/klog/v2"
+	"github.com/asymmetric-research/solana_exporter/pkg/slog"
 	"slices"
 )
 
 func assertf(condition bool, format string, args ...any) {
+	logger := slog.Get()
 	if !condition {
-		klog.Fatalf(format, args...)
+		logger.Fatalf(format, args...)
 	}
 }
 
@@ -40,6 +41,7 @@ func SelectFromSchedule(schedule map[string][]int64, startSlot, endSlot int64) m
 func GetTrimmedLeaderSchedule(
 	ctx context.Context, client rpc.Provider, identities []string, slot, epochFirstSlot int64,
 ) (map[string][]int64, error) {
+	logger := slog.Get()
 	leaderSchedule, err := client.GetLeaderSchedule(ctx, rpc.CommitmentConfirmed, slot)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get leader schedule: %w", err)
@@ -55,7 +57,7 @@ func GetTrimmedLeaderSchedule(
 			}
 			trimmedLeaderSchedule[id] = absoluteSlots
 		} else {
-			klog.Warningf("failed to find leader slots for %v", id)
+			logger.Warnf("failed to find leader slots for %v", id)
 		}
 	}
 
