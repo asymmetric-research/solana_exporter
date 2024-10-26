@@ -42,7 +42,7 @@ type SlotWatcher struct {
 	InflationRewardsMetric   *prometheus.GaugeVec
 	FeeRewardsMetric         *prometheus.CounterVec
 	BlockSizeMetric          *prometheus.GaugeVec
-	BlockHeight              *prometheus.GaugeVec
+	BlockHeightMetric        *prometheus.GaugeVec
 }
 
 func NewSlotWatcher(client rpc.Provider, config *ExporterConfig) *SlotWatcher {
@@ -111,9 +111,9 @@ func NewSlotWatcher(client rpc.Provider, config *ExporterConfig) *SlotWatcher {
 				Name: "solana_block_size",
 				Help: fmt.Sprintf("Number of transactions per block, grouped by %s", NodekeyLabel),
 			},
-			[]string{NodekeyLabel},
+			[]string{NodekeyLabel, TransactionTypeLabel},
 		),
-		BlockHeight: prometheus.NewGaugeVec(
+		BlockHeightMetric: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "solana_block_height",
 				Help: fmt.Sprintf("The current block height of the node, grouped by %s", IdentityLabel),
@@ -134,7 +134,7 @@ func NewSlotWatcher(client rpc.Provider, config *ExporterConfig) *SlotWatcher {
 		watcher.InflationRewardsMetric,
 		watcher.FeeRewardsMetric,
 		watcher.BlockSizeMetric,
-		watcher.BlockHeight,
+		watcher.BlockHeightMetric,
 	} {
 		if err := prometheus.Register(collector); err != nil {
 			var (
@@ -179,7 +179,7 @@ func (c *SlotWatcher) WatchSlots(ctx context.Context) {
 
 			c.TotalTransactionsMetric.Set(float64(epochInfo.TransactionCount))
 			c.SlotHeightMetric.Set(float64(epochInfo.AbsoluteSlot))
-			c.BlockHeight.WithLabelValues(c.config.Identity).Set(float64(epochInfo.BlockHeight))
+			c.BlockHeightMetric.WithLabelValues(c.config.Identity).Set(float64(epochInfo.BlockHeight))
 
 			// if we get here, then the tracking numbers are set, so this is a "normal" run.
 			// start by checking if we have progressed since last run:
@@ -363,13 +363,11 @@ func (c *SlotWatcher) fetchAndEmitBlockInfos(ctx context.Context, endSlot int64)
 
 // fetchAndEmitSingleBlockInfo fetches and emits the fee reward + block size for a single block.
 func (c *SlotWatcher) fetchAndEmitSingleBlockInfo(
-	ctx context.Context, identity string, epoch int64, slot int64,
+	ctx context.Context, nodekey string, epoch int64, slot int64,
 ) error {
-	var transactionDetails string
+	transactionDetails := "none"
 	if c.config.MonitorBlockSizes {
-		transactionDetails = "accounts"
-	} else {
-		transactionDetails = "none"
+		transactionDetails = "full"
 	}
 	block, err := c.client.GetBlock(ctx, rpc.CommitmentConfirmed, slot, transactionDetails)
 	if err != nil {
@@ -388,19 +386,25 @@ func (c *SlotWatcher) fetchAndEmitSingleBlockInfo(
 		if reward.RewardType == "fee" {
 			// make sure we haven't made a logic issue or something:
 			assertf(
-				reward.Pubkey == identity,
+				reward.Pubkey == nodekey,
 				"fetching fee reward for %v but got fee reward for %v",
-				identity,
+				nodekey,
 				reward.Pubkey,
 			)
 			amount := float64(reward.Lamports) / float64(rpc.LamportsInSol)
-			c.FeeRewardsMetric.WithLabelValues(identity, toString(epoch)).Add(amount)
+			c.FeeRewardsMetric.WithLabelValues(nodekey, toString(epoch)).Add(amount)
 		}
 	}
 
 	// track block size:
 	if c.config.MonitorBlockSizes {
-		c.BlockSizeMetric.WithLabelValues(identity).Set(float64(len(block.Transactions)))
+		c.BlockSizeMetric.WithLabelValues(nodekey, TransactionTypeTotal).Set(float64(len(block.Transactions)))
+		// now count and emit votes:
+		voteCount, err := CountVoteTransactions(block)
+		if err != nil {
+			return err
+		}
+		c.BlockHeightMetric.WithLabelValues(nodekey, TransactionTypeVote).Set(float64(voteCount))
 	}
 
 	return nil

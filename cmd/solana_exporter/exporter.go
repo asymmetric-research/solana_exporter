@@ -13,20 +13,24 @@ import (
 )
 
 const (
-	SkipStatusLabel = "status"
-	StateLabel      = "state"
-	NodekeyLabel    = "nodekey"
-	VotekeyLabel    = "votekey"
-	VersionLabel    = "version"
-	AddressLabel    = "address"
-	EpochLabel      = "epoch"
-	IdentityLabel   = "identity"
+	SkipStatusLabel      = "status"
+	StateLabel           = "state"
+	NodekeyLabel         = "nodekey"
+	VotekeyLabel         = "votekey"
+	VersionLabel         = "version"
+	AddressLabel         = "address"
+	EpochLabel           = "epoch"
+	IdentityLabel        = "identity"
+	TransactionTypeLabel = "transaction_type"
 
 	StatusSkipped = "skipped"
 	StatusValid   = "valid"
 
 	StateCurrent    = "current"
 	StateDelinquent = "delinquent"
+
+	TransactionTypeVote  = "vote"
+	TransactionTypeTotal = "total"
 )
 
 type SolanaCollector struct {
