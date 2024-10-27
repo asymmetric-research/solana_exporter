@@ -14,10 +14,10 @@ type (
 		Method string
 	}
 
-	response[T any] struct {
-		jsonrpc string
-		Result  T        `json:"result"`
-		Error   RPCError `json:"error"`
+	Response[T any] struct {
+		Jsonrpc string   `json:"jsonrpc"`
+		Result  T        `json:"result,omitempty"`
+		Error   RPCError `json:"error,omitempty"`
 		Id      int      `json:"id"`
 	}
 
