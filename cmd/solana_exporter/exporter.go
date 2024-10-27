@@ -50,10 +50,6 @@ type SolanaCollector struct {
 	NodeFirstAvailableBlock *GaugeDesc
 }
 
-func init() {
-	slog.Init()
-}
-
 func NewSolanaCollector(provider rpc.Provider, config *ExporterConfig) *SolanaCollector {
 	collector := &SolanaCollector{
 		rpcClient: provider,
