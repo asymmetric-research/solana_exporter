@@ -10,8 +10,8 @@ import (
 
 var log *zap.SugaredLogger
 
-// Init initializes the logger
-func Init() {
+// init initializes the logger
+func init() {
 	config := zap.NewProductionConfig()
 
 	// configure:

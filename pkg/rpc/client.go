@@ -35,49 +35,57 @@ type (
 // It provides methods to retrieve block production information, epoch info, slot info, vote accounts, and node version.
 type Provider interface {
 
-	// GetBlockProduction retrieves the block production information for the specified slot range.
-	// The method takes a context for cancellation, and pointers to the first and last slots of the range.
-	// It returns a BlockProduction struct containing the block production details, or an error if the operation fails.
+	// GetBlockProduction returns recent block production information from the current or previous epoch.
+	// See API docs: https://solana.com/docs/rpc/http/getblockproduction
 	GetBlockProduction(
 		ctx context.Context, commitment Commitment, identity *string, firstSlot *int64, lastSlot *int64,
 	) (*BlockProduction, error)
 
-	// GetEpochInfo retrieves the information regarding the current epoch.
-	// The method takes a context for cancellation and a commitment level to specify the desired state.
-	// It returns a pointer to an EpochInfo struct containing the epoch details, or an error if the operation fails.
+	// GetEpochInfo returns information about the current epoch.
+	// See API docs: https://solana.com/docs/rpc/http/getepochinfo
 	GetEpochInfo(ctx context.Context, commitment Commitment) (*EpochInfo, error)
 
-	// GetSlot retrieves the current slot number.
-	// The method takes a context for cancellation.
-	// It returns the current slot number as an int64, or an error if the operation fails.
+	// GetSlot returns the slot that has reached the given or default commitment level.
+	// See API docs: https://solana.com/docs/rpc/http/getslot
 	GetSlot(ctx context.Context, commitment Commitment) (int64, error)
 
-	// GetVoteAccounts retrieves the vote accounts information.
-	// The method takes a context for cancellation and a slice of parameters to filter the vote accounts.
-	// It returns a pointer to a VoteAccounts struct containing the vote accounts details,
-	// or an error if the operation fails.
+	// GetVoteAccounts returns the account info and associated stake for all the voting accounts in the current bank.
+	// See API docs: https://solana.com/docs/rpc/http/getvoteaccounts
 	GetVoteAccounts(ctx context.Context, commitment Commitment, votePubkey *string) (*VoteAccounts, error)
 
-	// GetVersion retrieves the version of the Solana node.
-	// The method takes a context for cancellation.
-	// It returns a string containing the version information, or an error if the operation fails.
+	// GetVersion returns the current Solana version running on the node.
+	// See API docs: https://solana.com/docs/rpc/http/getversion
 	GetVersion(ctx context.Context) (string, error)
 
-	// GetBalance returns the SOL balance of the account at the provided address
+	// GetBalance returns the lamport balance of the account of provided pubkey.
+	// See API docs:https://solana.com/docs/rpc/http/getbalance
 	GetBalance(ctx context.Context, commitment Commitment, address string) (float64, error)
 
-	// GetInflationReward returns the inflation rewards (in lamports) awarded to the given addresses (vote accounts)
-	// during the given epoch.
+	// GetInflationReward returns the inflation / staking reward for a list of addresses for an epoch.
+	// See API docs: https://solana.com/docs/rpc/http/getinflationreward
 	GetInflationReward(
 		ctx context.Context, commitment Commitment, addresses []string, epoch *int64, minContextSlot *int64,
 	) ([]InflationReward, error)
 
+	// GetLeaderSchedule returns the leader schedule for an epoch.
+	// See API docs: https://solana.com/docs/rpc/http/getleaderschedule
 	GetLeaderSchedule(ctx context.Context, commitment Commitment, slot int64) (map[string][]int64, error)
 
+	// GetBlock returns identity and transaction information about a confirmed block in the ledger.
+	// See API docs: https://solana.com/docs/rpc/http/getblock
 	GetBlock(ctx context.Context, commitment Commitment, slot int64, transactionDetails string) (*Block, error)
 
+	// GetHealth returns the current health of the node. A healthy node is one that is within a blockchain-configured slots
+	// of the latest cluster confirmed slot.
+	// See API docs: https://solana.com/docs/rpc/http/gethealth
 	GetHealth(ctx context.Context) (*string, error)
+
+	// GetMinimumLedgerSlot returns the lowest slot that the node has information about in its ledger.
+	// See API docs: https://solana.com/docs/rpc/http/minimumledgerslot
 	GetMinimumLedgerSlot(ctx context.Context) (*int64, error)
+
+	// GetFirstAvailableBlock returns the slot of the lowest confirmed block that has not been purged from the ledger
+	// See API docs: https://solana.com/docs/rpc/http/getfirstavailableblock
 	GetFirstAvailableBlock(ctx context.Context) (*int64, error)
 }
 
