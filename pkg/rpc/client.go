@@ -78,15 +78,15 @@ type Provider interface {
 	// GetHealth returns the current health of the node. A healthy node is one that is within a blockchain-configured slots
 	// of the latest cluster confirmed slot.
 	// See API docs: https://solana.com/docs/rpc/http/gethealth
-	GetHealth(ctx context.Context) (*string, error)
+	GetHealth(ctx context.Context) (string, error)
 
 	// GetMinimumLedgerSlot returns the lowest slot that the node has information about in its ledger.
 	// See API docs: https://solana.com/docs/rpc/http/minimumledgerslot
-	GetMinimumLedgerSlot(ctx context.Context) (*int64, error)
+	GetMinimumLedgerSlot(ctx context.Context) (int64, error)
 
 	// GetFirstAvailableBlock returns the slot of the lowest confirmed block that has not been purged from the ledger
 	// See API docs: https://solana.com/docs/rpc/http/getfirstavailableblock
-	GetFirstAvailableBlock(ctx context.Context) (*int64, error)
+	GetFirstAvailableBlock(ctx context.Context) (int64, error)
 }
 
 func (c Commitment) MarshalJSON() ([]byte, error) {
@@ -112,7 +112,7 @@ func NewRPCClient(rpcAddr string, httpTimeout time.Duration) *Client {
 }
 
 func getResponse[T any](
-	ctx context.Context, client *Client, method string, params []any, rpcResponse *response[T],
+	ctx context.Context, client *Client, method string, params []any, rpcResponse *Response[T],
 ) error {
 	logger := slog.Get()
 	// format request:
@@ -162,7 +162,7 @@ func getResponse[T any](
 // GetEpochInfo returns information about the current epoch.
 // See API docs: https://solana.com/docs/rpc/http/getepochinfo
 func (c *Client) GetEpochInfo(ctx context.Context, commitment Commitment) (*EpochInfo, error) {
-	var resp response[EpochInfo]
+	var resp Response[EpochInfo]
 	if err := getResponse(ctx, c, "getEpochInfo", []any{commitment}, &resp); err != nil {
 		return nil, err
 	}
@@ -180,7 +180,7 @@ func (c *Client) GetVoteAccounts(
 		config["votePubkey"] = *votePubkey
 	}
 
-	var resp response[VoteAccounts]
+	var resp Response[VoteAccounts]
 	if err := getResponse(ctx, c, "getVoteAccounts", []any{config}, &resp); err != nil {
 		return nil, err
 	}
@@ -190,7 +190,7 @@ func (c *Client) GetVoteAccounts(
 // GetVersion returns the current Solana version running on the node.
 // See API docs: https://solana.com/docs/rpc/http/getversion
 func (c *Client) GetVersion(ctx context.Context) (string, error) {
-	var resp response[struct {
+	var resp Response[struct {
 		Version string `json:"solana-core"`
 	}]
 	if err := getResponse(ctx, c, "getVersion", []any{}, &resp); err != nil {
@@ -203,7 +203,7 @@ func (c *Client) GetVersion(ctx context.Context) (string, error) {
 // See API docs: https://solana.com/docs/rpc/http/getslot
 func (c *Client) GetSlot(ctx context.Context, commitment Commitment) (int64, error) {
 	config := map[string]string{"commitment": string(commitment)}
-	var resp response[int64]
+	var resp Response[int64]
 	if err := getResponse(ctx, c, "getSlot", []any{config}, &resp); err != nil {
 		return 0, err
 	}
@@ -239,7 +239,7 @@ func (c *Client) GetBlockProduction(
 	}
 
 	// make request:
-	var resp response[contextualResult[BlockProduction]]
+	var resp Response[contextualResult[BlockProduction]]
 	if err := getResponse(ctx, c, "getBlockProduction", []any{config}, &resp); err != nil {
 		return nil, err
 	}
@@ -250,7 +250,7 @@ func (c *Client) GetBlockProduction(
 // See API docs:https://solana.com/docs/rpc/http/getbalance
 func (c *Client) GetBalance(ctx context.Context, commitment Commitment, address string) (float64, error) {
 	config := map[string]string{"commitment": string(commitment)}
-	var resp response[contextualResult[int64]]
+	var resp Response[contextualResult[int64]]
 	if err := getResponse(ctx, c, "getBalance", []any{address, config}, &resp); err != nil {
 		return 0, err
 	}
@@ -271,7 +271,7 @@ func (c *Client) GetInflationReward(
 		config["minContextSlot"] = *minContextSlot
 	}
 
-	var resp response[[]InflationReward]
+	var resp Response[[]InflationReward]
 	if err := getResponse(ctx, c, "getInflationReward", []any{addresses, config}, &resp); err != nil {
 		return nil, err
 	}
@@ -282,7 +282,7 @@ func (c *Client) GetInflationReward(
 // See API docs: https://solana.com/docs/rpc/http/getleaderschedule
 func (c *Client) GetLeaderSchedule(ctx context.Context, commitment Commitment, slot int64) (map[string][]int64, error) {
 	config := map[string]any{"commitment": string(commitment)}
-	var resp response[map[string][]int64]
+	var resp Response[map[string][]int64]
 	if err := getResponse(ctx, c, "getLeaderSchedule", []any{slot, config}, &resp); err != nil {
 		return nil, err
 	}
@@ -311,7 +311,7 @@ func (c *Client) GetBlock(
 		"rewards":                        true, // what we here for!
 		"maxSupportedTransactionVersion": 0,
 	}
-	var resp response[Block]
+	var resp Response[Block]
 	if err := getResponse(ctx, c, "getBlock", []any{slot, config}, &resp); err != nil {
 		return nil, err
 	}
@@ -321,30 +321,30 @@ func (c *Client) GetBlock(
 // GetHealth returns the current health of the node. A healthy node is one that is within a blockchain-configured slots
 // of the latest cluster confirmed slot.
 // See API docs: https://solana.com/docs/rpc/http/gethealth
-func (c *Client) GetHealth(ctx context.Context) (*string, error) {
-	var resp response[string]
+func (c *Client) GetHealth(ctx context.Context) (string, error) {
+	var resp Response[string]
 	if err := getResponse(ctx, c, "getHealth", []any{}, &resp); err != nil {
-		return nil, err
+		return "", err
 	}
-	return &resp.Result, nil
+	return resp.Result, nil
 }
 
 // GetMinimumLedgerSlot returns the lowest slot that the node has information about in its ledger.
 // See API docs: https://solana.com/docs/rpc/http/minimumledgerslot
-func (c *Client) GetMinimumLedgerSlot(ctx context.Context) (*int64, error) {
-	var resp response[int64]
+func (c *Client) GetMinimumLedgerSlot(ctx context.Context) (int64, error) {
+	var resp Response[int64]
 	if err := getResponse(ctx, c, "minimumLedgerSlot", []any{}, &resp); err != nil {
-		return nil, err
+		return 0, err
 	}
-	return &resp.Result, nil
+	return resp.Result, nil
 }
 
 // GetFirstAvailableBlock returns the slot of the lowest confirmed block that has not been purged from the ledger
 // See API docs: https://solana.com/docs/rpc/http/getfirstavailableblock
-func (c *Client) GetFirstAvailableBlock(ctx context.Context) (*int64, error) {
-	var resp response[int64]
+func (c *Client) GetFirstAvailableBlock(ctx context.Context) (int64, error) {
+	var resp Response[int64]
 	if err := getResponse(ctx, c, "getFirstAvailableBlock", []any{}, &resp); err != nil {
-		return nil, err
+		return 0, err
 	}
-	return &resp.Result, nil
+	return resp.Result, nil
 }

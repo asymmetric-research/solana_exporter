@@ -172,7 +172,7 @@ func (c *SolanaCollector) collectMinimumLedgerSlot(ctx context.Context, ch chan<
 		return
 	}
 
-	ch <- c.NodeMinimumLedgerSlot.MustNewConstMetric(float64(*slot))
+	ch <- c.NodeMinimumLedgerSlot.MustNewConstMetric(float64(slot))
 	c.logger.Info("Minimum ledger slot collected.")
 }
 func (c *SolanaCollector) collectFirstAvailableBlock(ctx context.Context, ch chan<- prometheus.Metric) {
@@ -184,7 +184,7 @@ func (c *SolanaCollector) collectFirstAvailableBlock(ctx context.Context, ch cha
 		return
 	}
 
-	ch <- c.NodeFirstAvailableBlock.MustNewConstMetric(float64(*block))
+	ch <- c.NodeFirstAvailableBlock.MustNewConstMetric(float64(block))
 	c.logger.Info("First available block collected.")
 }
 

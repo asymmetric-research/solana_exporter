@@ -1,10 +1,11 @@
-package mock
+package rpc
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/asymmetric-research/solana_exporter/pkg/rpc"
+	"github.com/asymmetric-research/solana_exporter/pkg/slog"
+	"go.uber.org/zap"
 	"net"
 	"net/http"
 	"sync"
@@ -15,30 +16,22 @@ import (
 type (
 	// MockServer represents a mock Solana RPC server for testing
 	MockServer struct {
-		// Responses allows tests to set custom responses for specific methods
-		Responses map[string]any
-		server    *http.Server
-		listener  net.Listener
-		mu        sync.RWMutex
-	}
-
-	// RPCResponse represents a JSON-RPC response
-	RPCResponse struct {
-		JsonRPC string       `json:"jsonrpc"`
-		Result  any          `json:"result"`
-		Error   rpc.RPCError `json:"error,omitempty"`
-		ID      any          `json:"id"`
+		easyResults map[string]any
+		server      *http.Server
+		listener    net.Listener
+		mu          sync.RWMutex
+		logger      *zap.SugaredLogger
 	}
 )
 
 // NewMockServer creates a new mock server instance
-func NewMockServer(responses map[string]any) (*MockServer, error) {
+func NewMockServer(easyResults map[string]any) (*MockServer, error) {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create listener: %v", err)
 	}
 
-	ms := &MockServer{listener: listener, Responses: responses}
+	ms := &MockServer{listener: listener, easyResults: easyResults, logger: slog.Get()}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", ms.handleRPCRequest)
@@ -53,53 +46,57 @@ func NewMockServer(responses map[string]any) (*MockServer, error) {
 }
 
 // URL returns the URL of the mock server
-func (ms *MockServer) URL() string {
-	return fmt.Sprintf("http://%s", ms.listener.Addr().String())
+func (s *MockServer) URL() string {
+	return fmt.Sprintf("http://%s", s.listener.Addr().String())
 }
 
 // Close shuts down the mock server
-func (ms *MockServer) Close() error {
+func (s *MockServer) Close() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	return ms.server.Shutdown(ctx)
+	return s.server.Shutdown(ctx)
 }
 
-func (ms *MockServer) MustClose() {
-	if err := ms.Close(); err != nil {
+func (s *MockServer) MustClose() {
+	if err := s.Close(); err != nil {
 		panic(err)
 	}
 }
 
-// SetResponse sets a custom response for a specific method
-func (ms *MockServer) SetResponse(method string, response any) {
-	ms.mu.Lock()
-	defer ms.mu.Unlock()
-	ms.Responses[method] = response
+// SetEasyResult sets a custom response for a specific method
+func (s *MockServer) SetEasyResult(method string, result any) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.easyResults[method] = result
 }
 
-func (ms *MockServer) handleRPCRequest(w http.ResponseWriter, r *http.Request) {
+func (s *MockServer) GetResult(method string) (any, *RPCError) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	result, ok := s.easyResults[method]
+	if !ok {
+		return nil, &RPCError{Code: -32601, Message: "Method not found"}
+	}
+	return result, nil
+}
+
+func (s *MockServer) handleRPCRequest(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		http.Error(w, "Only POST method is allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	var req rpc.Request
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	var request Request
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	response := RPCResponse{JsonRPC: "2.0", ID: req.Id}
-	ms.mu.RLock()
-	result, exists := ms.Responses[req.Method]
-	ms.mu.RUnlock()
-
-	if !exists {
-		// Fall back to default responses if no custom response is set
-		response.Error = rpc.RPCError{
-			Code:    -32601,
-			Message: "Method not found",
-		}
+	response := Response[any]{Jsonrpc: "2.0", Id: request.Id}
+	result, rpcErr := s.GetResult(request.Method)
+	if rpcErr != nil {
+		response.Error = *rpcErr
 	} else {
 		response.Result = result
 	}
@@ -111,16 +108,9 @@ func (ms *MockServer) handleRPCRequest(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// TestHelper is a helper struct for tests
-type TestHelper struct {
-	Server *MockServer
-	Client *rpc.Client
-	T      *testing.T
-}
-
-// NewTestHelper creates a new test helper with a running mock server
-func NewTestHelper(t *testing.T, responses map[string]any) *TestHelper {
-	server, err := NewMockServer(responses)
+// NewTestClient creates a new test helper with a running mock server
+func NewTestClient(t *testing.T, easyResponses map[string]any) (*MockServer, *Client) {
+	server, err := NewMockServer(easyResponses)
 	if err != nil {
 		t.Fatalf("Failed to create mock server: %v", err)
 	}
@@ -131,5 +121,6 @@ func NewTestHelper(t *testing.T, responses map[string]any) *TestHelper {
 		}
 	})
 
-	return &TestHelper{Server: server, Client: rpc.NewRPCClient(server.URL(), time.Second), T: t}
+	client := NewRPCClient(server.URL(), time.Second)
+	return server, client
 }

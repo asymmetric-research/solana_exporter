@@ -179,21 +179,18 @@ func (c *staticRPCClient) GetBlock(
 }
 
 //goland:noinspection GoUnusedParameter
-func (c *staticRPCClient) GetHealth(ctx context.Context) (*string, error) {
-	health := "ok"
-	return &health, nil
+func (c *staticRPCClient) GetHealth(ctx context.Context) (string, error) {
+	return "ok", nil
 }
 
 //goland:noinspection GoUnusedParameter
-func (c *staticRPCClient) GetFirstAvailableBlock(ctx context.Context) (*int64, error) {
-	firstAvailiableBlock := int64(33)
-	return &firstAvailiableBlock, nil
+func (c *staticRPCClient) GetFirstAvailableBlock(ctx context.Context) (int64, error) {
+	return 33, nil
 }
 
 //goland:noinspection GoUnusedParameter
-func (c *staticRPCClient) GetMinimumLedgerSlot(ctx context.Context) (*int64, error) {
-	minimumLedgerSlot := int64(23)
-	return &minimumLedgerSlot, nil
+func (c *staticRPCClient) GetMinimumLedgerSlot(ctx context.Context) (int64, error) {
+	return 23, nil
 }
 
 /*
@@ -392,21 +389,18 @@ func (c *dynamicRPCClient) GetBlock(
 }
 
 //goland:noinspection GoUnusedParameter
-func (c *dynamicRPCClient) GetHealth(ctx context.Context) (*string, error) {
-	health := "ok"
-	return &health, nil
+func (c *dynamicRPCClient) GetHealth(ctx context.Context) (string, error) {
+	return "ok", nil
 }
 
 //goland:noinspection GoUnusedParameter
-func (c *dynamicRPCClient) GetFirstAvailableBlock(ctx context.Context) (*int64, error) {
-	firstAvailiableBlock := int64(33)
-	return &firstAvailiableBlock, nil
+func (c *dynamicRPCClient) GetFirstAvailableBlock(ctx context.Context) (int64, error) {
+	return 33, nil
 }
 
 //goland:noinspection GoUnusedParameter
-func (c *dynamicRPCClient) GetMinimumLedgerSlot(ctx context.Context) (*int64, error) {
-	minimumLedgerSlot := int64(23)
-	return &minimumLedgerSlot, nil
+func (c *dynamicRPCClient) GetMinimumLedgerSlot(ctx context.Context) (int64, error) {
+	return 23, nil
 }
 
 /*
