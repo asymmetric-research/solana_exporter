@@ -43,7 +43,6 @@ type (
 var (
 	identities      = []string{"aaa", "bbb", "ccc"}
 	votekeys        = []string{"AAA", "BBB", "CCC"}
-	identity        = "aaa"
 	balances        = map[string]float64{"aaa": 1, "bbb": 2, "ccc": 3, "AAA": 4, "BBB": 5, "CCC": 6}
 	identityVotes   = map[string]string{"aaa": "AAA", "bbb": "BBB", "ccc": "CCC"}
 	nv              = len(identities)
@@ -183,11 +182,6 @@ func (c *staticRPCClient) GetBlock(
 func (c *staticRPCClient) GetHealth(ctx context.Context) (*string, error) {
 	health := "ok"
 	return &health, nil
-}
-
-//goland:noinspection GoUnusedParameter
-func (c *staticRPCClient) GetIdentity(ctx context.Context) (string, error) {
-	return identity, nil
 }
 
 //goland:noinspection GoUnusedParameter
@@ -404,11 +398,6 @@ func (c *dynamicRPCClient) GetHealth(ctx context.Context) (*string, error) {
 }
 
 //goland:noinspection GoUnusedParameter
-func (c *dynamicRPCClient) GetIdentity(ctx context.Context) (string, error) {
-	return identity, nil
-}
-
-//goland:noinspection GoUnusedParameter
 func (c *dynamicRPCClient) GetFirstAvailableBlock(ctx context.Context) (*int64, error) {
 	firstAvailiableBlock := int64(33)
 	return &firstAvailiableBlock, nil
@@ -466,7 +455,6 @@ func newTestConfig(fast bool) *ExporterConfig {
 		identities,
 		votekeys,
 		nil,
-		identity,
 		true,
 		true,
 		false,
@@ -487,8 +475,8 @@ func TestSolanaCollector_Collect_Static(t *testing.T) {
 		collector.ValidatorDelinquent.makeCollectionTest(abcValues(1, 0, 0)...),
 		{Name: "solana_account_balance", ExpectedResponse: balanceMetricResponse},
 		collector.NodeVersion.makeCollectionTest(NewLV(1, "1.16.7")),
-		collector.NodeIsHealthy.makeCollectionTest(NewLV(1, identity)),
-		collector.NodeNumSlotsBehind.makeCollectionTest(NewLV(0, identity)),
+		collector.NodeIsHealthy.makeCollectionTest(NewLV(1)),
+		collector.NodeNumSlotsBehind.makeCollectionTest(NewLV(0)),
 	}
 
 	runCollectionTests(t, collector, testCases)
@@ -507,8 +495,8 @@ func TestSolanaCollector_Collect_Dynamic(t *testing.T) {
 		collector.ValidatorDelinquent.makeCollectionTest(abcValues(0, 0, 0)...),
 		collector.NodeVersion.makeCollectionTest(NewLV(1, "v1.0.0")),
 		{Name: "solana_account_balance", ExpectedResponse: balanceMetricResponse},
-		collector.NodeIsHealthy.makeCollectionTest(NewLV(1, identity)),
-		collector.NodeNumSlotsBehind.makeCollectionTest(NewLV(0, identity)),
+		collector.NodeIsHealthy.makeCollectionTest(NewLV(1)),
+		collector.NodeNumSlotsBehind.makeCollectionTest(NewLV(0)),
 	}
 
 	runCollectionTests(t, collector, testCases)
@@ -527,8 +515,8 @@ func TestSolanaCollector_Collect_Dynamic(t *testing.T) {
 		collector.ValidatorDelinquent.makeCollectionTest(abcValues(0, 0, 1)...),
 		collector.NodeVersion.makeCollectionTest(NewLV(1, "v1.2.3")),
 		{Name: "solana_account_balance", ExpectedResponse: balanceMetricResponse},
-		collector.NodeIsHealthy.makeCollectionTest(NewLV(1, identity)),
-		collector.NodeNumSlotsBehind.makeCollectionTest(NewLV(0, identity)),
+		collector.NodeIsHealthy.makeCollectionTest(NewLV(1)),
+		collector.NodeNumSlotsBehind.makeCollectionTest(NewLV(0)),
 	}
 
 	runCollectionTests(t, collector, testCases)

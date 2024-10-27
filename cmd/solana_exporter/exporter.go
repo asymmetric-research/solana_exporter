@@ -20,7 +20,6 @@ const (
 	VersionLabel         = "version"
 	AddressLabel         = "address"
 	EpochLabel           = "epoch"
-	IdentityLabel        = "identity"
 	TransactionTypeLabel = "transaction_type"
 
 	StatusSkipped = "skipped"
@@ -102,29 +101,19 @@ func NewSolanaCollector(provider rpc.Provider, config *ExporterConfig) *SolanaCo
 		),
 		NodeIsHealthy: NewGaugeDesc(
 			"solana_node_is_healthy",
-			fmt.Sprintf("Whether a node (%s) is healthy", IdentityLabel),
-			IdentityLabel,
+			"Whether the node is healthy",
 		),
 		NodeNumSlotsBehind: NewGaugeDesc(
 			"solana_node_num_slots_behind",
-			fmt.Sprintf(
-				"The number of slots that the node (%s) is behind the latest cluster confirmed slot.",
-				IdentityLabel,
-			),
-			IdentityLabel,
+			"The number of slots that the node is behind the latest cluster confirmed slot.",
 		),
 		NodeMinimumLedgerSlot: NewGaugeDesc(
 			"solana_node_minimum_ledger_slot",
-			fmt.Sprintf("The lowest slot that the node (%s) has information about in its ledger.", IdentityLabel),
-			IdentityLabel,
+			"The lowest slot that the node has information about in its ledger.",
 		),
 		NodeFirstAvailableBlock: NewGaugeDesc(
 			"solana_node_first_available_block",
-			fmt.Sprintf(
-				"The slot of the lowest confirmed block that has not been purged from the node's (%s) ledger.",
-				IdentityLabel,
-			),
-			IdentityLabel,
+			"The slot of the lowest confirmed block that has not been purged from the node's ledger.",
 		),
 	}
 	return collector
@@ -202,7 +191,7 @@ func (c *SolanaCollector) collectMinimumLedgerSlot(ctx context.Context, ch chan<
 		return
 	}
 
-	ch <- c.NodeMinimumLedgerSlot.MustNewConstMetric(float64(*slot), c.config.Identity)
+	ch <- c.NodeMinimumLedgerSlot.MustNewConstMetric(float64(*slot))
 	c.logger.Info("Minimum ledger slot collected.")
 }
 func (c *SolanaCollector) collectFirstAvailableBlock(ctx context.Context, ch chan<- prometheus.Metric) {
@@ -214,7 +203,7 @@ func (c *SolanaCollector) collectFirstAvailableBlock(ctx context.Context, ch cha
 		return
 	}
 
-	ch <- c.NodeFirstAvailableBlock.MustNewConstMetric(float64(*block), c.config.Identity)
+	ch <- c.NodeFirstAvailableBlock.MustNewConstMetric(float64(*block))
 	c.logger.Info("First available block collected.")
 }
 
@@ -273,8 +262,8 @@ func (c *SolanaCollector) collectHealth(ctx context.Context, ch chan<- prometheu
 		}
 	}
 
-	ch <- c.NodeIsHealthy.MustNewConstMetric(float64(isHealthy), c.config.Identity)
-	ch <- c.NodeNumSlotsBehind.MustNewConstMetric(float64(numSlotsBehind), c.config.Identity)
+	ch <- c.NodeIsHealthy.MustNewConstMetric(float64(isHealthy))
+	ch <- c.NodeNumSlotsBehind.MustNewConstMetric(float64(numSlotsBehind))
 	c.logger.Info("Health collected.")
 	return
 }
