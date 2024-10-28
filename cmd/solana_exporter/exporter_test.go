@@ -18,7 +18,7 @@ import (
 )
 
 type (
-	DynamicServer struct {
+	Simulator struct {
 		Server *rpc.MockServer
 
 		Slot             int
@@ -95,7 +95,7 @@ func voteTx(nodekey string) []string {
 	return []string{nodekey, strings.ToUpper(nodekey), VoteProgram}
 }
 
-func NewDynamicRpcClient(t *testing.T, slot int) (*DynamicServer, *rpc.Client) {
+func NewSimulator(t *testing.T, slot int) (*Simulator, *rpc.Client) {
 	validatorInfos := make(map[string]rpc.MockValidatorInfo)
 	for _, nodekey := range nodekeys {
 		validatorInfos[nodekey] = rpc.MockValidatorInfo{
@@ -115,7 +115,7 @@ func NewDynamicRpcClient(t *testing.T, slot int) (*DynamicServer, *rpc.Client) {
 		nil,
 		validatorInfos,
 	)
-	server := DynamicServer{
+	server := Simulator{
 		Slot:           0,
 		Server:         mockServer,
 		EpochSize:      24,
@@ -133,7 +133,7 @@ func NewDynamicRpcClient(t *testing.T, slot int) (*DynamicServer, *rpc.Client) {
 	return &server, client
 }
 
-func (c *DynamicServer) Run(ctx context.Context) {
+func (c *Simulator) Run(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -150,7 +150,7 @@ func (c *DynamicServer) Run(ctx context.Context) {
 	}
 }
 
-func (c *DynamicServer) getLeader() string {
+func (c *Simulator) getLeader() string {
 	index := c.Slot % c.EpochSize
 	for leader, slots := range c.LeaderSchedule {
 		if slices.Contains(slots, index) {
@@ -160,7 +160,7 @@ func (c *DynamicServer) getLeader() string {
 	panic(fmt.Sprintf("leader not found at slot %d", c.Slot))
 }
 
-func (c *DynamicServer) PopulateSlot(slot int) {
+func (c *Simulator) PopulateSlot(slot int) {
 	leader := c.getLeader()
 
 	var block *rpc.MockBlockInfo
@@ -272,7 +272,7 @@ func newTestConfig(fast bool) *ExporterConfig {
 }
 
 func TestSolanaCollector(t *testing.T) {
-	_, client := NewDynamicRpcClient(t, 35)
+	_, client := NewSimulator(t, 35)
 	collector := NewSolanaCollector(client, newTestConfig(false))
 	prometheus.NewPedanticRegistry().MustRegister(collector)
 

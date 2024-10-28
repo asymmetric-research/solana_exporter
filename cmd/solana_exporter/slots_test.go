@@ -62,7 +62,7 @@ func TestSlotWatcher_WatchSlots_Static(t *testing.T) {
 
 	config := newTestConfig(true)
 
-	_, client := NewDynamicRpcClient(t, 35)
+	_, client := NewSimulator(t, 35)
 
 	watcher := NewSlotWatcher(client, config)
 	// reset metrics before running tests:
@@ -117,7 +117,7 @@ func TestSlotWatcher_WatchSlots_Static(t *testing.T) {
 
 func TestSlotWatcher_WatchSlots_Dynamic(t *testing.T) {
 	// create clients:
-	server, client := NewDynamicRpcClient(t, 35)
+	server, client := NewSimulator(t, 35)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	config := newTestConfig(true)
