@@ -5,12 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"github.com/asymmetric-research/solana_exporter/pkg/rpc"
+	"github.com/asymmetric-research/solana_exporter/pkg/slog"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.uber.org/zap"
 	"net/http"
 	"time"
-
-	"k8s.io/klog/v2"
 )
 
 const (
@@ -30,12 +30,9 @@ const (
 	StateDelinquent = "delinquent"
 )
 
-func init() {
-	klog.InitFlags(nil)
-}
-
 type SolanaCollector struct {
 	rpcClient rpc.Provider
+	logger    *zap.SugaredLogger
 
 	// config:
 	slotPace         time.Duration
@@ -56,11 +53,16 @@ type SolanaCollector struct {
 	NodeFirstAvailableBlock *GaugeDesc
 }
 
+func init() {
+	slog.Init()
+}
+
 func NewSolanaCollector(
 	provider rpc.Provider, slotPace time.Duration, balanceAddresses, nodekeys, votekeys []string, identity string,
 ) *SolanaCollector {
 	collector := &SolanaCollector{
 		rpcClient:        provider,
+		logger:           slog.Get(),
 		slotPace:         slotPace,
 		balanceAddresses: CombineUnique(balanceAddresses, nodekeys, votekeys),
 		identity:         identity,
@@ -147,9 +149,10 @@ func (c *SolanaCollector) Describe(ch chan<- *prometheus.Desc) {
 }
 
 func (c *SolanaCollector) collectVoteAccounts(ctx context.Context, ch chan<- prometheus.Metric) {
+	c.logger.Info("Collecting vote accounts...")
 	voteAccounts, err := c.rpcClient.GetVoteAccounts(ctx, rpc.CommitmentConfirmed, nil)
 	if err != nil {
-		klog.Errorf("failed to get vote accounts: %v", err)
+		c.logger.Errorf("failed to get vote accounts: %v", err)
 		ch <- c.ValidatorActive.NewInvalidMetric(err)
 		ch <- c.ValidatorActiveStake.NewInvalidMetric(err)
 		ch <- c.ValidatorLastVote.NewInvalidMetric(err)
@@ -174,46 +177,52 @@ func (c *SolanaCollector) collectVoteAccounts(ctx context.Context, ch chan<- pro
 	for _, account := range voteAccounts.Delinquent {
 		ch <- c.ValidatorDelinquent.MustNewConstMetric(1, account.VotePubkey, account.NodePubkey)
 	}
+
+	c.logger.Info("Vote accounts collected.")
 }
 
 func (c *SolanaCollector) collectVersion(ctx context.Context, ch chan<- prometheus.Metric) {
+	c.logger.Info("Collecting version...")
 	version, err := c.rpcClient.GetVersion(ctx)
-
 	if err != nil {
-		klog.Errorf("failed to get version: %v", err)
+		c.logger.Errorf("failed to get version: %v", err)
 		ch <- c.NodeVersion.NewInvalidMetric(err)
 		return
 	}
 
 	ch <- c.NodeVersion.MustNewConstMetric(1, version)
+	c.logger.Info("Version collected.")
 }
 func (c *SolanaCollector) collectMinimumLedgerSlot(ctx context.Context, ch chan<- prometheus.Metric) {
+	c.logger.Info("Collecting minimum ledger slot...")
 	slot, err := c.rpcClient.GetMinimumLedgerSlot(ctx)
-
 	if err != nil {
-		klog.Errorf("failed to get minimum lidger slot: %v", err)
+		c.logger.Errorf("failed to get minimum lidger slot: %v", err)
 		ch <- c.NodeMinimumLedgerSlot.NewInvalidMetric(err)
 		return
 	}
 
 	ch <- c.NodeMinimumLedgerSlot.MustNewConstMetric(float64(*slot), c.identity)
+	c.logger.Info("Minimum ledger slot collected.")
 }
 func (c *SolanaCollector) collectFirstAvailableBlock(ctx context.Context, ch chan<- prometheus.Metric) {
+	c.logger.Info("Collecting first available block...")
 	block, err := c.rpcClient.GetFirstAvailableBlock(ctx)
-
 	if err != nil {
-		klog.Errorf("failed to get first available block: %v", err)
+		c.logger.Errorf("failed to get first available block: %v", err)
 		ch <- c.NodeFirstAvailableBlock.NewInvalidMetric(err)
 		return
 	}
 
 	ch <- c.NodeFirstAvailableBlock.MustNewConstMetric(float64(*block), c.identity)
+	c.logger.Info("First available block collected.")
 }
 
 func (c *SolanaCollector) collectBalances(ctx context.Context, ch chan<- prometheus.Metric) {
+	c.logger.Info("Collecting balances...")
 	balances, err := FetchBalances(ctx, c.rpcClient, c.balanceAddresses)
 	if err != nil {
-		klog.Errorf("failed to get balances: %v", err)
+		c.logger.Errorf("failed to get balances: %v", err)
 		ch <- c.AccountBalances.NewInvalidMetric(err)
 		return
 	}
@@ -221,9 +230,11 @@ func (c *SolanaCollector) collectBalances(ctx context.Context, ch chan<- prometh
 	for address, balance := range balances {
 		ch <- c.AccountBalances.MustNewConstMetric(balance, address)
 	}
+	c.logger.Info("Balances collected.")
 }
 
 func (c *SolanaCollector) collectHealth(ctx context.Context, ch chan<- prometheus.Metric) {
+	c.logger.Info("Collecting health...")
 	var (
 		isHealthy      = 1
 		numSlotsBehind int64
@@ -236,20 +247,20 @@ func (c *SolanaCollector) collectHealth(ctx context.Context, ch chan<- prometheu
 			var errorData rpc.NodeUnhealthyErrorData
 			if rpcError.Data == nil {
 				// if there is no data, then this is some unexpected error and should just be logged
-				klog.Errorf("failed to get health: %v", err)
+				c.logger.Errorf("failed to get health: %v", err)
 				ch <- c.NodeIsHealthy.NewInvalidMetric(err)
 				ch <- c.NodeNumSlotsBehind.NewInvalidMetric(err)
 				return
 			}
 			if err = rpc.UnpackRpcErrorData(rpcError, errorData); err != nil {
 				// if we error here, it means we have the incorrect format
-				klog.Fatalf("failed to unpack %s rpc error: %v", rpcError.Method, err.Error())
+				c.logger.Fatalf("failed to unpack %s rpc error: %v", rpcError.Method, err.Error())
 			}
 			isHealthy = 0
 			numSlotsBehind = errorData.NumSlotsBehind
 		} else {
 			// if it's not an RPC error, log it
-			klog.Errorf("failed to get health: %v", err)
+			c.logger.Errorf("failed to get health: %v", err)
 			ch <- c.NodeIsHealthy.NewInvalidMetric(err)
 			ch <- c.NodeNumSlotsBehind.NewInvalidMetric(err)
 			return
@@ -258,11 +269,12 @@ func (c *SolanaCollector) collectHealth(ctx context.Context, ch chan<- prometheu
 
 	ch <- c.NodeIsHealthy.MustNewConstMetric(float64(isHealthy), c.identity)
 	ch <- c.NodeNumSlotsBehind.MustNewConstMetric(float64(numSlotsBehind), c.identity)
-
+	c.logger.Info("Health collected.")
 	return
 }
 
 func (c *SolanaCollector) Collect(ch chan<- prometheus.Metric) {
+	c.logger.Info("========== BEGIN COLLECTION ==========")
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -272,14 +284,17 @@ func (c *SolanaCollector) Collect(ch chan<- prometheus.Metric) {
 	c.collectHealth(ctx, ch)
 	c.collectMinimumLedgerSlot(ctx, ch)
 	c.collectFirstAvailableBlock(ctx, ch)
+
+	c.logger.Info("=========== END COLLECTION ===========")
 }
 
 func main() {
+	logger := slog.Get()
 	ctx := context.Background()
 
 	config := NewExporterConfigFromCLI()
 	if config.ComprehensiveSlotTracking {
-		klog.Warning(
+		logger.Warn(
 			"Comprehensive slot tracking will lead to potentially thousands of new " +
 				"Prometheus metrics being created every epoch.",
 		)
@@ -288,11 +303,11 @@ func main() {
 	client := rpc.NewRPCClient(config.RpcUrl, config.HttpTimeout)
 	votekeys, err := GetAssociatedVoteAccounts(ctx, client, rpc.CommitmentFinalized, config.NodeKeys)
 	if err != nil {
-		klog.Fatalf("Failed to get associated vote accounts for %v: %v", config.NodeKeys, err)
+		logger.Fatalf("Failed to get associated vote accounts for %v: %v", config.NodeKeys, err)
 	}
 	identity, err := client.GetIdentity(ctx)
 	if err != nil {
-		klog.Fatalf("Failed to get identity: %v", err)
+		logger.Fatalf("Failed to get identity: %v", err)
 	}
 	collector := NewSolanaCollector(
 		client, slotPacerSchedule, config.BalanceAddresses, config.NodeKeys, votekeys, identity,
@@ -307,6 +322,6 @@ func main() {
 	prometheus.MustRegister(collector)
 	http.Handle("/metrics", promhttp.Handler())
 
-	klog.Infof("listening on %s", config.ListenAddress)
-	klog.Fatal(http.ListenAndServe(config.ListenAddress, nil))
+	logger.Infof("listening on %s", config.ListenAddress)
+	logger.Fatal(http.ListenAndServe(config.ListenAddress, nil))
 }

@@ -5,8 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/asymmetric-research/solana_exporter/pkg/slog"
+	"go.uber.org/zap"
 	"io"
-	"k8s.io/klog/v2"
 	"net/http"
 	"slices"
 	"time"
@@ -17,6 +18,7 @@ type (
 		HttpClient  http.Client
 		RpcUrl      string
 		HttpTimeout time.Duration
+		logger      *zap.SugaredLogger
 	}
 
 	rpcRequest struct {
@@ -99,26 +101,27 @@ const (
 )
 
 func NewRPCClient(rpcAddr string, httpTimeout time.Duration) *Client {
-	return &Client{HttpClient: http.Client{}, RpcUrl: rpcAddr, HttpTimeout: httpTimeout}
+	return &Client{HttpClient: http.Client{}, RpcUrl: rpcAddr, HttpTimeout: httpTimeout, logger: slog.Get()}
 }
 
 func getResponse[T any](
 	ctx context.Context, client *Client, method string, params []any, rpcResponse *response[T],
 ) error {
+	logger := slog.Get()
 	// format request:
 	request := &rpcRequest{Version: "2.0", ID: 1, Method: method, Params: params}
 	buffer, err := json.Marshal(request)
 	if err != nil {
-		klog.Fatalf("failed to marshal request: %v", err)
+		logger.Fatalf("failed to marshal request: %v", err)
 	}
-	klog.V(2).Infof("jsonrpc request: %s", string(buffer))
+	logger.Debugf("jsonrpc request: %s", string(buffer))
 
 	// make request:
 	ctx, cancel := context.WithTimeout(ctx, client.HttpTimeout)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, "POST", client.RpcUrl, bytes.NewBuffer(buffer))
 	if err != nil {
-		klog.Fatalf("failed to create request: %v", err)
+		logger.Fatalf("failed to create request: %v", err)
 	}
 	req.Header.Set("content-type", "application/json")
 
@@ -134,7 +137,7 @@ func getResponse[T any](
 		return fmt.Errorf("error processing %s rpc call: %w", method, err)
 	}
 	// log response:
-	klog.V(2).Infof("%s response: %v", method, string(body))
+	logger.Debugf("%s response: %v", method, string(body))
 
 	// unmarshal the response into the predicted format
 	if err = json.Unmarshal(body, rpcResponse); err != nil {
@@ -207,7 +210,7 @@ func (c *Client) GetBlockProduction(
 ) (*BlockProduction, error) {
 	// can't provide a last slot without a first:
 	if firstSlot == nil && lastSlot != nil {
-		klog.Fatalf("can't provide a last slot without a first!")
+		c.logger.Fatalf("can't provide a last slot without a first!")
 	}
 
 	// format params:
@@ -221,7 +224,7 @@ func (c *Client) GetBlockProduction(
 			// make sure first and last slot are in order:
 			if *firstSlot > *lastSlot {
 				err := fmt.Errorf("last slot %v is greater than first slot %v", *lastSlot, *firstSlot)
-				klog.Fatalf("%v", err)
+				c.logger.Fatalf("%v", err)
 			}
 			blockRange["lastSlot"] = *lastSlot
 		}
@@ -286,13 +289,13 @@ func (c *Client) GetBlock(
 ) (*Block, error) {
 	detailsOptions := []string{"full", "accounts", "none"}
 	if !slices.Contains(detailsOptions, transactionDetails) {
-		klog.Fatalf(
+		c.logger.Fatalf(
 			"%s is not a valid transaction-details option, must be one of %v", transactionDetails, detailsOptions,
 		)
 	}
 	if commitment == CommitmentProcessed {
 		// as per https://solana.com/docs/rpc/http/getblock
-		klog.Fatalf("commitment '%v' is not supported for GetBlock", CommitmentProcessed)
+		c.logger.Fatalf("commitment '%v' is not supported for GetBlock", CommitmentProcessed)
 	}
 	config := map[string]any{
 		"commitment":                     commitment,
@@ -329,7 +332,7 @@ func (c *Client) GetIdentity(ctx context.Context) (string, error) {
 	return resp.Result.Identity, nil
 }
 
-// MinimumLedgerSlot returns the lowest slot that the node has information about in its ledger.
+// GetMinimumLedgerSlot returns the lowest slot that the node has information about in its ledger.
 // See API docs: https://solana.com/docs/rpc/http/minimumledgerslot
 func (c *Client) GetMinimumLedgerSlot(ctx context.Context) (*int64, error) {
 	var resp response[int64]

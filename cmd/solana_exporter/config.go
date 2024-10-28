@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/asymmetric-research/solana_exporter/pkg/slog"
 	"time"
 )
 
@@ -38,6 +39,17 @@ func NewExporterConfig(
 	comprehensiveSlotTracking bool,
 	monitorBlockSizes bool,
 ) *ExporterConfig {
+	logger := slog.Get()
+	logger.Infow(
+		"Setting up export config with ",
+		"httpTimeout", httpTimeout,
+		"rpcUrl", rpcUrl,
+		"listenAddress", listenAddress,
+		"nodeKeys", nodeKeys,
+		"balanceAddresses", balanceAddresses,
+		"comprehensiveSlotTracking", comprehensiveSlotTracking,
+		"monitorBlockSizes", monitorBlockSizes,
+	)
 	return &ExporterConfig{
 		HttpTimeout:               time.Duration(httpTimeout) * time.Second,
 		RpcUrl:                    rpcUrl,
