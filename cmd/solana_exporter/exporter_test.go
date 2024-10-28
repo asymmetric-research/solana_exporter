@@ -17,6 +17,9 @@ import (
 	"time"
 )
 
+const InflationRewardLamports = 10
+const FeeRewardLamports = 10
+
 type (
 	Simulator struct {
 		Server *rpc.MockServer
@@ -24,113 +27,80 @@ type (
 		Slot             int
 		BlockHeight      int
 		Epoch            int
-		EpochSize        int
-		SlotTime         time.Duration
 		TransactionCount int
-		LeaderSchedule   map[string][]int
+
+		SlotTime       time.Duration
+		EpochSize      int
+		LeaderSchedule map[string][]int
+		Nodekeys       []string
+		Votekeys       []string
 	}
 )
-
-var (
-	nodekeys        = []string{"aaa", "bbb", "ccc"}
-	votekeys        = []string{"AAA", "BBB", "CCC"}
-	balances        = map[string]float64{"aaa": 1, "bbb": 2, "ccc": 3, "AAA": 4, "BBB": 5, "CCC": 6}
-	rawVoteAccounts = map[string]any{
-		"current": []map[string]any{
-			{
-				"activatedStake": 42,
-				"lastVote":       147,
-				"nodePubkey":     "bbb",
-				"rootSlot":       18,
-				"votePubkey":     "BBB",
-			},
-			{
-				"activatedStake": 43,
-				"lastVote":       148,
-				"nodePubkey":     "ccc",
-				"rootSlot":       19,
-				"votePubkey":     "CCC",
-			},
-		},
-		"delinquent": []map[string]any{
-			{
-				"activatedStake": 49,
-				"lastVote":       92,
-				"nodePubkey":     "aaa",
-				"rootSlot":       3,
-				"votePubkey":     "AAA",
-			},
-		},
-	}
-	rawBalances = map[string]int{
-		"aaa": 1 * rpc.LamportsInSol,
-		"bbb": 2 * rpc.LamportsInSol,
-		"ccc": 3 * rpc.LamportsInSol,
-		"AAA": 4 * rpc.LamportsInSol,
-		"BBB": 5 * rpc.LamportsInSol,
-		"CCC": 6 * rpc.LamportsInSol,
-	}
-	balanceMetricResponse = `
-# HELP solana_account_balance Solana account balances, grouped by address
-# TYPE solana_account_balance gauge
-solana_account_balance{address="AAA"} 4
-solana_account_balance{address="BBB"} 5
-solana_account_balance{address="CCC"} 6
-solana_account_balance{address="aaa"} 1
-solana_account_balance{address="bbb"} 2
-solana_account_balance{address="ccc"} 3
-`
-	dynamicLeaderSchedule = map[string][]int{
-		"aaa": {0, 1, 2, 3, 12, 13, 14, 15},
-		"bbb": {4, 5, 6, 7, 16, 17, 18, 19},
-		"ccc": {8, 9, 10, 11, 20, 21, 22, 23},
-	}
-)
-
-/*
-===== DYNAMIC CLIENT =====:
-*/
 
 func voteTx(nodekey string) []string {
 	return []string{nodekey, strings.ToUpper(nodekey), VoteProgram}
 }
 
 func NewSimulator(t *testing.T, slot int) (*Simulator, *rpc.Client) {
+	nodekeys := []string{"aaa", "bbb", "ccc"}
+	votekeys := []string{"AAA", "BBB", "CCC"}
+
 	validatorInfos := make(map[string]rpc.MockValidatorInfo)
-	for _, nodekey := range nodekeys {
+	for i, nodekey := range nodekeys {
 		validatorInfos[nodekey] = rpc.MockValidatorInfo{
-			Votekey:    strings.ToUpper(nodekey),
+			Votekey:    votekeys[i],
 			Stake:      1_000_000,
 			Delinquent: false,
 		}
 	}
+	leaderSchedule := map[string][]int{
+		"aaa": {0, 1, 2, 3, 12, 13, 14, 15},
+		"bbb": {4, 5, 6, 7, 16, 17, 18, 19},
+		"ccc": {8, 9, 10, 11, 20, 21, 22, 23},
+	}
 	mockServer, client := rpc.NewMockClient(t,
 		map[string]any{
 			"getVersion":        map[string]string{"solana-core": "v1.0.0"},
-			"getLeaderSchedule": dynamicLeaderSchedule,
+			"getLeaderSchedule": leaderSchedule,
 			"getHealth":         "ok",
 		},
-		rawBalances,
-		map[string]int{"AAA": 10, "BBB": 10, "CCC": 10},
+		map[string]int{
+			"aaa": 1 * rpc.LamportsInSol,
+			"bbb": 2 * rpc.LamportsInSol,
+			"ccc": 3 * rpc.LamportsInSol,
+			"AAA": 4 * rpc.LamportsInSol,
+			"BBB": 5 * rpc.LamportsInSol,
+			"CCC": 6 * rpc.LamportsInSol,
+		},
+		map[string]int{
+			"AAA": InflationRewardLamports,
+			"BBB": InflationRewardLamports,
+			"CCC": InflationRewardLamports,
+		},
 		nil,
 		validatorInfos,
 	)
-	server := Simulator{
+	simulator := Simulator{
 		Slot:           0,
 		Server:         mockServer,
 		EpochSize:      24,
 		SlotTime:       100 * time.Millisecond,
-		LeaderSchedule: dynamicLeaderSchedule,
+		LeaderSchedule: leaderSchedule,
+		Nodekeys:       nodekeys,
+		Votekeys:       votekeys,
 	}
-	server.PopulateSlot(0)
-	for {
-		server.Slot++
-		server.PopulateSlot(server.Slot)
-		if server.Slot == slot {
-			break
+	simulator.PopulateSlot(0)
+	if slot > 0 {
+		for {
+			simulator.Slot++
+			simulator.PopulateSlot(simulator.Slot)
+			if simulator.Slot == slot {
+				break
+			}
 		}
 	}
-	return &server, client
+
+	return &simulator, client
 }
 
 func (c *Simulator) Run(ctx context.Context) {
@@ -173,7 +143,7 @@ func (c *Simulator) PopulateSlot(slot int) {
 			{"xxx", "yyy", "zzz"},
 		}
 		// assume all validators voted
-		for _, nodekey := range nodekeys {
+		for _, nodekey := range c.Nodekeys {
 			transactions = append(transactions, voteTx(nodekey))
 			info := c.Server.GetValidatorInfo(nodekey)
 			info.LastVote = slot
@@ -181,7 +151,7 @@ func (c *Simulator) PopulateSlot(slot int) {
 		}
 
 		c.TransactionCount += len(transactions)
-		block = &rpc.MockBlockInfo{Fee: 100, Transactions: transactions}
+		block = &rpc.MockBlockInfo{Fee: FeeRewardLamports, Transactions: transactions}
 	}
 	// add slot info:
 	c.Server.SetOpt(rpc.SlotInfosOpt, slot, rpc.MockSlotInfo{Leader: leader, Block: block})
@@ -251,17 +221,17 @@ func runCollectionTests(t *testing.T, collector prometheus.Collector, testCases 
 	}
 }
 
-func newTestConfig(fast bool) *ExporterConfig {
+func newTestConfig(simulator *Simulator, fast bool) *ExporterConfig {
 	pace := time.Duration(100) * time.Second
 	if fast {
 		pace = time.Duration(500) * time.Millisecond
 	}
 	config := ExporterConfig{
 		time.Second * time.Duration(1),
-		"http://localhost:8899",
+		simulator.Server.URL(),
 		":8080",
-		nodekeys,
-		votekeys,
+		simulator.Nodekeys,
+		simulator.Votekeys,
 		nil,
 		true,
 		true,
@@ -272,20 +242,58 @@ func newTestConfig(fast bool) *ExporterConfig {
 }
 
 func TestSolanaCollector(t *testing.T) {
-	_, client := NewSimulator(t, 35)
-	collector := NewSolanaCollector(client, newTestConfig(false))
+	simulator, client := NewSimulator(t, 35)
+	collector := NewSolanaCollector(client, newTestConfig(simulator, false))
 	prometheus.NewPedanticRegistry().MustRegister(collector)
 
 	testCases := []collectionTest{
-		collector.ValidatorActive.makeCollectionTest(NewLV(3, "current"), NewLV(0, "delinquent")),
-		collector.ValidatorActiveStake.makeCollectionTest(abcValues(1_000_000, 1_000_000, 1_000_000)...),
-		collector.ValidatorLastVote.makeCollectionTest(abcValues(34, 34, 34)...),
-		collector.ValidatorRootSlot.makeCollectionTest(abcValues(0, 0, 0)...),
-		collector.ValidatorDelinquent.makeCollectionTest(abcValues(0, 0, 0)...),
-		{Name: "solana_account_balance", ExpectedResponse: balanceMetricResponse},
-		collector.NodeVersion.makeCollectionTest(NewLV(1, "v1.0.0")),
-		collector.NodeIsHealthy.makeCollectionTest(NewLV(1)),
-		collector.NodeNumSlotsBehind.makeCollectionTest(NewLV(0)),
+		collector.ValidatorActiveStake.makeCollectionTest(
+			NewLV(1_000_000, "aaa", "AAA"),
+			NewLV(1_000_000, "bbb", "BBB"),
+			NewLV(1_000_000, "ccc", "CCC"),
+		),
+		collector.ValidatorLastVote.makeCollectionTest(
+			NewLV(34, "aaa", "AAA"),
+			NewLV(34, "bbb", "BBB"),
+			NewLV(34, "ccc", "CCC"),
+		),
+		collector.ValidatorRootSlot.makeCollectionTest(
+			NewLV(0, "aaa", "AAA"),
+			NewLV(0, "bbb", "BBB"),
+			NewLV(0, "ccc", "CCC"),
+		),
+		collector.ValidatorDelinquent.makeCollectionTest(
+			NewLV(0, "aaa", "AAA"),
+			NewLV(0, "bbb", "BBB"),
+			NewLV(0, "ccc", "CCC"),
+		),
+		collector.ValidatorActive.makeCollectionTest(
+			NewLV(3, "current"),
+			NewLV(0, "delinquent"),
+		),
+		collector.NodeVersion.makeCollectionTest(
+			NewLV(1, "v1.0.0"),
+		),
+		collector.NodeIsHealthy.makeCollectionTest(
+			NewLV(1),
+		),
+		collector.NodeNumSlotsBehind.makeCollectionTest(
+			NewLV(0),
+		),
+		collector.AccountBalances.makeCollectionTest(
+			NewLV(4, "AAA"),
+			NewLV(5, "BBB"),
+			NewLV(6, "CCC"),
+			NewLV(1, "aaa"),
+			NewLV(2, "bbb"),
+			NewLV(3, "ccc"),
+		),
+		collector.NodeMinimumLedgerSlot.makeCollectionTest(
+			NewLV(11),
+		),
+		collector.NodeFirstAvailableBlock.makeCollectionTest(
+			NewLV(11),
+		),
 	}
 
 	runCollectionTests(t, collector, testCases)

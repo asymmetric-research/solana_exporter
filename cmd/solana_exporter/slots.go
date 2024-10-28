@@ -80,7 +80,7 @@ func NewSlotWatcher(client *rpc.Client, config *ExporterConfig) *SlotWatcher {
 					NodekeyLabel, SkipStatusLabel, StatusValid, StatusSkipped,
 				),
 			},
-			[]string{SkipStatusLabel, NodekeyLabel},
+			[]string{NodekeyLabel, SkipStatusLabel},
 		),
 		LeaderSlotsByEpochMetric: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
@@ -90,7 +90,7 @@ func NewSlotWatcher(client *rpc.Client, config *ExporterConfig) *SlotWatcher {
 					NodekeyLabel, SkipStatusLabel, StatusValid, StatusSkipped, EpochLabel,
 				),
 			},
-			[]string{SkipStatusLabel, NodekeyLabel, EpochLabel},
+			[]string{NodekeyLabel, EpochLabel, SkipStatusLabel},
 		),
 		InflationRewardsMetric: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
@@ -314,13 +314,13 @@ func (c *SlotWatcher) fetchAndEmitBlockProduction(ctx context.Context, endSlot i
 		valid := float64(production.BlocksProduced)
 		skipped := float64(production.LeaderSlots - production.BlocksProduced)
 
-		c.LeaderSlotsMetric.WithLabelValues(StatusValid, address).Add(valid)
-		c.LeaderSlotsMetric.WithLabelValues(StatusSkipped, address).Add(skipped)
+		c.LeaderSlotsMetric.WithLabelValues(address, StatusValid).Add(valid)
+		c.LeaderSlotsMetric.WithLabelValues(address, StatusSkipped).Add(skipped)
 
 		if slices.Contains(c.config.NodeKeys, address) || c.config.ComprehensiveSlotTracking {
 			epochStr := toString(c.currentEpoch)
-			c.LeaderSlotsByEpochMetric.WithLabelValues(StatusValid, address, epochStr).Add(valid)
-			c.LeaderSlotsByEpochMetric.WithLabelValues(StatusSkipped, address, epochStr).Add(skipped)
+			c.LeaderSlotsByEpochMetric.WithLabelValues(address, epochStr, StatusValid).Add(valid)
+			c.LeaderSlotsByEpochMetric.WithLabelValues(address, epochStr, StatusSkipped).Add(skipped)
 		}
 	}
 
@@ -395,15 +395,15 @@ func (c *SlotWatcher) fetchAndEmitSingleBlockInfo(
 
 	// track block size:
 	if c.config.MonitorBlockSizes {
-		c.BlockSizeMetric.WithLabelValues(nodekey, TransactionTypeTotal).Set(float64(len(block.Transactions)))
 		// now count and emit votes:
 		voteCount, err := CountVoteTransactions(block)
 		if err != nil {
 			return err
 		}
 		c.BlockSizeMetric.WithLabelValues(nodekey, TransactionTypeVote).Set(float64(voteCount))
+		nonVoteCount := len(block.Transactions) - voteCount
+		c.BlockSizeMetric.WithLabelValues(nodekey, TransactionTypeNonVote).Set(float64(nonVoteCount))
 	}
-
 	return nil
 }
 

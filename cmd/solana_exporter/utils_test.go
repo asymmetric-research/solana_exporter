@@ -57,31 +57,28 @@ func TestCombineUnique(t *testing.T) {
 }
 
 func TestFetchBalances(t *testing.T) {
-	_, client := rpc.NewMockClient(t, nil, rawBalances, nil, nil, nil)
+	simulator, client := NewSimulator(t, 0)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	fetchedBalances, err := FetchBalances(ctx, client, CombineUnique(nodekeys, votekeys))
+	fetchedBalances, err := FetchBalances(ctx, client, CombineUnique(simulator.Nodekeys, simulator.Votekeys))
 	assert.NoError(t, err)
-	assert.Equal(t, balances, fetchedBalances)
+	assert.Equal(t,
+		map[string]float64{"aaa": 1, "bbb": 2, "ccc": 3, "AAA": 4, "BBB": 5, "CCC": 6},
+		fetchedBalances,
+	)
 }
 
 func TestGetAssociatedVoteAccounts(t *testing.T) {
-	_, client := rpc.NewMockClient(t,
-		map[string]any{"getVoteAccounts": rawVoteAccounts},
-		nil,
-		nil,
-		nil,
-		nil,
-	)
+	simulator, client := NewSimulator(t, 1)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	voteAccounts, err := GetAssociatedVoteAccounts(ctx, client, rpc.CommitmentFinalized, nodekeys)
+	voteAccounts, err := GetAssociatedVoteAccounts(ctx, client, rpc.CommitmentFinalized, simulator.Nodekeys)
 	assert.NoError(t, err)
-	assert.Equal(t, votekeys, voteAccounts)
+	assert.Equal(t, simulator.Votekeys, voteAccounts)
 }
 
 func TestGetEpochBounds(t *testing.T) {

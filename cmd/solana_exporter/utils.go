@@ -18,8 +18,8 @@ func assertf(condition bool, format string, args ...any) {
 	}
 }
 
-// toString is just a simple utility function for converting int -> string
-func toString(i int64) string {
+// toString is just a simple utility function for converting to strings
+func toString(i any) string {
 	return fmt.Sprintf("%v", i)
 }
 
