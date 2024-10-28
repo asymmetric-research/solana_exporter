@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"math"
 	"math/rand"
-	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -36,10 +35,6 @@ type (
 		Votekeys       []string
 	}
 )
-
-func voteTx(nodekey string) []string {
-	return []string{nodekey, strings.ToUpper(nodekey), VoteProgram}
-}
 
 func NewSimulator(t *testing.T, slot int) (*Simulator, *rpc.Client) {
 	nodekeys := []string{"aaa", "bbb", "ccc"}
@@ -144,7 +139,7 @@ func (c *Simulator) PopulateSlot(slot int) {
 		}
 		// assume all validators voted
 		for _, nodekey := range c.Nodekeys {
-			transactions = append(transactions, voteTx(nodekey))
+			transactions = append(transactions, []string{nodekey, strings.ToUpper(nodekey), VoteProgram})
 			info := c.Server.GetValidatorInfo(nodekey)
 			info.LastVote = slot
 			c.Server.SetOpt(rpc.ValidatorInfoOpt, nodekey, info)
@@ -185,40 +180,6 @@ func (c *Simulator) PopulateSlot(slot int) {
 		"getFirstAvailableBlock",
 		int(math.Max(0, float64(slot-c.EpochSize))),
 	)
-}
-
-/*
-===== OTHER TEST UTILITIES =====:
-*/
-
-// extractName takes a Prometheus descriptor and returns its name
-func extractName(desc *prometheus.Desc) string {
-	// Get the string representation of the descriptor
-	descString := desc.String()
-	// Use regex to extract the metric name and help message from the descriptor string
-	reName := regexp.MustCompile(`fqName: "([^"]+)"`)
-	nameMatch := reName.FindStringSubmatch(descString)
-
-	var name string
-	if len(nameMatch) > 1 {
-		name = nameMatch[1]
-	}
-
-	return name
-}
-
-type collectionTest struct {
-	Name             string
-	ExpectedResponse string
-}
-
-func runCollectionTests(t *testing.T, collector prometheus.Collector, testCases []collectionTest) {
-	for _, test := range testCases {
-		t.Run(test.Name, func(t *testing.T) {
-			err := testutil.CollectAndCompare(collector, bytes.NewBufferString(test.ExpectedResponse), test.Name)
-			assert.NoErrorf(t, err, "unexpected collecting result for %s: \n%s", test.Name, err)
-		})
-	}
 }
 
 func newTestConfig(simulator *Simulator, fast bool) *ExporterConfig {
@@ -292,5 +253,10 @@ func TestSolanaCollector(t *testing.T) {
 		),
 	}
 
-	runCollectionTests(t, collector, testCases)
+	for _, test := range testCases {
+		t.Run(test.Name, func(t *testing.T) {
+			err := testutil.CollectAndCompare(collector, bytes.NewBufferString(test.ExpectedResponse), test.Name)
+			assert.NoErrorf(t, err, "unexpected collecting result for %s: \n%s", test.Name, err)
+		})
+	}
 }

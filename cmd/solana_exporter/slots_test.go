@@ -7,6 +7,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
+	"regexp"
 	"testing"
 	"time"
 )
@@ -18,6 +19,22 @@ type slotMetricValues struct {
 	EpochFirstSlot    float64
 	EpochLastSlot     float64
 	BlockHeight       float64
+}
+
+// extractName takes a Prometheus descriptor and returns its name
+func extractName(desc *prometheus.Desc) string {
+	// Get the string representation of the descriptor
+	descString := desc.String()
+	// Use regex to extract the metric name and help message from the descriptor string
+	reName := regexp.MustCompile(`fqName: "([^"]+)"`)
+	nameMatch := reName.FindStringSubmatch(descString)
+
+	var name string
+	if len(nameMatch) > 1 {
+		name = nameMatch[1]
+	}
+
+	return name
 }
 
 func getSlotMetricValues(watcher *SlotWatcher) slotMetricValues {
@@ -74,8 +91,7 @@ func assertSlotMetricsChangeCorrectly(t *testing.T, initial slotMetricValues, fi
 func TestSlotWatcher_WatchSlots_Static(t *testing.T) {
 	// TODO: is this test necessary? If not - remove, else, could definitely do with a clean.
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := context.Background()
 
 	simulator, client := NewSimulator(t, 35)
 	watcher := NewSlotWatcher(client, newTestConfig(simulator, true))

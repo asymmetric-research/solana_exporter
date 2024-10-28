@@ -2,17 +2,11 @@ package main
 
 import (
 	"context"
+	_ "embed"
+	"encoding/json"
 	"github.com/asymmetric-research/solana_exporter/pkg/rpc"
 	"github.com/stretchr/testify/assert"
 	"testing"
-)
-
-var (
-	rawLeaderSchedule = map[string]any{
-		"aaa": []int{0, 3, 6, 9, 12},
-		"bbb": []int{1, 4, 7, 10, 13},
-		"ccc": []int{2, 5, 8, 11, 14},
-	}
 )
 
 func TestSelectFromSchedule(t *testing.T) {
@@ -33,7 +27,14 @@ func TestSelectFromSchedule(t *testing.T) {
 
 func TestGetTrimmedLeaderSchedule(t *testing.T) {
 	_, client := rpc.NewMockClient(t,
-		map[string]any{"getLeaderSchedule": rawLeaderSchedule}, nil, nil, nil, nil,
+		map[string]any{
+			"getLeaderSchedule": map[string]any{
+				"aaa": []int{0, 3, 6, 9, 12},
+				"bbb": []int{1, 4, 7, 10, 13},
+				"ccc": []int{2, 5, 8, 11, 14},
+			},
+		},
+		nil, nil, nil, nil,
 	)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -86,4 +87,18 @@ func TestGetEpochBounds(t *testing.T) {
 	first, last := GetEpochBounds(&epoch)
 	assert.Equal(t, int64(20), first)
 	assert.Equal(t, int64(29), last)
+}
+
+//go:embed testdata/block-297609329.json
+var blockJson []byte
+
+func TestCountVoteTransactions(t *testing.T) {
+	var block rpc.Block
+	err := json.Unmarshal(blockJson, &block)
+	assert.NoError(t, err)
+
+	voteCount, err := CountVoteTransactions(&block)
+	assert.NoError(t, err)
+	// https://explorer.solana.com/block/297609329
+	assert.Equal(t, 1048, voteCount)
 }

@@ -5,12 +5,18 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-type GaugeDesc struct {
-	Desc           *prometheus.Desc
-	Name           string
-	Help           string
-	VariableLabels []string
-}
+type (
+	GaugeDesc struct {
+		Desc           *prometheus.Desc
+		Name           string
+		Help           string
+		VariableLabels []string
+	}
+	collectionTest struct {
+		Name             string
+		ExpectedResponse string
+	}
+)
 
 func NewGaugeDesc(name string, description string, variableLabels ...string) *GaugeDesc {
 	return &GaugeDesc{
