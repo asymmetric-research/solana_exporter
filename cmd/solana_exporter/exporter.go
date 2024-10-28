@@ -7,9 +7,7 @@ import (
 	"github.com/asymmetric-research/solana_exporter/pkg/rpc"
 	"github.com/asymmetric-research/solana_exporter/pkg/slog"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
-	"net/http"
 )
 
 const (
@@ -33,7 +31,7 @@ const (
 )
 
 type SolanaCollector struct {
-	rpcClient rpc.Provider
+	rpcClient *rpc.Client
 	logger    *zap.SugaredLogger
 
 	config *ExporterConfig
@@ -52,9 +50,9 @@ type SolanaCollector struct {
 	NodeFirstAvailableBlock *GaugeDesc
 }
 
-func NewSolanaCollector(provider rpc.Provider, config *ExporterConfig) *SolanaCollector {
+func NewSolanaCollector(client *rpc.Client, config *ExporterConfig) *SolanaCollector {
 	collector := &SolanaCollector{
-		rpcClient: provider,
+		rpcClient: client,
 		logger:    slog.Get(),
 		config:    config,
 		ValidatorActive: NewGaugeDesc(
@@ -135,7 +133,7 @@ func (c *SolanaCollector) collectVoteAccounts(ctx context.Context, ch chan<- pro
 		return
 	}
 	c.logger.Info("Collecting vote accounts...")
-	voteAccounts, err := c.rpcClient.GetVoteAccounts(ctx, rpc.CommitmentConfirmed, nil)
+	voteAccounts, err := c.rpcClient.GetVoteAccounts(ctx, rpc.CommitmentConfirmed)
 	if err != nil {
 		c.logger.Errorf("failed to get vote accounts: %v", err)
 		ch <- c.ValidatorActive.NewInvalidMetric(err)
@@ -277,33 +275,4 @@ func (c *SolanaCollector) Collect(ch chan<- prometheus.Metric) {
 	c.collectBalances(ctx, ch)
 
 	c.logger.Info("=========== END COLLECTION ===========")
-}
-
-func main() {
-	logger := slog.Get()
-	ctx := context.Background()
-
-	config, err := NewExporterConfigFromCLI(ctx)
-	if err != nil {
-		logger.Fatal(err)
-	}
-	if config.ComprehensiveSlotTracking {
-		logger.Warn(
-			"Comprehensive slot tracking will lead to potentially thousands of new " +
-				"Prometheus metrics being created every epoch.",
-		)
-	}
-
-	client := rpc.NewRPCClient(config.RpcUrl, config.HttpTimeout)
-	collector := NewSolanaCollector(client, config)
-	slotWatcher := NewSlotWatcher(client, config)
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	go slotWatcher.WatchSlots(ctx)
-
-	prometheus.MustRegister(collector)
-	http.Handle("/metrics", promhttp.Handler())
-
-	logger.Infof("listening on %s", config.ListenAddress)
-	logger.Fatal(http.ListenAndServe(config.ListenAddress, nil))
 }

@@ -7,8 +7,24 @@ import (
 	"testing"
 )
 
+var (
+	rawLeaderSchedule = map[string]any{
+		"aaa": []int{0, 3, 6, 9, 12},
+		"bbb": []int{1, 4, 7, 10, 13},
+		"ccc": []int{2, 5, 8, 11, 14},
+	}
+)
+
 func TestSelectFromSchedule(t *testing.T) {
-	selected := SelectFromSchedule(staticLeaderSchedule, 5, 10)
+	selected := SelectFromSchedule(
+		map[string][]int64{
+			"aaa": {0, 3, 6, 9, 12},
+			"bbb": {1, 4, 7, 10, 13},
+			"ccc": {2, 5, 8, 11, 14},
+		},
+		5,
+		10,
+	)
 	assert.Equal(t,
 		map[string][]int64{"aaa": {6, 9}, "bbb": {7, 10}, "ccc": {5, 8}},
 		selected,
@@ -16,11 +32,14 @@ func TestSelectFromSchedule(t *testing.T) {
 }
 
 func TestGetTrimmedLeaderSchedule(t *testing.T) {
+	_, client := rpc.NewMockClient(t,
+		map[string]any{"getLeaderSchedule": rawLeaderSchedule}, nil, nil, nil, nil,
+	)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	schedule, err := GetTrimmedLeaderSchedule(ctx, &staticRPCClient{}, []string{"aaa", "bbb"}, 10, 10)
-	assert.NoError(t, err)
 
+	schedule, err := GetTrimmedLeaderSchedule(ctx, client, []string{"aaa", "bbb"}, 10, 10)
+	assert.NoError(t, err)
 	assert.Equal(t, map[string][]int64{"aaa": {10, 13, 16, 19, 22}, "bbb": {11, 14, 17, 20, 23}}, schedule)
 }
 
@@ -38,21 +57,29 @@ func TestCombineUnique(t *testing.T) {
 }
 
 func TestFetchBalances(t *testing.T) {
+	_, client := rpc.NewMockClient(t, nil, rawBalances, nil, nil, nil)
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	client := staticRPCClient{}
-	fetchedBalances, err := FetchBalances(ctx, &client, CombineUnique(identities, votekeys))
+	fetchedBalances, err := FetchBalances(ctx, client, CombineUnique(nodekeys, votekeys))
 	assert.NoError(t, err)
 	assert.Equal(t, balances, fetchedBalances)
 }
 
 func TestGetAssociatedVoteAccounts(t *testing.T) {
+	_, client := rpc.NewMockClient(t,
+		map[string]any{"getVoteAccounts": rawVoteAccounts},
+		nil,
+		nil,
+		nil,
+		nil,
+	)
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	client := staticRPCClient{}
-	voteAccounts, err := GetAssociatedVoteAccounts(ctx, &client, rpc.CommitmentFinalized, identities)
+	voteAccounts, err := GetAssociatedVoteAccounts(ctx, client, rpc.CommitmentFinalized, nodekeys)
 	assert.NoError(t, err)
 	assert.Equal(t, votekeys, voteAccounts)
 }

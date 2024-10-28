@@ -15,7 +15,7 @@ import (
 )
 
 type SlotWatcher struct {
-	client rpc.Provider
+	client *rpc.Client
 	logger *zap.SugaredLogger
 
 	config *ExporterConfig
@@ -45,7 +45,7 @@ type SlotWatcher struct {
 	BlockHeightMetric        prometheus.Gauge
 }
 
-func NewSlotWatcher(client rpc.Provider, config *ExporterConfig) *SlotWatcher {
+func NewSlotWatcher(client *rpc.Client, config *ExporterConfig) *SlotWatcher {
 	logger := slog.Get()
 	watcher := SlotWatcher{
 		client: client,
@@ -303,7 +303,7 @@ func (c *SlotWatcher) fetchAndEmitBlockProduction(ctx context.Context, endSlot i
 	}
 
 	// fetch block production:
-	blockProduction, err := c.client.GetBlockProduction(ctx, rpc.CommitmentFinalized, nil, &startSlot, &endSlot)
+	blockProduction, err := c.client.GetBlockProduction(ctx, rpc.CommitmentFinalized, startSlot, endSlot)
 	if err != nil {
 		c.logger.Errorf("Failed to get block production, bailing out: %v", err)
 		return
@@ -341,16 +341,16 @@ func (c *SlotWatcher) fetchAndEmitBlockInfos(ctx context.Context, endSlot int64)
 		c.logger.Fatalf("invalid slot range: %v", err)
 	}
 	scheduleToFetch := SelectFromSchedule(c.leaderSchedule, startSlot, endSlot)
-	for identity, leaderSlots := range scheduleToFetch {
+	for nodekey, leaderSlots := range scheduleToFetch {
 		if len(leaderSlots) == 0 {
 			continue
 		}
 
-		c.logger.Infof("Fetching fee rewards for %v in [%v -> %v]: %v ...", identity, startSlot, endSlot, leaderSlots)
+		c.logger.Infof("Fetching fee rewards for %v in [%v -> %v]: %v ...", nodekey, startSlot, endSlot, leaderSlots)
 		for _, slot := range leaderSlots {
-			err := c.fetchAndEmitSingleBlockInfo(ctx, identity, c.currentEpoch, slot)
+			err := c.fetchAndEmitSingleBlockInfo(ctx, nodekey, c.currentEpoch, slot)
 			if err != nil {
-				c.logger.Errorf("Failed to fetch fee rewards for %v at %v: %v", identity, slot, err)
+				c.logger.Errorf("Failed to fetch fee rewards for %v at %v: %v", nodekey, slot, err)
 			}
 		}
 	}
@@ -415,7 +415,7 @@ func (c *SlotWatcher) fetchAndEmitInflationRewards(ctx context.Context, epoch in
 		return nil
 	}
 	c.logger.Infof("Fetching inflation reward for epoch %v ...", toString(epoch))
-	rewardInfos, err := c.client.GetInflationReward(ctx, rpc.CommitmentConfirmed, c.config.VoteKeys, &epoch, nil)
+	rewardInfos, err := c.client.GetInflationReward(ctx, rpc.CommitmentConfirmed, c.config.VoteKeys, epoch)
 	if err != nil {
 		return fmt.Errorf("error fetching inflation rewards: %w", err)
 	}

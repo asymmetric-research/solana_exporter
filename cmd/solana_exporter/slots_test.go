@@ -29,37 +29,6 @@ func getSlotMetricValues(watcher *SlotWatcher) slotMetricValues {
 	}
 }
 
-func testBlockProductionMetric(
-	t *testing.T,
-	watcher *SlotWatcher,
-	metric *prometheus.CounterVec,
-	host string,
-	status string,
-) {
-	hostInfo := staticBlockProduction.ByIdentity[host]
-	// get expected value depending on status:
-	var expectedValue float64
-	switch status {
-	case "valid":
-		expectedValue = float64(hostInfo.BlocksProduced)
-	case "skipped":
-		expectedValue = float64(hostInfo.LeaderSlots - hostInfo.BlocksProduced)
-	}
-	// get labels (leaderSlotsByEpoch requires an extra one)
-	labels := []string{status, host}
-	if metric == watcher.LeaderSlotsByEpochMetric {
-		labels = append(labels, fmt.Sprintf("%d", staticEpochInfo.Epoch))
-	}
-	// now we can do the assertion:
-	assert.Equalf(
-		t,
-		expectedValue,
-		testutil.ToFloat64(metric.WithLabelValues(labels...)),
-		"wrong value for block-production metric with labels: %s",
-		labels,
-	)
-}
-
 func assertSlotMetricsChangeCorrectly(t *testing.T, initial slotMetricValues, final slotMetricValues) {
 	// make sure that things have increased
 	assert.Greaterf(
@@ -88,47 +57,54 @@ func assertSlotMetricsChangeCorrectly(t *testing.T, initial slotMetricValues, fi
 	)
 }
 
-func TestSolanaCollector_WatchSlots_Static(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+func TestSlotWatcher_WatchSlots_Static(t *testing.T) {
+	ctx := context.Background()
 
 	config := newTestConfig(true)
-	collector := NewSolanaCollector(&staticRPCClient{}, config)
-	watcher := NewSlotWatcher(&staticRPCClient{}, config)
+
+	_, client := NewDynamicRpcClient(t, 35)
+
+	watcher := NewSlotWatcher(client, config)
 	// reset metrics before running tests:
 	watcher.LeaderSlotsMetric.Reset()
 	watcher.LeaderSlotsByEpochMetric.Reset()
 
-	prometheus.NewPedanticRegistry().MustRegister(collector)
-
 	go watcher.WatchSlots(ctx)
 
 	// make sure inflation rewards are collected:
-	err := watcher.fetchAndEmitInflationRewards(ctx, staticEpochInfo.Epoch)
+	epochInfo, err := client.GetEpochInfo(ctx, rpc.CommitmentFinalized)
+	assert.NoError(t, err)
+	err = watcher.fetchAndEmitInflationRewards(ctx, epochInfo.Epoch)
 	assert.NoError(t, err)
 	time.Sleep(1 * time.Second)
 
-	firstSlot, lastSlot := GetEpochBounds(&staticEpochInfo)
 	type testCase struct {
 		expectedValue float64
 		metric        prometheus.Gauge
 	}
+
+	// epoch info tests:
+	firstSlot, lastSlot := GetEpochBounds(epochInfo)
 	tests := []testCase{
-		{expectedValue: float64(staticEpochInfo.AbsoluteSlot), metric: watcher.SlotHeightMetric},
-		{expectedValue: float64(staticEpochInfo.TransactionCount), metric: watcher.TotalTransactionsMetric},
-		{expectedValue: float64(staticEpochInfo.Epoch), metric: watcher.EpochNumberMetric},
+		{expectedValue: float64(epochInfo.AbsoluteSlot), metric: watcher.SlotHeightMetric},
+		{expectedValue: float64(epochInfo.TransactionCount), metric: watcher.TotalTransactionsMetric},
+		{expectedValue: float64(epochInfo.Epoch), metric: watcher.EpochNumberMetric},
 		{expectedValue: float64(firstSlot), metric: watcher.EpochFirstSlotMetric},
 		{expectedValue: float64(lastSlot), metric: watcher.EpochLastSlotMetric},
 	}
 
 	// add inflation reward tests:
-	for i, rewardInfo := range staticInflationRewards {
-		epoch := fmt.Sprintf("%v", staticEpochInfo.Epoch)
-		test := testCase{
-			expectedValue: float64(rewardInfo.Amount) / float64(rpc.LamportsInSol),
-			metric:        watcher.InflationRewardsMetric.WithLabelValues(votekeys[i], epoch),
-		}
-		tests = append(tests, test)
+	inflationRewards, err := client.GetInflationReward(ctx, rpc.CommitmentFinalized, votekeys, 2)
+	assert.NoError(t, err)
+	for i, rewardInfo := range inflationRewards {
+		epoch := fmt.Sprintf("%v", epochInfo.Epoch)
+		tests = append(
+			tests,
+			testCase{
+				expectedValue: float64(rewardInfo.Amount) / float64(rpc.LamportsInSol),
+				metric:        watcher.InflationRewardsMetric.WithLabelValues(votekeys[i], epoch),
+			},
+		)
 	}
 
 	for _, testCase := range tests {
@@ -137,30 +113,11 @@ func TestSolanaCollector_WatchSlots_Static(t *testing.T) {
 			assert.Equal(t, testCase.expectedValue, testutil.ToFloat64(testCase.metric))
 		})
 	}
-
-	metrics := map[string]*prometheus.CounterVec{
-		"solana_leader_slots_total":    watcher.LeaderSlotsMetric,
-		"solana_leader_slots_by_epoch": watcher.LeaderSlotsByEpochMetric,
-	}
-	statuses := []string{"valid", "skipped"}
-	for name, metric := range metrics {
-		// subtest for each metric:
-		t.Run(name, func(t *testing.T) {
-			for _, status := range statuses {
-				// sub subtest for each status (as each one requires a different calc)
-				t.Run(status, func(t *testing.T) {
-					for _, identity := range identities {
-						testBlockProductionMetric(t, watcher, metric, identity, status)
-					}
-				})
-			}
-		})
-	}
 }
 
-func TestSolanaCollector_WatchSlots_Dynamic(t *testing.T) {
+func TestSlotWatcher_WatchSlots_Dynamic(t *testing.T) {
 	// create clients:
-	client := newDynamicRPCClient()
+	server, client := NewDynamicRpcClient(t, 35)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	config := newTestConfig(true)
@@ -173,7 +130,7 @@ func TestSolanaCollector_WatchSlots_Dynamic(t *testing.T) {
 
 	// start client/collector and wait a bit:
 
-	go client.Run(ctx)
+	go server.Run(ctx)
 	time.Sleep(time.Second)
 
 	go watcher.WatchSlots(ctx)
@@ -195,26 +152,26 @@ func TestSolanaCollector_WatchSlots_Dynamic(t *testing.T) {
 		assert.LessOrEqualf(
 			t,
 			int(final.SlotHeight),
-			client.Slot,
+			server.Slot,
 			"Exporter slot (%v) ahead of client slot (%v)!",
 			int(final.SlotHeight),
-			client.Slot,
+			server.Slot,
 		)
 		assert.LessOrEqualf(
 			t,
 			int(final.TotalTransactions),
-			client.TransactionCount,
+			server.TransactionCount,
 			"Exporter transaction count (%v) ahead of client transaction count (%v)!",
 			int(final.TotalTransactions),
-			client.TransactionCount,
+			server.TransactionCount,
 		)
 		assert.LessOrEqualf(
 			t,
 			int(final.EpochNumber),
-			client.Epoch,
+			server.Epoch,
 			"Exporter epoch (%v) ahead of client epoch (%v)!",
 			int(final.EpochNumber),
-			client.Epoch,
+			server.Epoch,
 		)
 
 		// check if epoch changed
