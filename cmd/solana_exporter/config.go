@@ -1,8 +1,10 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
+	"github.com/asymmetric-research/solana_exporter/pkg/rpc"
 	"github.com/asymmetric-research/solana_exporter/pkg/slog"
 	"time"
 )
@@ -15,9 +17,13 @@ type (
 		RpcUrl                    string
 		ListenAddress             string
 		NodeKeys                  []string
+		VoteKeys                  []string
 		BalanceAddresses          []string
+		Identity                  string
 		ComprehensiveSlotTracking bool
 		MonitorBlockSizes         bool
+		LightMode                 bool
+		SlotPace                  time.Duration
 	}
 )
 
@@ -31,37 +37,64 @@ func (i *arrayFlags) Set(value string) error {
 }
 
 func NewExporterConfig(
-	httpTimeout int,
+	ctx context.Context,
+	httpTimeout time.Duration,
 	rpcUrl string,
 	listenAddress string,
 	nodeKeys []string,
 	balanceAddresses []string,
 	comprehensiveSlotTracking bool,
 	monitorBlockSizes bool,
-) *ExporterConfig {
+	lightMode bool,
+	slotPace time.Duration,
+) (*ExporterConfig, error) {
 	logger := slog.Get()
 	logger.Infow(
 		"Setting up export config with ",
-		"httpTimeout", httpTimeout,
+		"httpTimeout", httpTimeout.Seconds(),
 		"rpcUrl", rpcUrl,
 		"listenAddress", listenAddress,
 		"nodeKeys", nodeKeys,
 		"balanceAddresses", balanceAddresses,
 		"comprehensiveSlotTracking", comprehensiveSlotTracking,
 		"monitorBlockSizes", monitorBlockSizes,
+		"lightMode", lightMode,
 	)
-	return &ExporterConfig{
-		HttpTimeout:               time.Duration(httpTimeout) * time.Second,
+	if lightMode && (monitorBlockSizes || comprehensiveSlotTracking) {
+		return nil, fmt.Errorf("-light-mode is not compatible with -comprehensiveSlotTracking or -monitorBlockSizes")
+	}
+
+	// get votekeys and identity from rpc:
+	ctx, cancel := context.WithTimeout(ctx, httpTimeout)
+	defer cancel()
+	client := rpc.NewRPCClient(rpcUrl, httpTimeout)
+	voteKeys, err := GetAssociatedVoteAccounts(ctx, client, rpc.CommitmentFinalized, nodeKeys)
+	if err != nil {
+		return nil, fmt.Errorf("error getting vote accounts: %w", err)
+	}
+
+	identity, err := client.GetIdentity(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error getting identity: %w", err)
+	}
+
+	config := ExporterConfig{
+		HttpTimeout:               httpTimeout,
 		RpcUrl:                    rpcUrl,
 		ListenAddress:             listenAddress,
 		NodeKeys:                  nodeKeys,
+		VoteKeys:                  voteKeys,
 		BalanceAddresses:          balanceAddresses,
+		Identity:                  identity,
 		ComprehensiveSlotTracking: comprehensiveSlotTracking,
 		MonitorBlockSizes:         monitorBlockSizes,
+		LightMode:                 lightMode,
+		SlotPace:                  slotPace,
 	}
+	return &config, nil
 }
 
-func NewExporterConfigFromCLI() *ExporterConfig {
+func NewExporterConfigFromCLI(ctx context.Context) (*ExporterConfig, error) {
 	var (
 		httpTimeout               int
 		rpcUrl                    string
@@ -70,6 +103,8 @@ func NewExporterConfigFromCLI() *ExporterConfig {
 		balanceAddresses          arrayFlags
 		comprehensiveSlotTracking bool
 		monitorBlockSizes         bool
+		lightMode                 bool
+		slotPace                  int
 	)
 	flag.IntVar(
 		&httpTimeout,
@@ -115,9 +150,36 @@ func NewExporterConfigFromCLI() *ExporterConfig {
 		"Set this flag to track block sizes (number of transactions) for the configured validators. "+
 			"Warning: this might grind the RPC node.",
 	)
+	flag.BoolVar(
+		&lightMode,
+		"light-mode",
+		false,
+		"Set this flag to enable light-mode. In light mode, only metrics specific to the node being queried "+
+			"are reported (i.e., metrics such as inflation rewards which are visible from any RPC node, "+
+			"are not reported).",
+	)
+	flag.IntVar(
+		&slotPace,
+		"slot-pace",
+		1,
+		"This is the time between slot-watching metric collections, defaults to 1s.",
+	)
 	flag.Parse()
 
-	return NewExporterConfig(
-		httpTimeout, rpcUrl, listenAddress, nodekeys, balanceAddresses, comprehensiveSlotTracking, monitorBlockSizes,
+	config, err := NewExporterConfig(
+		ctx,
+		time.Duration(httpTimeout)*time.Second,
+		rpcUrl,
+		listenAddress,
+		nodekeys,
+		balanceAddresses,
+		comprehensiveSlotTracking,
+		monitorBlockSizes,
+		lightMode,
+		time.Duration(slotPace)*time.Second,
 	)
+	if err != nil {
+		return nil, err
+	}
+	return config, nil
 }

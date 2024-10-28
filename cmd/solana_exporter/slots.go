@@ -14,20 +14,11 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-const (
-	slotPacerSchedule = 1 * time.Second
-)
-
 type SlotWatcher struct {
 	client rpc.Provider
 	logger *zap.SugaredLogger
 
-	// config:
-	nodekeys                  []string
-	votekeys                  []string
-	identity                  string
-	comprehensiveSlotTracking bool
-	monitorBlockSizes         bool
+	config *ExporterConfig
 
 	// currentEpoch is the current epoch we are watching
 	currentEpoch int64
@@ -54,31 +45,12 @@ type SlotWatcher struct {
 	BlockHeight              *prometheus.GaugeVec
 }
 
-func NewSlotWatcher(
-	client rpc.Provider,
-	nodekeys []string,
-	votekeys []string,
-	identity string,
-	comprehensiveSlotTracking bool,
-	monitorBlockSizes bool,
-) *SlotWatcher {
+func NewSlotWatcher(client rpc.Provider, config *ExporterConfig) *SlotWatcher {
 	logger := slog.Get()
-	logger.Infow(
-		"Creating slot watcher with ",
-		"nodekeys", nodekeys,
-		"votekeys", votekeys,
-		"identity", identity,
-		"comprehensiveSlotTracking", comprehensiveSlotTracking,
-		"monitorBlockSizes", monitorBlockSizes,
-	)
 	watcher := SlotWatcher{
-		client:                    client,
-		logger:                    logger,
-		nodekeys:                  nodekeys,
-		votekeys:                  votekeys,
-		identity:                  identity,
-		comprehensiveSlotTracking: comprehensiveSlotTracking,
-		monitorBlockSizes:         monitorBlockSizes,
+		client: client,
+		logger: logger,
+		config: config,
 		// metrics:
 		TotalTransactionsMetric: prometheus.NewGauge(prometheus.GaugeOpts{
 			Name: "solana_total_transactions",
@@ -179,11 +151,11 @@ func NewSlotWatcher(
 	return &watcher
 }
 
-func (c *SlotWatcher) WatchSlots(ctx context.Context, pace time.Duration) {
-	ticker := time.NewTicker(pace)
+func (c *SlotWatcher) WatchSlots(ctx context.Context) {
+	ticker := time.NewTicker(c.config.SlotPace)
 	defer ticker.Stop()
 
-	c.logger.Infof("Starting slot watcher, running every %v", pace)
+	c.logger.Infof("Starting slot watcher, running every %vs", c.config.SlotPace.Seconds())
 
 	for {
 		select {
@@ -207,7 +179,7 @@ func (c *SlotWatcher) WatchSlots(ctx context.Context, pace time.Duration) {
 
 			c.TotalTransactionsMetric.Set(float64(epochInfo.TransactionCount))
 			c.SlotHeightMetric.Set(float64(epochInfo.AbsoluteSlot))
-			c.BlockHeight.WithLabelValues(c.identity).Set(float64(epochInfo.BlockHeight))
+			c.BlockHeight.WithLabelValues(c.config.Identity).Set(float64(epochInfo.BlockHeight))
 
 			// if we get here, then the tracking numbers are set, so this is a "normal" run.
 			// start by checking if we have progressed since last run:
@@ -218,7 +190,7 @@ func (c *SlotWatcher) WatchSlots(ctx context.Context, pace time.Duration) {
 
 			if epochInfo.Epoch > c.currentEpoch {
 				// fetch inflation rewards for vote accounts:
-				if len(c.votekeys) > 0 {
+				if len(c.config.VoteKeys) > 0 {
 					err = c.fetchAndEmitInflationRewards(ctx, c.currentEpoch)
 					if err != nil {
 						c.logger.Errorf("Failed to emit inflation rewards, bailing out: %v", err)
@@ -280,7 +252,7 @@ func (c *SlotWatcher) trackEpoch(ctx context.Context, epoch *rpc.EpochInfo) {
 
 	// update leader schedule:
 	c.logger.Infof("Updating leader schedule for epoch %v ...", c.currentEpoch)
-	leaderSchedule, err := GetTrimmedLeaderSchedule(ctx, c.client, c.nodekeys, epoch.AbsoluteSlot, c.firstSlot)
+	leaderSchedule, err := GetTrimmedLeaderSchedule(ctx, c.client, c.config.NodeKeys, epoch.AbsoluteSlot, c.firstSlot)
 	if err != nil {
 		c.logger.Errorf("Failed to get trimmed leader schedule, bailing out: %v", err)
 	}
@@ -320,6 +292,10 @@ func (c *SlotWatcher) moveSlotWatermark(ctx context.Context, to int64) {
 // fetchAndEmitBlockProduction fetches block production up to the provided endSlot, emits the prometheus metrics,
 // and updates the SlotWatcher.slotWatermark accordingly
 func (c *SlotWatcher) fetchAndEmitBlockProduction(ctx context.Context, endSlot int64) {
+	if c.config.LightMode {
+		c.logger.Debug("Skipping block-production fetching in light mode.")
+		return
+	}
 	// add 1 because GetBlockProduction's range is inclusive, and the watermark is already tracked
 	startSlot := c.slotWatermark + 1
 	c.logger.Infof("Fetching block production in [%v -> %v]", startSlot, endSlot)
@@ -344,7 +320,7 @@ func (c *SlotWatcher) fetchAndEmitBlockProduction(ctx context.Context, endSlot i
 		c.LeaderSlotsMetric.WithLabelValues(StatusValid, address).Add(valid)
 		c.LeaderSlotsMetric.WithLabelValues(StatusSkipped, address).Add(skipped)
 
-		if slices.Contains(c.nodekeys, address) || c.comprehensiveSlotTracking {
+		if slices.Contains(c.config.NodeKeys, address) || c.config.ComprehensiveSlotTracking {
 			epochStr := toString(c.currentEpoch)
 			c.LeaderSlotsByEpochMetric.WithLabelValues(StatusValid, address, epochStr).Add(valid)
 			c.LeaderSlotsByEpochMetric.WithLabelValues(StatusSkipped, address, epochStr).Add(skipped)
@@ -357,6 +333,10 @@ func (c *SlotWatcher) fetchAndEmitBlockProduction(ctx context.Context, endSlot i
 // fetchAndEmitBlockInfos fetches and emits all the fee rewards (+ block sizes) for the tracked addresses between the
 // slotWatermark and endSlot
 func (c *SlotWatcher) fetchAndEmitBlockInfos(ctx context.Context, endSlot int64) {
+	if c.config.LightMode {
+		c.logger.Debug("Skipping block-infos fetching in light mode.")
+		return
+	}
 	startSlot := c.slotWatermark + 1
 	c.logger.Infof("Fetching fee rewards in [%v -> %v]", startSlot, endSlot)
 
@@ -386,7 +366,7 @@ func (c *SlotWatcher) fetchAndEmitSingleBlockInfo(
 	ctx context.Context, identity string, epoch int64, slot int64,
 ) error {
 	var transactionDetails string
-	if c.monitorBlockSizes {
+	if c.config.MonitorBlockSizes {
 		transactionDetails = "accounts"
 	} else {
 		transactionDetails = "none"
@@ -419,7 +399,7 @@ func (c *SlotWatcher) fetchAndEmitSingleBlockInfo(
 	}
 
 	// track block size:
-	if c.monitorBlockSizes {
+	if c.config.MonitorBlockSizes {
 		c.BlockSizeMetric.WithLabelValues(identity).Set(float64(len(block.Transactions)))
 	}
 
@@ -429,14 +409,18 @@ func (c *SlotWatcher) fetchAndEmitSingleBlockInfo(
 // fetchAndEmitInflationRewards fetches and emits the inflation rewards for the configured inflationRewardAddresses
 // at the provided epoch
 func (c *SlotWatcher) fetchAndEmitInflationRewards(ctx context.Context, epoch int64) error {
+	if c.config.LightMode {
+		c.logger.Debug("Skipping inflation-rewards fetching in light mode.")
+		return nil
+	}
 	c.logger.Infof("Fetching inflation reward for epoch %v ...", toString(epoch))
-	rewardInfos, err := c.client.GetInflationReward(ctx, rpc.CommitmentConfirmed, c.votekeys, &epoch, nil)
+	rewardInfos, err := c.client.GetInflationReward(ctx, rpc.CommitmentConfirmed, c.config.VoteKeys, &epoch, nil)
 	if err != nil {
 		return fmt.Errorf("error fetching inflation rewards: %w", err)
 	}
 
 	for i, rewardInfo := range rewardInfos {
-		address := c.votekeys[i]
+		address := c.config.VoteKeys[i]
 		reward := float64(rewardInfo.Amount) / float64(rpc.LamportsInSol)
 		c.InflationRewardsMetric.WithLabelValues(address, toString(epoch)).Set(reward)
 	}
