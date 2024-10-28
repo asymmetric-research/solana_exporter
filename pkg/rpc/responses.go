@@ -29,29 +29,20 @@ type (
 	}
 
 	EpochInfo struct {
-		// Current absolute slot in epoch
-		AbsoluteSlot int64 `json:"absoluteSlot"`
-		// Current block height
-		BlockHeight int64 `json:"blockHeight"`
-		// Current epoch number
-		Epoch int64 `json:"epoch"`
-		// Current slot relative to the start of the current epoch
-		SlotIndex int64 `json:"slotIndex"`
-		// Number of slots in this epoch
-		SlotsInEpoch int64 `json:"slotsInEpoch"`
-		// Total number of transactions
+		AbsoluteSlot     int64 `json:"absoluteSlot"`
+		BlockHeight      int64 `json:"blockHeight"`
+		Epoch            int64 `json:"epoch"`
+		SlotIndex        int64 `json:"slotIndex"`
+		SlotsInEpoch     int64 `json:"slotsInEpoch"`
 		TransactionCount int64 `json:"transactionCount"`
 	}
 
 	VoteAccount struct {
-		ActivatedStake   int64   `json:"activatedStake"`
-		Commission       int     `json:"commission"`
-		EpochCredits     [][]int `json:"epochCredits"`
-		EpochVoteAccount bool    `json:"epochVoteAccount"`
-		LastVote         int     `json:"lastVote"`
-		NodePubkey       string  `json:"nodePubkey"`
-		RootSlot         int     `json:"rootSlot"`
-		VotePubkey       string  `json:"votePubkey"`
+		ActivatedStake int64  `json:"activatedStake"`
+		LastVote       int    `json:"lastVote"`
+		NodePubkey     string `json:"nodePubkey"`
+		RootSlot       int    `json:"rootSlot"`
+		VotePubkey     string `json:"votePubkey"`
 	}
 
 	VoteAccounts struct {
@@ -75,28 +66,19 @@ type (
 	}
 
 	InflationReward struct {
-		Amount        int64 `json:"amount"`
-		EffectiveSlot int64 `json:"effectiveSlot"`
-		Epoch         int64 `json:"epoch"`
-		PostBalance   int64 `json:"postBalance"`
+		Amount int64 `json:"amount"`
+		Epoch  int64 `json:"epoch"`
 	}
 
 	Block struct {
-		BlockHeight       int64            `json:"blockHeight"`
-		BlockTime         int64            `json:"blockTime,omitempty"`
-		Blockhash         string           `json:"blockhash"`
-		ParentSlot        int64            `json:"parentSlot"`
-		PreviousBlockhash string           `json:"previousBlockhash"`
-		Rewards           []BlockReward    `json:"rewards"`
-		Transactions      []map[string]any `json:"transactions"`
+		Rewards      []BlockReward    `json:"rewards"`
+		Transactions []map[string]any `json:"transactions"`
 	}
 
 	BlockReward struct {
-		Pubkey      string `json:"pubkey"`
-		Lamports    int64  `json:"lamports"`
-		PostBalance int64  `json:"postBalance"`
-		RewardType  string `json:"rewardType"`
-		Commission  uint8  `json:"commission"`
+		Pubkey     string `json:"pubkey"`
+		Lamports   int64  `json:"lamports"`
+		RewardType string `json:"rewardType"`
 	}
 
 	FullTransaction struct {

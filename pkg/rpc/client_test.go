@@ -7,7 +7,7 @@ import (
 )
 
 func newMethodTester(t *testing.T, method string, result any) (*MockServer, *Client) {
-	return NewTestClient(t, map[string]any{method: result})
+	return NewMockClient(t, map[string]any{method: result}, nil, nil, nil, nil)
 }
 
 func TestClient_GetBalance(t *testing.T) {
@@ -21,6 +21,38 @@ func TestClient_GetBalance(t *testing.T) {
 	balance, err := client.GetBalance(ctx, CommitmentFinalized, "")
 	assert.NoError(t, err)
 	assert.Equal(t, float64(5), balance)
+}
+
+func TestClient_GetBlock(t *testing.T) {
+	_, client := newMethodTester(t,
+		"getBlock",
+		map[string]any{
+			"rewards": []map[string]any{
+				{"pubkey": "aaa", "lamports": 10, "rewardType": "fee"},
+			},
+			"transactions": []map[string]map[string]map[string][]string{
+				{"transaction": {"message": {"accountKeys": {"aaa", "bbb", "ccc"}}}},
+			},
+		},
+	)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	block, err := client.GetBlock(ctx, CommitmentFinalized, 0, "full")
+	assert.NoError(t, err)
+	assert.Equal(t,
+		&Block{
+			Rewards: []BlockReward{
+				{Pubkey: "aaa", Lamports: 10, RewardType: "fee"},
+			},
+			// note the test will fail if we don't type it exactly like this:
+			Transactions: []map[string]any{
+				{"transaction": map[string]any{"message": map[string]any{"accountKeys": []any{"aaa", "bbb", "ccc"}}}},
+			},
+		},
+		block,
+	)
 }
 
 func TestClient_GetBlockProduction(t *testing.T) {
@@ -44,17 +76,12 @@ func TestClient_GetBlockProduction(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	blockProduction, err := client.GetBlockProduction(ctx, CommitmentFinalized, nil, nil, nil)
+	blockProduction, err := client.GetBlockProduction(ctx, CommitmentFinalized, 0, 0)
 	assert.NoError(t, err)
 	assert.Equal(t,
 		&BlockProduction{
-			ByIdentity: map[string]HostProduction{
-				"85iYT5RuzRTDgjyRa3cP8SYhM2j21fj7NhfJ3peu1DPr": {9888, 9886},
-			},
-			Range: BlockProductionRange{
-				FirstSlot: 0,
-				LastSlot:  9887,
-			},
+			ByIdentity: map[string]HostProduction{"85iYT5RuzRTDgjyRa3cP8SYhM2j21fj7NhfJ3peu1DPr": {9888, 9886}},
+			Range:      BlockProductionRange{FirstSlot: 0, LastSlot: 9887},
 		},
 		blockProduction,
 	)
@@ -125,17 +152,10 @@ func TestClient_GetInflationReward(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	inflationReward, err := client.GetInflationReward(ctx, CommitmentFinalized, nil, nil, nil)
+	inflationReward, err := client.GetInflationReward(ctx, CommitmentFinalized, nil, 2)
 	assert.NoError(t, err)
 	assert.Equal(t,
-		[]InflationReward{
-			{
-				Amount:        2_500,
-				EffectiveSlot: 224,
-				Epoch:         2,
-				PostBalance:   499_999_442_500,
-			},
-		},
+		[]InflationReward{{Amount: 2_500, Epoch: 2}},
 		inflationReward,
 	)
 }
@@ -207,19 +227,16 @@ func TestClient_GetVoteAccounts(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	voteAccounts, err := client.GetVoteAccounts(ctx, CommitmentFinalized, nil)
+	voteAccounts, err := client.GetVoteAccounts(ctx, CommitmentFinalized)
 	assert.NoError(t, err)
 	assert.Equal(t,
 		&VoteAccounts{
 			Current: []VoteAccount{
 				{
-					Commission:       0,
-					EpochVoteAccount: true,
-					EpochCredits:     [][]int{{1, 64, 0}, {2, 192, 64}},
-					NodePubkey:       "B97CCUW3AEZFGy6uUg6zUdnNYvnVq5VG8PUtb2HayTDD",
-					LastVote:         147,
-					ActivatedStake:   42,
-					VotePubkey:       "3ZT31jkAGhUaw8jsy4bTknwBMP8i4Eueh52By4zXcsVw",
+					NodePubkey:     "B97CCUW3AEZFGy6uUg6zUdnNYvnVq5VG8PUtb2HayTDD",
+					LastVote:       147,
+					ActivatedStake: 42,
+					VotePubkey:     "3ZT31jkAGhUaw8jsy4bTknwBMP8i4Eueh52By4zXcsVw",
 				},
 			},
 		},

@@ -10,8 +10,8 @@ import (
 
 var log *zap.SugaredLogger
 
-// init initializes the logger
-func init() {
+// Init initializes the logger
+func Init() {
 	config := zap.NewProductionConfig()
 
 	// configure:
@@ -50,7 +50,7 @@ func getEnvLogLevel() zapcore.Level {
 	case "error":
 		return zapcore.ErrorLevel
 	default:
-		fmt.Println(fmt.Sprintf("Unrecognised 'LOG_LEVEL' environment variable '%s', using 'info'", level))
+		fmt.Printf("Unrecognised 'LOG_LEVEL' environment variable '%s', using 'info'\n", level)
 		return zapcore.InfoLevel
 	}
 }

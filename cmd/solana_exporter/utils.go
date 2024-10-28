@@ -42,7 +42,7 @@ func SelectFromSchedule(schedule map[string][]int64, startSlot, endSlot int64) m
 // GetTrimmedLeaderSchedule fetches the leader schedule, but only for the validators we are interested in.
 // Additionally, it adjusts the leader schedule to the current epoch offset.
 func GetTrimmedLeaderSchedule(
-	ctx context.Context, client rpc.Provider, identities []string, slot, epochFirstSlot int64,
+	ctx context.Context, client *rpc.Client, identities []string, slot, epochFirstSlot int64,
 ) (map[string][]int64, error) {
 	logger := slog.Get()
 	leaderSchedule, err := client.GetLeaderSchedule(ctx, rpc.CommitmentConfirmed, slot)
@@ -69,9 +69,9 @@ func GetTrimmedLeaderSchedule(
 
 // GetAssociatedVoteAccounts returns the votekeys associated with a given list of nodekeys
 func GetAssociatedVoteAccounts(
-	ctx context.Context, client rpc.Provider, commitment rpc.Commitment, nodekeys []string,
+	ctx context.Context, client *rpc.Client, commitment rpc.Commitment, nodekeys []string,
 ) ([]string, error) {
-	voteAccounts, err := client.GetVoteAccounts(ctx, commitment, nil)
+	voteAccounts, err := client.GetVoteAccounts(ctx, commitment)
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +94,7 @@ func GetAssociatedVoteAccounts(
 }
 
 // FetchBalances fetches SOL balances for a list of addresses
-func FetchBalances(ctx context.Context, client rpc.Provider, addresses []string) (map[string]float64, error) {
+func FetchBalances(ctx context.Context, client *rpc.Client, addresses []string) (map[string]float64, error) {
 	balances := make(map[string]float64)
 	for _, address := range addresses {
 		balance, err := client.GetBalance(ctx, rpc.CommitmentConfirmed, address)
