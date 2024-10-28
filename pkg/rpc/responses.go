@@ -98,8 +98,17 @@ type (
 		RewardType  string `json:"rewardType"`
 		Commission  uint8  `json:"commission"`
 	}
+
 	Identity struct {
 		Identity string `json:"identity"`
+	}
+
+	FullTransaction struct {
+		Transaction struct {
+			Message struct {
+				AccountKeys []string `json:"accountKeys"`
+			} `json:"message"`
+		} `json:"transaction"`
 	}
 )
 

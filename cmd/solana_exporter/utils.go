@@ -2,11 +2,14 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/asymmetric-research/solana_exporter/pkg/rpc"
 	"github.com/asymmetric-research/solana_exporter/pkg/slog"
 	"slices"
 )
+
+const VoteProgram = "Vote111111111111111111111111111111111111111"
 
 func assertf(condition bool, format string, args ...any) {
 	logger := slog.Get()
@@ -120,4 +123,23 @@ func CombineUnique[T comparable](args ...[]T) []T {
 func GetEpochBounds(info *rpc.EpochInfo) (int64, int64) {
 	firstSlot := info.AbsoluteSlot - info.SlotIndex
 	return firstSlot, firstSlot + info.SlotsInEpoch - 1
+}
+
+func CountVoteTransactions(block *rpc.Block) (int, error) {
+	txData, err := json.Marshal(block.Transactions)
+	if err != nil {
+		return 0, fmt.Errorf("failed to marshal transactions: %w", err)
+	}
+	var transactions []rpc.FullTransaction
+	if err := json.Unmarshal(txData, &transactions); err != nil {
+		return 0, fmt.Errorf("failed to unmarshal transactions: %w", err)
+	}
+
+	voteCount := 0
+	for _, tx := range transactions {
+		if slices.Contains(tx.Transaction.Message.AccountKeys, VoteProgram) {
+			voteCount++
+		}
+	}
+	return voteCount, nil
 }
