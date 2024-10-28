@@ -75,7 +75,7 @@ type Provider interface {
 	GetBlock(ctx context.Context, commitment Commitment, slot int64, transactionDetails string) (*Block, error)
 
 	GetHealth(ctx context.Context) (*string, error)
-	GetIdentity(ctx context.Context) (*string, error)
+	GetIdentity(ctx context.Context) (string, error)
 	GetMinimumLedgerSlot(ctx context.Context) (*int64, error)
 	GetFirstAvailableBlock(ctx context.Context) (*int64, error)
 }
@@ -321,12 +321,12 @@ func (c *Client) GetHealth(ctx context.Context) (*string, error) {
 
 // GetIdentity returns the identity pubkey for the current node
 // See API docs: https://solana.com/docs/rpc/http/getidentity
-func (c *Client) GetIdentity(ctx context.Context) (*string, error) {
+func (c *Client) GetIdentity(ctx context.Context) (string, error) {
 	var resp response[Identity]
 	if err := getResponse(ctx, c, "getIdentity", []any{}, &resp); err != nil {
-		return nil, err
+		return "", err
 	}
-	return &resp.Result.Identity, nil
+	return resp.Result.Identity, nil
 }
 
 // MinimumLedgerSlot returns the lowest slot that the node has information about in its ledger.
