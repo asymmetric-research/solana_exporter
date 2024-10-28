@@ -25,8 +25,8 @@ const (
 	StateCurrent    = "current"
 	StateDelinquent = "delinquent"
 
-	TransactionTypeVote  = "vote"
-	TransactionTypeTotal = "total"
+	TransactionTypeVote    = "vote"
+	TransactionTypeNonVote = "non_vote"
 )
 
 type SolanaCollector struct {

@@ -35,7 +35,7 @@ type (
 		inflationRewards map[string]int
 		easyResults      map[string]any
 
-		slotInfos      map[int]MockSlotInfo
+		SlotInfos      map[int]MockSlotInfo
 		validatorInfos map[string]MockValidatorInfo
 	}
 
@@ -76,7 +76,7 @@ func NewMockServer(
 		easyResults:      easyResults,
 		balances:         balances,
 		inflationRewards: inflationRewards,
-		slotInfos:        slotInfos,
+		SlotInfos:        slotInfos,
 		validatorInfos:   validatorInfos,
 	}
 
@@ -130,10 +130,10 @@ func (s *MockServer) SetOpt(opt MockOpt, key any, value any) {
 		}
 		s.easyResults[key.(string)] = value
 	case SlotInfosOpt:
-		if s.slotInfos == nil {
-			s.slotInfos = make(map[int]MockSlotInfo)
+		if s.SlotInfos == nil {
+			s.SlotInfos = make(map[int]MockSlotInfo)
 		}
-		s.slotInfos[key.(int)] = value.(MockSlotInfo)
+		s.SlotInfos[key.(int)] = value.(MockSlotInfo)
 	case ValidatorInfoOpt:
 		if s.validatorInfos == nil {
 			s.validatorInfos = make(map[string]MockValidatorInfo)
@@ -174,13 +174,13 @@ func (s *MockServer) getResult(method string, params ...any) (any, *RPCError) {
 		return rewards, nil
 	}
 
-	if method == "getBlock" && s.slotInfos != nil {
+	if method == "getBlock" && s.SlotInfos != nil {
 		// get params:
 		slot := int(params[0].(float64))
 		config := params[1].(map[string]any)
 		transactionDetails, rewardsIncluded := config["transactionDetails"].(string), config["rewards"].(bool)
 
-		slotInfo, ok := s.slotInfos[slot]
+		slotInfo, ok := s.SlotInfos[slot]
 		if !ok {
 			s.logger.Warnf("no slot info for slot %d", slot)
 			return nil, &RPCError{Code: BlockCleanedUpCode, Message: "Block cleaned up."}
@@ -211,7 +211,7 @@ func (s *MockServer) getResult(method string, params ...any) (any, *RPCError) {
 		return map[string]any{"rewards": rewards, "transactions": transactions}, nil
 	}
 
-	if method == "getBlockProduction" && s.slotInfos != nil {
+	if method == "getBlockProduction" && s.SlotInfos != nil {
 		// get params:
 		config := params[0].(map[string]any)
 		slotRange := config["range"].(map[string]any)
@@ -222,7 +222,7 @@ func (s *MockServer) getResult(method string, params ...any) (any, *RPCError) {
 			byIdentity[nodekey] = []int{0, 0}
 		}
 		for i := firstSlot; i <= lastSlot; i++ {
-			info := s.slotInfos[i]
+			info := s.SlotInfos[i]
 			production := byIdentity[info.Leader]
 			production[0]++
 			if info.Block != nil {

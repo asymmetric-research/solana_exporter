@@ -49,6 +49,10 @@ func getEnvLogLevel() zapcore.Level {
 		return zapcore.WarnLevel
 	case "error":
 		return zapcore.ErrorLevel
+	case "panic":
+		return zapcore.PanicLevel
+	case "fatal":
+		return zapcore.FatalLevel
 	default:
 		fmt.Printf("Unrecognised 'LOG_LEVEL' environment variable '%s', using 'info'\n", level)
 		return zapcore.InfoLevel
