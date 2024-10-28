@@ -19,7 +19,6 @@ type (
 		NodeKeys                  []string
 		VoteKeys                  []string
 		BalanceAddresses          []string
-		Identity                  string
 		ComprehensiveSlotTracking bool
 		MonitorBlockSizes         bool
 		LightMode                 bool
@@ -64,18 +63,13 @@ func NewExporterConfig(
 		return nil, fmt.Errorf("-light-mode is not compatible with -comprehensiveSlotTracking or -monitorBlockSizes")
 	}
 
-	// get votekeys and identity from rpc:
+	// get votekeys from rpc:
 	ctx, cancel := context.WithTimeout(ctx, httpTimeout)
 	defer cancel()
 	client := rpc.NewRPCClient(rpcUrl, httpTimeout)
 	voteKeys, err := GetAssociatedVoteAccounts(ctx, client, rpc.CommitmentFinalized, nodeKeys)
 	if err != nil {
 		return nil, fmt.Errorf("error getting vote accounts: %w", err)
-	}
-
-	identity, err := client.GetIdentity(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("error getting identity: %w", err)
 	}
 
 	config := ExporterConfig{
@@ -85,7 +79,6 @@ func NewExporterConfig(
 		NodeKeys:                  nodeKeys,
 		VoteKeys:                  voteKeys,
 		BalanceAddresses:          balanceAddresses,
-		Identity:                  identity,
 		ComprehensiveSlotTracking: comprehensiveSlotTracking,
 		MonitorBlockSizes:         monitorBlockSizes,
 		LightMode:                 lightMode,

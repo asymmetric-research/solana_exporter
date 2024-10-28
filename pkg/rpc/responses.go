@@ -99,10 +99,6 @@ type (
 		Commission  uint8  `json:"commission"`
 	}
 
-	Identity struct {
-		Identity string `json:"identity"`
-	}
-
 	FullTransaction struct {
 		Transaction struct {
 			Message struct {
