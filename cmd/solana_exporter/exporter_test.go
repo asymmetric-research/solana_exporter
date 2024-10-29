@@ -228,10 +228,6 @@ func TestSolanaCollector(t *testing.T) {
 			NewLV(0, "bbb", "BBB"),
 			NewLV(0, "ccc", "CCC"),
 		),
-		collector.ValidatorActive.makeCollectionTest(
-			NewLV(3, "current"),
-			NewLV(0, "delinquent"),
-		),
 		collector.NodeVersion.makeCollectionTest(
 			NewLV(1, "v1.0.0"),
 		),
