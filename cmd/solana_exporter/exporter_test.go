@@ -16,9 +16,6 @@ import (
 	"time"
 )
 
-const InflationRewardLamports = 10
-const FeeRewardLamports = 10
-
 type (
 	Simulator struct {
 		Server *rpc.MockServer
@@ -28,17 +25,21 @@ type (
 		Epoch            int
 		TransactionCount int
 
-		SlotTime       time.Duration
-		EpochSize      int
-		LeaderSchedule map[string][]int
-		Nodekeys       []string
-		Votekeys       []string
+		// constants for the simulator
+		SlotTime                time.Duration
+		EpochSize               int
+		LeaderSchedule          map[string][]int
+		Nodekeys                []string
+		Votekeys                []string
+		FeeRewardLamports       int
+		InflationRewardLamports int
 	}
 )
 
 func NewSimulator(t *testing.T, slot int) (*Simulator, *rpc.Client) {
 	nodekeys := []string{"aaa", "bbb", "ccc"}
 	votekeys := []string{"AAA", "BBB", "CCC"}
+	feeRewardLamports, inflationRewardLamports := 10, 10
 
 	validatorInfos := make(map[string]rpc.MockValidatorInfo)
 	for i, nodekey := range nodekeys {
@@ -68,21 +69,23 @@ func NewSimulator(t *testing.T, slot int) (*Simulator, *rpc.Client) {
 			"CCC": 6 * rpc.LamportsInSol,
 		},
 		map[string]int{
-			"AAA": InflationRewardLamports,
-			"BBB": InflationRewardLamports,
-			"CCC": InflationRewardLamports,
+			"AAA": inflationRewardLamports,
+			"BBB": inflationRewardLamports,
+			"CCC": inflationRewardLamports,
 		},
 		nil,
 		validatorInfos,
 	)
 	simulator := Simulator{
-		Slot:           0,
-		Server:         mockServer,
-		EpochSize:      24,
-		SlotTime:       100 * time.Millisecond,
-		LeaderSchedule: leaderSchedule,
-		Nodekeys:       nodekeys,
-		Votekeys:       votekeys,
+		Slot:                    0,
+		Server:                  mockServer,
+		EpochSize:               24,
+		SlotTime:                100 * time.Millisecond,
+		LeaderSchedule:          leaderSchedule,
+		Nodekeys:                nodekeys,
+		Votekeys:                votekeys,
+		InflationRewardLamports: inflationRewardLamports,
+		FeeRewardLamports:       feeRewardLamports,
 	}
 	simulator.PopulateSlot(0)
 	if slot > 0 {
@@ -146,7 +149,7 @@ func (c *Simulator) PopulateSlot(slot int) {
 		}
 
 		c.TransactionCount += len(transactions)
-		block = &rpc.MockBlockInfo{Fee: FeeRewardLamports, Transactions: transactions}
+		block = &rpc.MockBlockInfo{Fee: c.FeeRewardLamports, Transactions: transactions}
 	}
 	// add slot info:
 	c.Server.SetOpt(rpc.SlotInfosOpt, slot, rpc.MockSlotInfo{Leader: leader, Block: block})
