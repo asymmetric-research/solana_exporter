@@ -3,6 +3,7 @@ package rpc
 import (
 	"context"
 	"github.com/stretchr/testify/assert"
+	"sort"
 	"testing"
 )
 
@@ -130,7 +131,10 @@ func TestMockServer_getVoteAccounts(t *testing.T) {
 
 	voteAccounts, err := client.GetVoteAccounts(ctx, CommitmentFinalized)
 	assert.NoError(t, err)
-	// TODO: this test sometimes (albeit rarely) fails because the ordering gets mixed up, fix!
+	// sort the vote accounts before comparing:
+	sort.Slice(voteAccounts.Current, func(i, j int) bool {
+		return voteAccounts.Current[i].VotePubkey < voteAccounts.Current[j].VotePubkey
+	})
 	assert.Equal(t,
 		VoteAccounts{
 			Current: []VoteAccount{
