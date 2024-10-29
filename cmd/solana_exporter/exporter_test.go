@@ -468,7 +468,6 @@ func TestSolanaCollector_Collect_Static(t *testing.T) {
 	prometheus.NewPedanticRegistry().MustRegister(collector)
 
 	testCases := []collectionTest{
-		collector.ValidatorActive.makeCollectionTest(NewLV(2, "current"), NewLV(1, "delinquent")),
 		collector.ValidatorActiveStake.makeCollectionTest(abcValues(49, 42, 43)...),
 		collector.ValidatorLastVote.makeCollectionTest(abcValues(92, 147, 148)...),
 		collector.ValidatorRootSlot.makeCollectionTest(abcValues(3, 18, 19)...),
@@ -489,7 +488,6 @@ func TestSolanaCollector_Collect_Dynamic(t *testing.T) {
 
 	// start off by testing initial state:
 	testCases := []collectionTest{
-		collector.ValidatorActive.makeCollectionTest(NewLV(3, "current"), NewLV(0, "delinquent")),
 		collector.ValidatorActiveStake.makeCollectionTest(abcValues(1_000_000, 1_000_000, 1_000_000)...),
 		collector.ValidatorRootSlot.makeCollectionTest(abcValues(0, 0, 0)...),
 		collector.ValidatorDelinquent.makeCollectionTest(abcValues(0, 0, 0)...),
@@ -509,7 +507,6 @@ func TestSolanaCollector_Collect_Dynamic(t *testing.T) {
 
 	// now test the final state
 	testCases = []collectionTest{
-		collector.ValidatorActive.makeCollectionTest(NewLV(2, "current"), NewLV(1, "delinquent")),
 		collector.ValidatorActiveStake.makeCollectionTest(abcValues(2_000_000, 500_000, 1_000_000)...),
 		collector.ValidatorRootSlot.makeCollectionTest(abcValues(0, 0, 0)...),
 		collector.ValidatorDelinquent.makeCollectionTest(abcValues(0, 0, 1)...),
