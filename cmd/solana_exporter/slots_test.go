@@ -241,7 +241,7 @@ func TestSlotWatcher_WatchSlots_Dynamic(t *testing.T) {
 				// inflation rewards:
 				votekey := simulator.Votekeys[i]
 				assert.Equalf(t,
-					float64(InflationRewardLamports)/rpc.LamportsInSol,
+					float64(simulator.InflationRewardLamports)/rpc.LamportsInSol,
 					testutil.ToFloat64(
 						watcher.InflationRewardsMetric.WithLabelValues(votekey, toString(initial.EpochNumber)),
 					),
@@ -251,7 +251,7 @@ func TestSlotWatcher_WatchSlots_Dynamic(t *testing.T) {
 
 				// fee rewards:
 				assert.Equalf(t,
-					float64(FeeRewardLamports*leaderSlotsPerEpoch*3/4)/rpc.LamportsInSol,
+					float64(simulator.FeeRewardLamports*leaderSlotsPerEpoch*3/4)/rpc.LamportsInSol,
 					testutil.ToFloat64(
 						watcher.FeeRewardsMetric.WithLabelValues(nodekey, toString(initial.EpochNumber)),
 					),
