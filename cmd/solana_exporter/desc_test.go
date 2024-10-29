@@ -5,10 +5,16 @@ import (
 	"sort"
 )
 
-type LV struct {
-	labels []string
-	value  float64
-}
+type (
+	LV struct {
+		labels []string
+		value  float64
+	}
+	collectionTest struct {
+		Name             string
+		ExpectedResponse string
+	}
+)
 
 func NewLV(value float64, labels ...string) LV {
 	return LV{labels, value}
