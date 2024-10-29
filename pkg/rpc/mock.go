@@ -168,7 +168,6 @@ func (s *MockServer) getResult(method string, params ...any) (any, *RPCError) {
 		rewards := make([]map[string]int, len(addresses))
 		for i, item := range addresses {
 			address := item.(string)
-			// TODO: make inflation rewards fetchable by epoch
 			rewards[i] = map[string]int{"amount": s.inflationRewards[address], "epoch": epoch}
 		}
 		return rewards, nil
