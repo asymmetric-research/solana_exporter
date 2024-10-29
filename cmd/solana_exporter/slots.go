@@ -53,28 +53,28 @@ func NewSlotWatcher(client *rpc.Client, config *ExporterConfig) *SlotWatcher {
 		config: config,
 		// metrics:
 		TotalTransactionsMetric: prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "solana_total_transactions",
+			Name: "solana_node_total_transactions",
 			Help: "Total number of transactions processed without error since genesis.",
 		}),
 		SlotHeightMetric: prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "solana_slot_height",
+			Name: "solana_node_slot_height",
 			Help: "The current slot number",
 		}),
 		EpochNumberMetric: prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "solana_epoch_number",
+			Name: "solana_node_epoch_number",
 			Help: "The current epoch number.",
 		}),
 		EpochFirstSlotMetric: prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "solana_epoch_first_slot",
+			Name: "solana_node_epoch_first_slot",
 			Help: "Current epoch's first slot [inclusive].",
 		}),
 		EpochLastSlotMetric: prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "solana_epoch_last_slot",
+			Name: "solana_node_epoch_last_slot",
 			Help: "Current epoch's last slot [inclusive].",
 		}),
 		LeaderSlotsMetric: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
-				Name: "solana_leader_slots",
+				Name: "solana_validator_leader_slots",
 				Help: fmt.Sprintf(
 					"Number of slots processed, grouped by %s, and %s ('%s' or '%s')",
 					NodekeyLabel, SkipStatusLabel, StatusValid, StatusSkipped,
@@ -84,7 +84,7 @@ func NewSlotWatcher(client *rpc.Client, config *ExporterConfig) *SlotWatcher {
 		),
 		LeaderSlotsByEpochMetric: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
-				Name: "solana_leader_slots_by_epoch",
+				Name: "solana_validator_leader_slots_by_epoch",
 				Help: fmt.Sprintf(
 					"Number of slots processed, grouped by %s, %s ('%s' or '%s'), and %s",
 					NodekeyLabel, SkipStatusLabel, StatusValid, StatusSkipped, EpochLabel,
@@ -94,27 +94,27 @@ func NewSlotWatcher(client *rpc.Client, config *ExporterConfig) *SlotWatcher {
 		),
 		InflationRewardsMetric: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
-				Name: "solana_inflation_rewards",
+				Name: "solana_validator_inflation_rewards",
 				Help: fmt.Sprintf("Inflation reward earned, grouped by %s and %s", VotekeyLabel, EpochLabel),
 			},
 			[]string{VotekeyLabel, EpochLabel},
 		),
 		FeeRewardsMetric: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
-				Name: "solana_fee_rewards",
+				Name: "solana_validator_fee_rewards",
 				Help: fmt.Sprintf("Transaction fee rewards earned, grouped by %s and %s", NodekeyLabel, EpochLabel),
 			},
 			[]string{NodekeyLabel, EpochLabel},
 		),
 		BlockSizeMetric: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
-				Name: "solana_block_size",
+				Name: "solana_validator_block_size",
 				Help: fmt.Sprintf("Number of transactions per block, grouped by %s", NodekeyLabel),
 			},
 			[]string{NodekeyLabel, TransactionTypeLabel},
 		),
 		BlockHeightMetric: prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "solana_block_height",
+			Name: "solana_node_block_height",
 			Help: "The current block height of the node",
 		}),
 	}

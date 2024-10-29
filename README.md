@@ -75,17 +75,17 @@ The table below describes all the metrics collected by the `solana_exporter`:
 | `solana_node_num_slots_behind`      | The number of slots that the node is behind the latest cluster confirmed slot.*          | N/A                           |
 | `solana_node_minimum_ledger_slot`   | The lowest slot that the node has information about in its ledger.*                      | N/A                           |
 | `solana_node_first_available_block` | The slot of the lowest confirmed block that has not been purged from the node's ledger.* | N/A                           |
-| `solana_total_transactions`         | Total number of transactions processed without error since genesis.*                     | N/A                           |
-| `solana_slot_height`                | The current slot number.*                                                                | N/A                           |
-| `solana_epoch_number`               | The current epoch number.*                                                               | N/A                           |
-| `solana_epoch_first_slot`           | Current epoch's first slot \[inclusive\].*                                               | N/A                           |
-| `solana_epoch_last_slot`            | Current epoch's last slot \[inclusive\].*                                                | N/A                           |
-| `solana_leader_slots`               | Number of slots processed.                                                               | `status`, `nodekey`           |
-| `solana_leader_slots_by_epoch`      | Number of slots processed.                                                               | `status`, `nodekey`, `epoch`  |
-| `solana_inflation_rewards`          | Inflation reward earned.                                                                 | `votekey`, `epoch`            |
-| `solana_fee_rewards`                | Transaction fee rewards earned.                                                          | `nodekey`, `epoch`            |
-| `solana_block_size`                 | Number of transactions per block.*                                                       | `nodekey`, `transaction_type` |
-| `solana_block_height`               | The current block height of the node.                                                    | N/A                           |
+| `solana_node_total_transactions`    | Total number of transactions processed without error since genesis.*                     | N/A                           |
+| `solana_node_slot_height`           | The current slot number.*                                                                | N/A                           |
+| `solana_node_epoch_number`          | The current epoch number.*                                                               | N/A                           |
+| `solana_node_epoch_first_slot`      | Current epoch's first slot \[inclusive\].*                                               | N/A                           |
+| `solana_node_epoch_last_slot`       | Current epoch's last slot \[inclusive\].*                                                | N/A                           |
+| `solana_node_leader_slots`          | Number of slots processed.                                                               | `status`, `nodekey`           |
+| `solana_node_leader_slots_by_epoch` | Number of slots processed.                                                               | `status`, `nodekey`, `epoch`  |
+| `solana_node_inflation_rewards`     | Inflation reward earned.                                                                 | `votekey`, `epoch`            |
+| `solana_node_fee_rewards`           | Transaction fee rewards earned.                                                          | `nodekey`, `epoch`            |
+| `solana_node_block_size`            | Number of transactions per block.*                                                       | `nodekey`, `transaction_type` |
+| `solana_node_block_height`          | The current block height of the node.                                                    | N/A                           |
 
 ***NOTE***: An `*` in the description indicates that the metric **is** tracked in `-light-mode`.
 
