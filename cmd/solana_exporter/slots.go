@@ -174,6 +174,7 @@ func (c *SlotWatcher) WatchSlots(ctx context.Context) {
 				c.trackEpoch(ctx, epochInfo)
 			}
 
+			c.logger.Infof("Current slot: %v", epochInfo.AbsoluteSlot)
 			c.TotalTransactionsMetric.Set(float64(epochInfo.TransactionCount))
 			c.SlotHeightMetric.Set(float64(epochInfo.AbsoluteSlot))
 			c.BlockHeightMetric.Set(float64(epochInfo.BlockHeight))
@@ -281,21 +282,21 @@ func (c *SlotWatcher) checkValidSlotRange(from, to int64) error {
 
 // moveSlotWatermark performs all the slot-watching tasks required to move the slotWatermark to the provided 'to' slot.
 func (c *SlotWatcher) moveSlotWatermark(ctx context.Context, to int64) {
-	c.fetchAndEmitBlockProduction(ctx, to)
-	c.fetchAndEmitBlockInfos(ctx, to)
+	c.logger.Infof("Moving watermark %v -> %v", c.slotWatermark, to)
+	startSlot := c.slotWatermark + 1
+	c.fetchAndEmitBlockProduction(ctx, startSlot, to)
+	c.fetchAndEmitBlockInfos(ctx, startSlot, to)
 	c.slotWatermark = to
 }
 
-// fetchAndEmitBlockProduction fetches block production up to the provided endSlot, emits the prometheus metrics,
-// and updates the SlotWatcher.slotWatermark accordingly
-func (c *SlotWatcher) fetchAndEmitBlockProduction(ctx context.Context, endSlot int64) {
+// fetchAndEmitBlockProduction fetches block production from startSlot up to the provided endSlot [inclusive],
+// and emits the prometheus metrics,
+func (c *SlotWatcher) fetchAndEmitBlockProduction(ctx context.Context, startSlot, endSlot int64) {
 	if c.config.LightMode {
 		c.logger.Debug("Skipping block-production fetching in light mode.")
 		return
 	}
-	// add 1 because GetBlockProduction's range is inclusive, and the watermark is already tracked
-	startSlot := c.slotWatermark + 1
-	c.logger.Infof("Fetching block production in [%v -> %v]", startSlot, endSlot)
+	c.logger.Debugf("Fetching block production in [%v -> %v]", startSlot, endSlot)
 
 	// make sure the bounds are contained within the epoch we are currently watching:
 	if err := c.checkValidSlotRange(startSlot, endSlot); err != nil {
@@ -324,18 +325,17 @@ func (c *SlotWatcher) fetchAndEmitBlockProduction(ctx context.Context, endSlot i
 		}
 	}
 
-	c.logger.Infof("Fetched block production in [%v -> %v]", startSlot, endSlot)
+	c.logger.Debugf("Fetched block production in [%v -> %v]", startSlot, endSlot)
 }
 
 // fetchAndEmitBlockInfos fetches and emits all the fee rewards (+ block sizes) for the tracked addresses between the
-// slotWatermark and endSlot
-func (c *SlotWatcher) fetchAndEmitBlockInfos(ctx context.Context, endSlot int64) {
+// startSlot and endSlot [inclusive]
+func (c *SlotWatcher) fetchAndEmitBlockInfos(ctx context.Context, startSlot, endSlot int64) {
 	if c.config.LightMode {
 		c.logger.Debug("Skipping block-infos fetching in light mode.")
 		return
 	}
-	startSlot := c.slotWatermark + 1
-	c.logger.Infof("Fetching fee rewards in [%v -> %v]", startSlot, endSlot)
+	c.logger.Debugf("Fetching fee rewards in [%v -> %v]", startSlot, endSlot)
 
 	if err := c.checkValidSlotRange(startSlot, endSlot); err != nil {
 		c.logger.Fatalf("invalid slot range: %v", err)
@@ -355,7 +355,7 @@ func (c *SlotWatcher) fetchAndEmitBlockInfos(ctx context.Context, endSlot int64)
 		}
 	}
 
-	c.logger.Infof("Fetched fee rewards in [%v -> %v]", startSlot, endSlot)
+	c.logger.Debugf("Fetched fee rewards in [%v -> %v]", startSlot, endSlot)
 }
 
 // fetchAndEmitSingleBlockInfo fetches and emits the fee reward + block size for a single block.
