@@ -59,8 +59,22 @@ func NewExporterConfig(
 		"monitorBlockSizes", monitorBlockSizes,
 		"lightMode", lightMode,
 	)
-	if lightMode && (monitorBlockSizes || comprehensiveSlotTracking) {
-		return nil, fmt.Errorf("-light-mode is not compatible with -comprehensiveSlotTracking or -monitorBlockSizes")
+	if lightMode {
+		if comprehensiveSlotTracking {
+			return nil, fmt.Errorf("'-light-mode' is imcompatible with `-comprehensive-slot-tracking`")
+		}
+
+		if monitorBlockSizes {
+			return nil, fmt.Errorf("'-light-mode' is imcompatible with `-monitor-block-sizes`")
+		}
+
+		if len(nodeKeys) > 0 {
+			return nil, fmt.Errorf("'-light-mode' is imcompatible with `-nodekey`")
+		}
+
+		if len(balanceAddresses) > 0 {
+			return nil, fmt.Errorf("'-light-mode' is imcompatible with `-balance-addresses`")
+		}
 	}
 
 	// get votekeys from rpc:

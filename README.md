@@ -48,7 +48,8 @@ The exporter is configured via the following command line arguments:
 
 ### Notes on Configuration
 
-* `-light-mode` is incompatible with both `-monitor-block-sizes` and `-comprehensive-slot-tracking`.
+* `-light-mode` is incompatible with `-nodekey`, `-balance-address`, `-monitor-block-sizes`, and 
+`-comprehensive-slot-tracking`, as these options control metrics which are not monitored in `-light-mode`.
 * ***WARNING***:
   * Configuring `-comprehensive-slot-tracking` will lead to potentially thousands of new Prometheus metrics being 
   created every epoch.
@@ -84,8 +85,8 @@ The table below describes all the metrics collected by the `solana_exporter`:
 | `solana_node_leader_slots_by_epoch` | Number of slots processed.                                                               | `status`, `nodekey`, `epoch`  |
 | `solana_node_inflation_rewards`     | Inflation reward earned.                                                                 | `votekey`, `epoch`            |
 | `solana_node_fee_rewards`           | Transaction fee rewards earned.                                                          | `nodekey`, `epoch`            |
-| `solana_node_block_size`            | Number of transactions per block.*                                                       | `nodekey`, `transaction_type` |
-| `solana_node_block_height`          | The current block height of the node.                                                    | N/A                           |
+| `solana_node_block_size`            | Number of transactions per block.                                                        | `nodekey`, `transaction_type` |
+| `solana_node_block_height`          | The current block height of the node.*                                                   | N/A                           |
 
 ***NOTE***: An `*` in the description indicates that the metric **is** tracked in `-light-mode`.
 
