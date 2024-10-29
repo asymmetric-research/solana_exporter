@@ -1,91 +1,104 @@
-# solana_exporter
+# Solana Exporter
+## Overview
 
-solana_exporter exports basic monitoring data from a Solana node.
+The Solana Exporter exports basic monitoring data from a Solana node, using the 
+[Solana RPC API](https://solana.com/docs/rpc).
 
-<img src="https://i.imgur.com/2pIXLyU.png" width="550px" alt="" />
+### Example Usage
 
-## Metrics
+To use the Solana Exporter, simply run the program with the desired 
+[command line configuration](#Command-Line-Arguments), e.g.,
 
-Metrics tracked with confirmation level `recent`:
-
-- **solana_validator_root_slot** - Latest root seen by each validator.
-- **solana_validator_last_vote** - Latest vote by each validator (not necessarily on the majority fork!)
-- **solana_validator_delinquent** - Whether node considers each validator to be delinquent.
-- **solana_validator_activated_stake**  - Active stake for each validator.
-- **solana_active_validators** - Total number of active/delinquent validators.
-
-Metrics tracked with confirmation level `max`:
-
-- **solana_leader_slots_total** - Number of leader slots per leader, grouped by skip status.
-- **solana_confirmed_epoch_first_slot** - Current epoch's first slot.
-- **solana_confirmed_epoch_last_slot** - Current epoch's last slot.
-- **solana_confirmed_epoch_number** - Current epoch.
-- **solana_confirmed_slot_height** - Last confirmed slot height observed.
-- **solana_confirmed_transactions_total** - Total number of transactions processed since genesis.
-
-Metrics with no confirmation level:
-
-- **solana_node_version** - Current solana-validator node version.
+```shell
+solana_exporter \
+  -nodekey <VALIDATOR_IDENTITY_1> -nodekey <VALIDATOR_IDENTITY_2> \
+  -balance-address <ADDRESS_1> -balance-address <ADDRESS_2> \
+  -comprehensive-slot-tracking \
+  -monitor-block-sizes
+```
 
 ## Installation
+### Build
 
-`solana_exporter` can be installed by doing the following. It's assumed you already have `go` installed.
+Assuming you already have [Go installed](https://go.dev/doc/install), the `solana_exporter` can be installed by 
+cloning this repository and building the binary:
 
-```sh
+```shell
 git clone https://github.com/asymmetric-research/solana_exporter.git
 cd solana_exporter
 CGO_ENABLED=0 go build ./cmd/solana_exporter
 ```
 
-## Command line arguments
+## Configuration
+### Command Line Arguments
 
-You typically only need to set the RPC URL, pointing to one of your own nodes:
+The exporter is configured via the following command line arguments:
 
-    ./solana_exporter -rpc-url=http://yournode:8899
+| Option                         | Description                                                                                                                                                                                                             | Default                   |
+|--------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------|
+| `-balance-address`             | Address to monitor SOL balances for, in addition to the identity and vote accounts of the provided nodekeys - can be set multiple times.                                                                                | N/A                       |
+| `-comprehensive-slot-tracking` | Set this flag to track `solana_leader_slots_by_epoch` for all validators.                                                                                                                                               | `false`                   |
+| `-http-timeout`                | HTTP timeout to use, in seconds.                                                                                                                                                                                        | `60`                      |
+| `-light-mode`                  | Set this flag to enable light-mode. In light mode, only metrics unique to the node being queried are reported (i.e., metrics such as `solana_inflation_rewards` which are visible from any RPC node, are not reported). | `false`                   |
+| `-listen-address`              | Prometheus listen address.                                                                                                                                                                                              | `":8080"`                 |
+| `-monitor-block-sizes`         | Set this flag to track block sizes (number of transactions) for the configured validators.                                                                                                                              | `false`                   |
+| `-nodekey`                     | Solana nodekey (identity account) representing a validator to monitor - can set multiple times.                                                                                                                         | N/A                       |
+| `-rpc-url`                     | Solana RPC URL (including protocol and path), e.g., `"http://localhost:8899"` or `"https://api.mainnet-beta.solana.com"`                                                                                                | `"http://localhost:8899"` |
+| `-slot-pace`                   | This is the time (in seconds) between slot-watching metric collections                                                                                                                                                  | `1`                       |
+
+### Notes on Configuration
+
+* `-light-mode` is incompatible with both `-monitor-block-sizes` and `-comprehensive-slot-tracking`.
+* ***WARNING***:
+  * Configuring `-comprehensive-slot-tracking` will lead to potentially thousands of new Prometheus metrics being 
+  created every epoch.
+  * Configuring `-monitor-block-sizes` with many `-nodekey`'s can potentially strain the node - every block produced 
+  by a configured `-nodekey` is fetched, and a typical block can be as large as 5MB.
 
 If you want verbose logs, specify `-v=<num>`. Higher verbosity means more debug output. For most users, the default
 verbosity level is fine. If you want detailed log output for missed blocks, run with `-v=1`.
 
-```
-Usage of solana_exporter:
-  -add_dir_header
-    	If true, adds the file directory to the header of the log messages
-  -alsologtostderr
-    	log to standard error as well as files (no effect when -logtostderr=true)
-  -balance-address value
-    	Address to monitor SOL balances for, in addition to the identity and vote accounts of the provided nodekeys - can be set multiple times.
-  -comprehensive-slot-tracking
-    	Set this flag to track solana_leader_slots_by_epoch for ALL validators. Warning: this will lead to potentially thousands of new Prometheus metrics being created every epoch.
-  -http-timeout int
-    	HTTP timeout to use, in seconds. (default 60)
-  -listen-address string
-    	Listen address (default ":8080")
-  -log_backtrace_at value
-    	when logging hits line file:N, emit a stack trace
-  -log_dir string
-    	If non-empty, write log files in this directory (no effect when -logtostderr=true)
-  -log_file string
-    	If non-empty, use this log file (no effect when -logtostderr=true)
-  -log_file_max_size uint
-    	Defines the maximum size a log file can grow to (no effect when -logtostderr=true). Unit is megabytes. If the value is 0, the maximum file size is unlimited. (default 1800)
-  -logtostderr
-    	log to standard error instead of files (default true)
-  -monitor-block-sizes
-    	Set this flag to track block sizes (number of transactions) for the configured validators. Warning: this might grind the RPC node.
-  -nodekey value
-    	Solana nodekey (identity account) representing validator to monitor - can set multiple times.
-  -one_output
-    	If true, only write logs to their native severity level (vs also writing to each lower severity level; no effect when -logtostderr=true)
-  -rpc-url string
-    	Solana RPC URL (including protocol and path), e.g., 'http://localhost:8899' or 'https://api.mainnet-beta.solana.com' (default "http://localhost:8899")
-  -skip_headers
-    	If true, avoid header prefixes in the log messages
-  -skip_log_headers
-    	If true, avoid headers when opening log files (no effect when -logtostderr=true)
-  -stderrthreshold value
-    	logs at or above this threshold go to stderr when writing to files and stderr (no effect when -logtostderr=true or -alsologtostderr=true) (default 2)
-  -v value
-    	number for the log level verbosity
-  -vmodule value
-    	comma-separated list of pattern=N settings for file-filtered logging
-```
+## Metrics
+### Overview
+
+The table below describes all the metrics collected by the `solana_exporter`:
+
+| Metric                              | Description                                                                              | Labels                        |
+|-------------------------------------|------------------------------------------------------------------------------------------|-------------------------------|
+| `solana_validator_active_stake`     | Active stake per validator.                                                              | `votekey`, `nodekey`          |
+| `solana_validator_last_vote`        | Last voted-on slot per validator.                                                        | `votekey`, `nodekey`          |
+| `solana_validator_root_slot`        | Root slot per validator.                                                                 | `votekey`, `nodekey`          |
+| `solana_validator_delinquent`       | Whether a validator is delinquent.                                                       | `votekey`, `nodekey`          |
+| `solana_account_balance`            | Solana account balances.                                                                 | `address`                     |
+| `solana_node_version`               | Node version of solana.*                                                                 | `version`                     |
+| `solana_node_is_healthy`            | Whether the node is healthy.*                                                            | N/A                           |
+| `solana_node_num_slots_behind`      | The number of slots that the node is behind the latest cluster confirmed slot.*          | N/A                           |
+| `solana_node_minimum_ledger_slot`   | The lowest slot that the node has information about in its ledger.*                      | N/A                           |
+| `solana_node_first_available_block` | The slot of the lowest confirmed block that has not been purged from the node's ledger.* | N/A                           |
+| `solana_total_transactions`         | Total number of transactions processed without error since genesis.*                     | N/A                           |
+| `solana_slot_height`                | The current slot number.*                                                                | N/A                           |
+| `solana_epoch_number`               | The current epoch number.*                                                               | N/A                           |
+| `solana_epoch_first_slot`           | Current epoch's first slot \[inclusive\].*                                               | N/A                           |
+| `solana_epoch_last_slot`            | Current epoch's last slot \[inclusive\].*                                                | N/A                           |
+| `solana_leader_slots`               | Number of slots processed.                                                               | `status`, `nodekey`           |
+| `solana_leader_slots_by_epoch`      | Number of slots processed.                                                               | `status`, `nodekey`, `epoch`  |
+| `solana_inflation_rewards`          | Inflation reward earned.                                                                 | `votekey`, `epoch`            |
+| `solana_fee_rewards`                | Transaction fee rewards earned.                                                          | `nodekey`, `epoch`            |
+| `solana_block_size`                 | Number of transactions per block.*                                                       | `nodekey`, `transaction_type` |
+| `solana_block_height`               | The current block height of the node.                                                    | N/A                           |
+
+***NOTE***: An `*` in the description indicates that the metric **is** tracked in `-light-mode`.
+
+### Labels
+
+The table below describes the various metric labels:
+
+| Label              | Description                         | Options / Example                                    | 
+|--------------------|-------------------------------------|------------------------------------------------------|
+| `nodekey`          | Validator identity account address. | e.g, `Certusm1sa411sMpV9FPqU5dXAYhmmhygvxJ23S6hJ24`  | 
+| `votkey`           | Validator vote account address.     | e.g., `CertusDeBmqN8ZawdkxK5kFGMwBXdudvWHYwtNgNhvLu` |
+| `address`          | Solana account address.             | e.g., `Certusm1sa411sMpV9FPqU5dXAYhmmhygvxJ23S6hJ24` |
+| `version`          | Solana node version.                | e.g., `v1.18.23`                                     |
+| `status`           | Whether a slot was skipped or valid | `valid`, `skipped`                                   |
+| `epoch`            | Solana epoch number.                | e.g., `663`                                          |
+| `transaction_type` | General transaction type.           | `vote`, `non_vote`                                   |
