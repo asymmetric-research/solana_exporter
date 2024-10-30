@@ -55,7 +55,7 @@ func NewSolanaCollector(client *rpc.Client, config *ExporterConfig) *SolanaColle
 		config:    config,
 		ValidatorActiveStake: NewGaugeDesc(
 			"solana_validator_active_stake",
-			fmt.Sprintf("Active stake per validator (represented by %s and %s)", VotekeyLabel, NodekeyLabel),
+			fmt.Sprintf("Active stake (in SOL) per validator (represented by %s and %s)", VotekeyLabel, NodekeyLabel),
 			VotekeyLabel, NodekeyLabel,
 		),
 		ValidatorLastVote: NewGaugeDesc(
@@ -134,7 +134,7 @@ func (c *SolanaCollector) collectVoteAccounts(ctx context.Context, ch chan<- pro
 
 	for _, account := range append(voteAccounts.Current, voteAccounts.Delinquent...) {
 		accounts := []string{account.VotePubkey, account.NodePubkey}
-		ch <- c.ValidatorActiveStake.MustNewConstMetric(float64(account.ActivatedStake), accounts...)
+		ch <- c.ValidatorActiveStake.MustNewConstMetric(float64(account.ActivatedStake)/rpc.LamportsInSol, accounts...)
 		ch <- c.ValidatorLastVote.MustNewConstMetric(float64(account.LastVote), accounts...)
 		ch <- c.ValidatorRootSlot.MustNewConstMetric(float64(account.RootSlot), accounts...)
 	}
