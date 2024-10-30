@@ -39,7 +39,7 @@ type SlotWatcher struct {
 	EpochLastSlotMetric      prometheus.Gauge
 	LeaderSlotsMetric        *prometheus.CounterVec
 	LeaderSlotsByEpochMetric *prometheus.CounterVec
-	InflationRewardsMetric   *prometheus.GaugeVec
+	InflationRewardsMetric   *prometheus.CounterVec
 	FeeRewardsMetric         *prometheus.CounterVec
 	BlockSizeMetric          *prometheus.GaugeVec
 	BlockHeightMetric        prometheus.Gauge
@@ -74,7 +74,7 @@ func NewSlotWatcher(client *rpc.Client, config *ExporterConfig) *SlotWatcher {
 		}),
 		LeaderSlotsMetric: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
-				Name: "solana_validator_leader_slots",
+				Name: "solana_validator_leader_slots_total",
 				Help: fmt.Sprintf(
 					"Number of slots processed, grouped by %s, and %s ('%s' or '%s')",
 					NodekeyLabel, SkipStatusLabel, StatusValid, StatusSkipped,
@@ -84,7 +84,7 @@ func NewSlotWatcher(client *rpc.Client, config *ExporterConfig) *SlotWatcher {
 		),
 		LeaderSlotsByEpochMetric: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
-				Name: "solana_validator_leader_slots_by_epoch",
+				Name: "solana_validator_leader_slots_by_epoch_total",
 				Help: fmt.Sprintf(
 					"Number of slots processed, grouped by %s, %s ('%s' or '%s'), and %s",
 					NodekeyLabel, SkipStatusLabel, StatusValid, StatusSkipped, EpochLabel,
@@ -92,16 +92,16 @@ func NewSlotWatcher(client *rpc.Client, config *ExporterConfig) *SlotWatcher {
 			},
 			[]string{NodekeyLabel, EpochLabel, SkipStatusLabel},
 		),
-		InflationRewardsMetric: prometheus.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Name: "solana_validator_inflation_rewards",
+		InflationRewardsMetric: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "solana_validator_inflation_rewards_total",
 				Help: fmt.Sprintf("Inflation reward earned, grouped by %s and %s", VotekeyLabel, EpochLabel),
 			},
 			[]string{VotekeyLabel, EpochLabel},
 		),
 		FeeRewardsMetric: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
-				Name: "solana_validator_fee_rewards",
+				Name: "solana_validator_fee_rewards_total",
 				Help: fmt.Sprintf("Transaction fee rewards earned, grouped by %s and %s", NodekeyLabel, EpochLabel),
 			},
 			[]string{NodekeyLabel, EpochLabel},
@@ -423,7 +423,7 @@ func (c *SlotWatcher) fetchAndEmitInflationRewards(ctx context.Context, epoch in
 	for i, rewardInfo := range rewardInfos {
 		address := c.config.VoteKeys[i]
 		reward := float64(rewardInfo.Amount) / float64(rpc.LamportsInSol)
-		c.InflationRewardsMetric.WithLabelValues(address, toString(epoch)).Set(reward)
+		c.InflationRewardsMetric.WithLabelValues(address, toString(epoch)).Add(reward)
 	}
 	c.logger.Infof("Fetched inflation reward for epoch %v.", epoch)
 	return nil
