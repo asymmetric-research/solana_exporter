@@ -4,7 +4,7 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
-	"github.com/asymmetric-research/solana_exporter/pkg/rpc"
+	"github.com/asymmetric-research/solana-exporter/pkg/rpc"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )

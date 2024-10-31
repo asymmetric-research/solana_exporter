@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/asymmetric-research/solana_exporter/pkg/slog"
+	"github.com/asymmetric-research/solana-exporter/pkg/slog"
 	"github.com/prometheus/client_golang/prometheus"
 )
 

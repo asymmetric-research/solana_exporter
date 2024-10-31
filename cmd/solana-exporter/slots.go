@@ -4,13 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/asymmetric-research/solana_exporter/pkg/slog"
+	"github.com/asymmetric-research/solana-exporter/pkg/slog"
 	"go.uber.org/zap"
 	"slices"
 	"strings"
 	"time"
 
-	"github.com/asymmetric-research/solana_exporter/pkg/rpc"
+	"github.com/asymmetric-research/solana-exporter/pkg/rpc"
 	"github.com/prometheus/client_golang/prometheus"
 )
 

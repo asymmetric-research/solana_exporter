@@ -25,8 +25,8 @@ jobs:
       - name: Test rpc package
         run: go test -v ./pkg/rpc
 
-      - name: Test solana_exporter
-        run: go test -v ./cmd/solana_exporter
+      - name: Test solana-exporter
+        run: go test -v ./cmd/solana-exporter
 
       - name: Run all tests with coverage
         run: go test -v -coverprofile=coverage.out ./...

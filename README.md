@@ -10,7 +10,7 @@ To use the Solana Exporter, simply run the program with the desired
 [command line configuration](#Command-Line-Arguments), e.g.,
 
 ```shell
-solana_exporter \
+solana-exporter \
   -nodekey <VALIDATOR_IDENTITY_1> -nodekey <VALIDATOR_IDENTITY_2> \
   -balance-address <ADDRESS_1> -balance-address <ADDRESS_2> \
   -comprehensive-slot-tracking \
@@ -20,13 +20,13 @@ solana_exporter \
 ## Installation
 ### Build
 
-Assuming you already have [Go installed](https://go.dev/doc/install), the `solana_exporter` can be installed by 
+Assuming you already have [Go installed](https://go.dev/doc/install), the `solana-exporter` can be installed by 
 cloning this repository and building the binary:
 
 ```shell
-git clone https://github.com/asymmetric-research/solana_exporter.git
-cd solana_exporter
-CGO_ENABLED=0 go build ./cmd/solana_exporter
+git clone https://github.com/asymmetric-research/solana-exporter.git
+cd solana-exporter
+CGO_ENABLED=0 go build ./cmd/solana-exporter
 ```
 
 ## Configuration
@@ -62,7 +62,7 @@ verbosity level is fine. If you want detailed log output for missed blocks, run 
 ## Metrics
 ### Overview
 
-The table below describes all the metrics collected by the `solana_exporter`:
+The table below describes all the metrics collected by the `solana-exporter`:
 
 | Metric                              | Description                                                                              | Labels                        |
 |-------------------------------------|------------------------------------------------------------------------------------------|-------------------------------|
