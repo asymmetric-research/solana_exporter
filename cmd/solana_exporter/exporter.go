@@ -14,7 +14,6 @@ import (
 
 const (
 	SkipStatusLabel      = "status"
-	StateLabel           = "state"
 	NodekeyLabel         = "nodekey"
 	VotekeyLabel         = "votekey"
 	VersionLabel         = "version"
@@ -39,7 +38,6 @@ type SolanaCollector struct {
 	config *ExporterConfig
 
 	/// descriptors:
-	ValidatorActive         *GaugeDesc
 	ValidatorActiveStake    *GaugeDesc
 	ValidatorLastVote       *GaugeDesc
 	ValidatorRootSlot       *GaugeDesc
@@ -61,14 +59,6 @@ func NewSolanaCollector(provider rpc.Provider, config *ExporterConfig) *SolanaCo
 		rpcClient: provider,
 		logger:    slog.Get(),
 		config:    config,
-		ValidatorActive: NewGaugeDesc(
-			"solana_validator_active",
-			fmt.Sprintf(
-				"Total number of active validators, grouped by %s ('%s' or '%s')",
-				StateLabel, StateCurrent, StateDelinquent,
-			),
-			StateLabel,
-		),
 		ValidatorActiveStake: NewGaugeDesc(
 			"solana_validator_active_stake",
 			fmt.Sprintf("Active stake per validator (represented by %s and %s)", VotekeyLabel, NodekeyLabel),
@@ -120,7 +110,6 @@ func NewSolanaCollector(provider rpc.Provider, config *ExporterConfig) *SolanaCo
 }
 
 func (c *SolanaCollector) Describe(ch chan<- *prometheus.Desc) {
-	ch <- c.ValidatorActive.Desc
 	ch <- c.NodeVersion.Desc
 	ch <- c.ValidatorActiveStake.Desc
 	ch <- c.ValidatorLastVote.Desc
@@ -142,16 +131,12 @@ func (c *SolanaCollector) collectVoteAccounts(ctx context.Context, ch chan<- pro
 	voteAccounts, err := c.rpcClient.GetVoteAccounts(ctx, rpc.CommitmentConfirmed, nil)
 	if err != nil {
 		c.logger.Errorf("failed to get vote accounts: %v", err)
-		ch <- c.ValidatorActive.NewInvalidMetric(err)
 		ch <- c.ValidatorActiveStake.NewInvalidMetric(err)
 		ch <- c.ValidatorLastVote.NewInvalidMetric(err)
 		ch <- c.ValidatorRootSlot.NewInvalidMetric(err)
 		ch <- c.ValidatorDelinquent.NewInvalidMetric(err)
 		return
 	}
-
-	ch <- c.ValidatorActive.MustNewConstMetric(float64(len(voteAccounts.Delinquent)), StateDelinquent)
-	ch <- c.ValidatorActive.MustNewConstMetric(float64(len(voteAccounts.Current)), StateCurrent)
 
 	for _, account := range append(voteAccounts.Current, voteAccounts.Delinquent...) {
 		accounts := []string{account.VotePubkey, account.NodePubkey}
