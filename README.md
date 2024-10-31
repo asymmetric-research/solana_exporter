@@ -96,7 +96,7 @@ The table below describes the various metric labels:
 | Label              | Description                         | Options / Example                                    | 
 |--------------------|-------------------------------------|------------------------------------------------------|
 | `nodekey`          | Validator identity account address. | e.g, `Certusm1sa411sMpV9FPqU5dXAYhmmhygvxJ23S6hJ24`  | 
-| `votkey`           | Validator vote account address.     | e.g., `CertusDeBmqN8ZawdkxK5kFGMwBXdudvWHYwtNgNhvLu` |
+| `votekey`           | Validator vote account address.     | e.g., `CertusDeBmqN8ZawdkxK5kFGMwBXdudvWHYwtNgNhvLu` |
 | `address`          | Solana account address.             | e.g., `Certusm1sa411sMpV9FPqU5dXAYhmmhygvxJ23S6hJ24` |
 | `version`          | Solana node version.                | e.g., `v1.18.23`                                     |
 | `status`           | Whether a slot was skipped or valid | `valid`, `skipped`                                   |
