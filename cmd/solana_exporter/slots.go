@@ -53,7 +53,9 @@ func NewSlotWatcher(client *rpc.Client, config *ExporterConfig) *SlotWatcher {
 		config: config,
 		// metrics:
 		TotalTransactionsMetric: prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "solana_node_total_transactions",
+			// even though this isn't a counter, it is supposed to act as one,
+			// and so we name it with the _total suffix
+			Name: "solana_node_transactions_total",
 			Help: "Total number of transactions processed without error since genesis.",
 		}),
 		SlotHeightMetric: prometheus.NewGauge(prometheus.GaugeOpts{
