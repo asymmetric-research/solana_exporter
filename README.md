@@ -56,9 +56,6 @@ The exporter is configured via the following command line arguments:
   * Configuring `-monitor-block-sizes` with many `-nodekey`'s can potentially strain the node - every block produced 
   by a configured `-nodekey` is fetched, and a typical block can be as large as 5MB.
 
-If you want verbose logs, specify `-v=<num>`. Higher verbosity means more debug output. For most users, the default
-verbosity level is fine. If you want detailed log output for missed blocks, run with `-v=1`.
-
 ## Metrics
 ### Overview
 

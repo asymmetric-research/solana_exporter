@@ -7,6 +7,7 @@ import (
 )
 
 func newMethodTester(t *testing.T, method string, result any) (*MockServer, *Client) {
+	t.Helper()
 	return NewMockClient(t, map[string]any{method: result}, nil, nil, nil, nil)
 }
 

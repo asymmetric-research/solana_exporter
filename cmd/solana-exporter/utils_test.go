@@ -101,4 +101,5 @@ func TestCountVoteTransactions(t *testing.T) {
 	assert.NoError(t, err)
 	// https://explorer.solana.com/block/297609329
 	assert.Equal(t, 1048, voteCount)
+	assert.Equal(t, 446, len(block.Transactions)-voteCount)
 }
