@@ -39,7 +39,7 @@ type SlotWatcher struct {
 	EpochLastSlotMetric      prometheus.Gauge
 	LeaderSlotsMetric        *prometheus.CounterVec
 	LeaderSlotsByEpochMetric *prometheus.CounterVec
-	InflationRewardsMetric   *prometheus.GaugeVec
+	InflationRewardsMetric   *prometheus.CounterVec
 	FeeRewardsMetric         *prometheus.CounterVec
 	BlockSizeMetric          *prometheus.GaugeVec
 	BlockHeightMetric        prometheus.Gauge
@@ -53,28 +53,30 @@ func NewSlotWatcher(client *rpc.Client, config *ExporterConfig) *SlotWatcher {
 		config: config,
 		// metrics:
 		TotalTransactionsMetric: prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "solana_total_transactions",
+			// even though this isn't a counter, it is supposed to act as one,
+			// and so we name it with the _total suffix
+			Name: "solana_node_transactions_total",
 			Help: "Total number of transactions processed without error since genesis.",
 		}),
 		SlotHeightMetric: prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "solana_slot_height",
+			Name: "solana_node_slot_height",
 			Help: "The current slot number",
 		}),
 		EpochNumberMetric: prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "solana_epoch_number",
+			Name: "solana_node_epoch_number",
 			Help: "The current epoch number.",
 		}),
 		EpochFirstSlotMetric: prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "solana_epoch_first_slot",
+			Name: "solana_node_epoch_first_slot",
 			Help: "Current epoch's first slot [inclusive].",
 		}),
 		EpochLastSlotMetric: prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "solana_epoch_last_slot",
+			Name: "solana_node_epoch_last_slot",
 			Help: "Current epoch's last slot [inclusive].",
 		}),
 		LeaderSlotsMetric: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
-				Name: "solana_leader_slots",
+				Name: "solana_validator_leader_slots_total",
 				Help: fmt.Sprintf(
 					"Number of slots processed, grouped by %s, and %s ('%s' or '%s')",
 					NodekeyLabel, SkipStatusLabel, StatusValid, StatusSkipped,
@@ -84,7 +86,7 @@ func NewSlotWatcher(client *rpc.Client, config *ExporterConfig) *SlotWatcher {
 		),
 		LeaderSlotsByEpochMetric: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
-				Name: "solana_leader_slots_by_epoch",
+				Name: "solana_validator_leader_slots_by_epoch_total",
 				Help: fmt.Sprintf(
 					"Number of slots processed, grouped by %s, %s ('%s' or '%s'), and %s",
 					NodekeyLabel, SkipStatusLabel, StatusValid, StatusSkipped, EpochLabel,
@@ -92,29 +94,29 @@ func NewSlotWatcher(client *rpc.Client, config *ExporterConfig) *SlotWatcher {
 			},
 			[]string{NodekeyLabel, EpochLabel, SkipStatusLabel},
 		),
-		InflationRewardsMetric: prometheus.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Name: "solana_inflation_rewards",
+		InflationRewardsMetric: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "solana_validator_inflation_rewards_total",
 				Help: fmt.Sprintf("Inflation reward earned, grouped by %s and %s", VotekeyLabel, EpochLabel),
 			},
 			[]string{VotekeyLabel, EpochLabel},
 		),
 		FeeRewardsMetric: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
-				Name: "solana_fee_rewards",
+				Name: "solana_validator_fee_rewards_total",
 				Help: fmt.Sprintf("Transaction fee rewards earned, grouped by %s and %s", NodekeyLabel, EpochLabel),
 			},
 			[]string{NodekeyLabel, EpochLabel},
 		),
 		BlockSizeMetric: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
-				Name: "solana_block_size",
+				Name: "solana_validator_block_size",
 				Help: fmt.Sprintf("Number of transactions per block, grouped by %s", NodekeyLabel),
 			},
 			[]string{NodekeyLabel, TransactionTypeLabel},
 		),
 		BlockHeightMetric: prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "solana_block_height",
+			Name: "solana_node_block_height",
 			Help: "The current block height of the node",
 		}),
 	}
@@ -174,6 +176,7 @@ func (c *SlotWatcher) WatchSlots(ctx context.Context) {
 				c.trackEpoch(ctx, epochInfo)
 			}
 
+			c.logger.Infof("Current slot: %v", epochInfo.AbsoluteSlot)
 			c.TotalTransactionsMetric.Set(float64(epochInfo.TransactionCount))
 			c.SlotHeightMetric.Set(float64(epochInfo.AbsoluteSlot))
 			c.BlockHeightMetric.Set(float64(epochInfo.BlockHeight))
@@ -281,21 +284,21 @@ func (c *SlotWatcher) checkValidSlotRange(from, to int64) error {
 
 // moveSlotWatermark performs all the slot-watching tasks required to move the slotWatermark to the provided 'to' slot.
 func (c *SlotWatcher) moveSlotWatermark(ctx context.Context, to int64) {
-	c.fetchAndEmitBlockProduction(ctx, to)
-	c.fetchAndEmitBlockInfos(ctx, to)
+	c.logger.Infof("Moving watermark %v -> %v", c.slotWatermark, to)
+	startSlot := c.slotWatermark + 1
+	c.fetchAndEmitBlockProduction(ctx, startSlot, to)
+	c.fetchAndEmitBlockInfos(ctx, startSlot, to)
 	c.slotWatermark = to
 }
 
-// fetchAndEmitBlockProduction fetches block production up to the provided endSlot, emits the prometheus metrics,
-// and updates the SlotWatcher.slotWatermark accordingly
-func (c *SlotWatcher) fetchAndEmitBlockProduction(ctx context.Context, endSlot int64) {
+// fetchAndEmitBlockProduction fetches block production from startSlot up to the provided endSlot [inclusive],
+// and emits the prometheus metrics,
+func (c *SlotWatcher) fetchAndEmitBlockProduction(ctx context.Context, startSlot, endSlot int64) {
 	if c.config.LightMode {
 		c.logger.Debug("Skipping block-production fetching in light mode.")
 		return
 	}
-	// add 1 because GetBlockProduction's range is inclusive, and the watermark is already tracked
-	startSlot := c.slotWatermark + 1
-	c.logger.Infof("Fetching block production in [%v -> %v]", startSlot, endSlot)
+	c.logger.Debugf("Fetching block production in [%v -> %v]", startSlot, endSlot)
 
 	// make sure the bounds are contained within the epoch we are currently watching:
 	if err := c.checkValidSlotRange(startSlot, endSlot); err != nil {
@@ -324,18 +327,17 @@ func (c *SlotWatcher) fetchAndEmitBlockProduction(ctx context.Context, endSlot i
 		}
 	}
 
-	c.logger.Infof("Fetched block production in [%v -> %v]", startSlot, endSlot)
+	c.logger.Debugf("Fetched block production in [%v -> %v]", startSlot, endSlot)
 }
 
 // fetchAndEmitBlockInfos fetches and emits all the fee rewards (+ block sizes) for the tracked addresses between the
-// slotWatermark and endSlot
-func (c *SlotWatcher) fetchAndEmitBlockInfos(ctx context.Context, endSlot int64) {
+// startSlot and endSlot [inclusive]
+func (c *SlotWatcher) fetchAndEmitBlockInfos(ctx context.Context, startSlot, endSlot int64) {
 	if c.config.LightMode {
 		c.logger.Debug("Skipping block-infos fetching in light mode.")
 		return
 	}
-	startSlot := c.slotWatermark + 1
-	c.logger.Infof("Fetching fee rewards in [%v -> %v]", startSlot, endSlot)
+	c.logger.Debugf("Fetching fee rewards in [%v -> %v]", startSlot, endSlot)
 
 	if err := c.checkValidSlotRange(startSlot, endSlot); err != nil {
 		c.logger.Fatalf("invalid slot range: %v", err)
@@ -355,7 +357,7 @@ func (c *SlotWatcher) fetchAndEmitBlockInfos(ctx context.Context, endSlot int64)
 		}
 	}
 
-	c.logger.Infof("Fetched fee rewards in [%v -> %v]", startSlot, endSlot)
+	c.logger.Debugf("Fetched fee rewards in [%v -> %v]", startSlot, endSlot)
 }
 
 // fetchAndEmitSingleBlockInfo fetches and emits the fee reward + block size for a single block.
@@ -423,7 +425,7 @@ func (c *SlotWatcher) fetchAndEmitInflationRewards(ctx context.Context, epoch in
 	for i, rewardInfo := range rewardInfos {
 		address := c.config.VoteKeys[i]
 		reward := float64(rewardInfo.Amount) / float64(rpc.LamportsInSol)
-		c.InflationRewardsMetric.WithLabelValues(address, toString(epoch)).Set(reward)
+		c.InflationRewardsMetric.WithLabelValues(address, toString(epoch)).Add(reward)
 	}
 	c.logger.Infof("Fetched inflation reward for epoch %v.", epoch)
 	return nil

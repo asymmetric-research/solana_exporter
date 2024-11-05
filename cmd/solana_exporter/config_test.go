@@ -44,7 +44,7 @@ func TestNewExporterConfig(t *testing.T) {
 			listenAddress:             ":8080",
 			nodeKeys:                  simulator.Nodekeys,
 			balanceAddresses:          []string{"xxx", "yyy", "zzz"},
-			comprehensiveSlotTracking: true,
+			comprehensiveSlotTracking: false,
 			monitorBlockSizes:         false,
 			lightMode:                 true,
 			slotPace:                  time.Second,

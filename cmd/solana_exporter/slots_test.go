@@ -109,38 +109,38 @@ func TestSlotWatcher_WatchSlots_Static(t *testing.T) {
 	time.Sleep(1 * time.Second)
 
 	type testCase struct {
+		name          string
 		expectedValue float64
-		metric        prometheus.Gauge
+		metric        prometheus.Collector
 	}
 
 	// epoch info tests:
 	firstSlot, lastSlot := GetEpochBounds(epochInfo)
 	tests := []testCase{
-		{expectedValue: float64(epochInfo.AbsoluteSlot), metric: watcher.SlotHeightMetric},
-		{expectedValue: float64(epochInfo.TransactionCount), metric: watcher.TotalTransactionsMetric},
-		{expectedValue: float64(epochInfo.Epoch), metric: watcher.EpochNumberMetric},
-		{expectedValue: float64(firstSlot), metric: watcher.EpochFirstSlotMetric},
-		{expectedValue: float64(lastSlot), metric: watcher.EpochLastSlotMetric},
+		{"slot_height", float64(epochInfo.AbsoluteSlot), watcher.SlotHeightMetric},
+		{"total_transactions", float64(epochInfo.TransactionCount), watcher.TotalTransactionsMetric},
+		{"epoch_number", float64(epochInfo.Epoch), watcher.EpochNumberMetric},
+		{"epoch_first_slot", float64(firstSlot), watcher.EpochFirstSlotMetric},
+		{"epoch_last_slot", float64(lastSlot), watcher.EpochLastSlotMetric},
 	}
 
 	// add inflation reward tests:
 	inflationRewards, err := client.GetInflationReward(ctx, rpc.CommitmentFinalized, simulator.Votekeys, 2)
 	assert.NoError(t, err)
 	for i, rewardInfo := range inflationRewards {
-		epoch := fmt.Sprintf("%v", epochInfo.Epoch)
 		tests = append(
 			tests,
 			testCase{
-				expectedValue: float64(rewardInfo.Amount) / float64(rpc.LamportsInSol),
-				metric:        watcher.InflationRewardsMetric.WithLabelValues(simulator.Votekeys[i], epoch),
+				fmt.Sprintf("inflation_rewards_%s", simulator.Votekeys[i]),
+				float64(rewardInfo.Amount) / float64(rpc.LamportsInSol),
+				watcher.InflationRewardsMetric.WithLabelValues(simulator.Votekeys[i], toString(epochInfo.Epoch)),
 			},
 		)
 	}
 
-	for _, testCase := range tests {
-		name := extractName(testCase.metric.Desc())
-		t.Run(name, func(t *testing.T) {
-			assert.Equal(t, testCase.expectedValue, testutil.ToFloat64(testCase.metric))
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			assert.Equal(t, test.expectedValue, testutil.ToFloat64(test.metric))
 		})
 	}
 }

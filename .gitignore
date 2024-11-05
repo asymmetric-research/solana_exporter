@@ -1,4 +1,4 @@
-# for prometheus configs:
+# for prometheus:
 .prometheus
 
 # builds:

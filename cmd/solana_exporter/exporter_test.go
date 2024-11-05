@@ -210,11 +210,13 @@ func TestSolanaCollector(t *testing.T) {
 	collector := NewSolanaCollector(client, newTestConfig(simulator, false))
 	prometheus.NewPedanticRegistry().MustRegister(collector)
 
+	stake := float64(1_000_000) / rpc.LamportsInSol
+
 	testCases := []collectionTest{
 		collector.ValidatorActiveStake.makeCollectionTest(
-			NewLV(1_000_000, "aaa", "AAA"),
-			NewLV(1_000_000, "bbb", "BBB"),
-			NewLV(1_000_000, "ccc", "CCC"),
+			NewLV(stake, "aaa", "AAA"),
+			NewLV(stake, "bbb", "BBB"),
+			NewLV(stake, "ccc", "CCC"),
 		),
 		collector.ValidatorLastVote.makeCollectionTest(
 			NewLV(34, "aaa", "AAA"),
