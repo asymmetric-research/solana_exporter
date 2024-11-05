@@ -4,7 +4,7 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
-	"github.com/asymmetric-research/solana_exporter/pkg/rpc"
+	"github.com/asymmetric-research/solana-exporter/pkg/rpc"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
@@ -101,4 +101,5 @@ func TestCountVoteTransactions(t *testing.T) {
 	assert.NoError(t, err)
 	// https://explorer.solana.com/block/297609329
 	assert.Equal(t, 1048, voteCount)
+	assert.Equal(t, 446, len(block.Transactions)-voteCount)
 }
