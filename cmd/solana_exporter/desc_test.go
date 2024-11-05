@@ -5,10 +5,16 @@ import (
 	"sort"
 )
 
-type LV struct {
-	labels []string
-	value  float64
-}
+type (
+	LV struct {
+		labels []string
+		value  float64
+	}
+	collectionTest struct {
+		Name             string
+		ExpectedResponse string
+	}
+)
 
 func NewLV(value float64, labels ...string) LV {
 	return LV{labels, value}
@@ -40,8 +46,4 @@ func (c *GaugeDesc) expectedCollection(labeledValues ...LV) string {
 
 func (c *GaugeDesc) makeCollectionTest(labeledValues ...LV) collectionTest {
 	return collectionTest{Name: c.Name, ExpectedResponse: c.expectedCollection(labeledValues...)}
-}
-
-func abcValues(a, b, c float64) []LV {
-	return []LV{NewLV(a, "aaa", "AAA"), NewLV(b, "bbb", "BBB"), NewLV(c, "ccc", "CCC")}
 }

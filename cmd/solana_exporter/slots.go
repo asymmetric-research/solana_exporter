@@ -15,7 +15,7 @@ import (
 )
 
 type SlotWatcher struct {
-	client rpc.Provider
+	client *rpc.Client
 	logger *zap.SugaredLogger
 
 	config *ExporterConfig
@@ -45,7 +45,7 @@ type SlotWatcher struct {
 	BlockHeightMetric        prometheus.Gauge
 }
 
-func NewSlotWatcher(client rpc.Provider, config *ExporterConfig) *SlotWatcher {
+func NewSlotWatcher(client *rpc.Client, config *ExporterConfig) *SlotWatcher {
 	logger := slog.Get()
 	watcher := SlotWatcher{
 		client: client,
@@ -80,7 +80,7 @@ func NewSlotWatcher(client rpc.Provider, config *ExporterConfig) *SlotWatcher {
 					NodekeyLabel, SkipStatusLabel, StatusValid, StatusSkipped,
 				),
 			},
-			[]string{SkipStatusLabel, NodekeyLabel},
+			[]string{NodekeyLabel, SkipStatusLabel},
 		),
 		LeaderSlotsByEpochMetric: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
@@ -90,7 +90,7 @@ func NewSlotWatcher(client rpc.Provider, config *ExporterConfig) *SlotWatcher {
 					NodekeyLabel, SkipStatusLabel, StatusValid, StatusSkipped, EpochLabel,
 				),
 			},
-			[]string{SkipStatusLabel, NodekeyLabel, EpochLabel},
+			[]string{NodekeyLabel, EpochLabel, SkipStatusLabel},
 		),
 		InflationRewardsMetric: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
@@ -303,7 +303,7 @@ func (c *SlotWatcher) fetchAndEmitBlockProduction(ctx context.Context, endSlot i
 	}
 
 	// fetch block production:
-	blockProduction, err := c.client.GetBlockProduction(ctx, rpc.CommitmentFinalized, nil, &startSlot, &endSlot)
+	blockProduction, err := c.client.GetBlockProduction(ctx, rpc.CommitmentFinalized, startSlot, endSlot)
 	if err != nil {
 		c.logger.Errorf("Failed to get block production, bailing out: %v", err)
 		return
@@ -314,13 +314,13 @@ func (c *SlotWatcher) fetchAndEmitBlockProduction(ctx context.Context, endSlot i
 		valid := float64(production.BlocksProduced)
 		skipped := float64(production.LeaderSlots - production.BlocksProduced)
 
-		c.LeaderSlotsMetric.WithLabelValues(StatusValid, address).Add(valid)
-		c.LeaderSlotsMetric.WithLabelValues(StatusSkipped, address).Add(skipped)
+		c.LeaderSlotsMetric.WithLabelValues(address, StatusValid).Add(valid)
+		c.LeaderSlotsMetric.WithLabelValues(address, StatusSkipped).Add(skipped)
 
 		if slices.Contains(c.config.NodeKeys, address) || c.config.ComprehensiveSlotTracking {
 			epochStr := toString(c.currentEpoch)
-			c.LeaderSlotsByEpochMetric.WithLabelValues(StatusValid, address, epochStr).Add(valid)
-			c.LeaderSlotsByEpochMetric.WithLabelValues(StatusSkipped, address, epochStr).Add(skipped)
+			c.LeaderSlotsByEpochMetric.WithLabelValues(address, epochStr, StatusValid).Add(valid)
+			c.LeaderSlotsByEpochMetric.WithLabelValues(address, epochStr, StatusSkipped).Add(skipped)
 		}
 	}
 
@@ -341,16 +341,16 @@ func (c *SlotWatcher) fetchAndEmitBlockInfos(ctx context.Context, endSlot int64)
 		c.logger.Fatalf("invalid slot range: %v", err)
 	}
 	scheduleToFetch := SelectFromSchedule(c.leaderSchedule, startSlot, endSlot)
-	for identity, leaderSlots := range scheduleToFetch {
+	for nodekey, leaderSlots := range scheduleToFetch {
 		if len(leaderSlots) == 0 {
 			continue
 		}
 
-		c.logger.Infof("Fetching fee rewards for %v in [%v -> %v]: %v ...", identity, startSlot, endSlot, leaderSlots)
+		c.logger.Infof("Fetching fee rewards for %v in [%v -> %v]: %v ...", nodekey, startSlot, endSlot, leaderSlots)
 		for _, slot := range leaderSlots {
-			err := c.fetchAndEmitSingleBlockInfo(ctx, identity, c.currentEpoch, slot)
+			err := c.fetchAndEmitSingleBlockInfo(ctx, nodekey, c.currentEpoch, slot)
 			if err != nil {
-				c.logger.Errorf("Failed to fetch fee rewards for %v at %v: %v", identity, slot, err)
+				c.logger.Errorf("Failed to fetch fee rewards for %v at %v: %v", nodekey, slot, err)
 			}
 		}
 	}
@@ -395,15 +395,15 @@ func (c *SlotWatcher) fetchAndEmitSingleBlockInfo(
 
 	// track block size:
 	if c.config.MonitorBlockSizes {
-		c.BlockSizeMetric.WithLabelValues(nodekey, TransactionTypeTotal).Set(float64(len(block.Transactions)))
 		// now count and emit votes:
 		voteCount, err := CountVoteTransactions(block)
 		if err != nil {
 			return err
 		}
 		c.BlockSizeMetric.WithLabelValues(nodekey, TransactionTypeVote).Set(float64(voteCount))
+		nonVoteCount := len(block.Transactions) - voteCount
+		c.BlockSizeMetric.WithLabelValues(nodekey, TransactionTypeNonVote).Set(float64(nonVoteCount))
 	}
-
 	return nil
 }
 
@@ -415,7 +415,7 @@ func (c *SlotWatcher) fetchAndEmitInflationRewards(ctx context.Context, epoch in
 		return nil
 	}
 	c.logger.Infof("Fetching inflation reward for epoch %v ...", toString(epoch))
-	rewardInfos, err := c.client.GetInflationReward(ctx, rpc.CommitmentConfirmed, c.config.VoteKeys, &epoch, nil)
+	rewardInfos, err := c.client.GetInflationReward(ctx, rpc.CommitmentConfirmed, c.config.VoteKeys, epoch)
 	if err != nil {
 		return fmt.Errorf("error fetching inflation rewards: %w", err)
 	}

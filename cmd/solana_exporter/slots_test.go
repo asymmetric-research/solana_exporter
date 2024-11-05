@@ -7,6 +7,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
+	"regexp"
 	"testing"
 	"time"
 )
@@ -17,6 +18,23 @@ type slotMetricValues struct {
 	EpochNumber       float64
 	EpochFirstSlot    float64
 	EpochLastSlot     float64
+	BlockHeight       float64
+}
+
+// extractName takes a Prometheus descriptor and returns its name
+func extractName(desc *prometheus.Desc) string {
+	// Get the string representation of the descriptor
+	descString := desc.String()
+	// Use regex to extract the metric name and help message from the descriptor string
+	reName := regexp.MustCompile(`fqName: "([^"]+)"`)
+	nameMatch := reName.FindStringSubmatch(descString)
+
+	var name string
+	if len(nameMatch) > 1 {
+		name = nameMatch[1]
+	}
+
+	return name
 }
 
 func getSlotMetricValues(watcher *SlotWatcher) slotMetricValues {
@@ -26,109 +44,97 @@ func getSlotMetricValues(watcher *SlotWatcher) slotMetricValues {
 		EpochNumber:       testutil.ToFloat64(watcher.EpochNumberMetric),
 		EpochFirstSlot:    testutil.ToFloat64(watcher.EpochFirstSlotMetric),
 		EpochLastSlot:     testutil.ToFloat64(watcher.EpochLastSlotMetric),
+		BlockHeight:       testutil.ToFloat64(watcher.BlockHeightMetric),
 	}
-}
-
-func testBlockProductionMetric(
-	t *testing.T,
-	watcher *SlotWatcher,
-	metric *prometheus.CounterVec,
-	host string,
-	status string,
-) {
-	hostInfo := staticBlockProduction.ByIdentity[host]
-	// get expected value depending on status:
-	var expectedValue float64
-	switch status {
-	case "valid":
-		expectedValue = float64(hostInfo.BlocksProduced)
-	case "skipped":
-		expectedValue = float64(hostInfo.LeaderSlots - hostInfo.BlocksProduced)
-	}
-	// get labels (leaderSlotsByEpoch requires an extra one)
-	labels := []string{status, host}
-	if metric == watcher.LeaderSlotsByEpochMetric {
-		labels = append(labels, fmt.Sprintf("%d", staticEpochInfo.Epoch))
-	}
-	// now we can do the assertion:
-	assert.Equalf(
-		t,
-		expectedValue,
-		testutil.ToFloat64(metric.WithLabelValues(labels...)),
-		"wrong value for block-production metric with labels: %s",
-		labels,
-	)
 }
 
 func assertSlotMetricsChangeCorrectly(t *testing.T, initial slotMetricValues, final slotMetricValues) {
 	// make sure that things have increased
-	assert.Greaterf(
-		t,
+	assert.Greaterf(t,
 		final.SlotHeight,
 		initial.SlotHeight,
 		"Slot has not increased! (%v -> %v)",
-		initial.SlotHeight,
-		final.SlotHeight,
+		initial.SlotHeight, final.SlotHeight,
 	)
-	assert.Greaterf(
-		t,
+	assert.Greaterf(t,
 		final.TotalTransactions,
 		initial.TotalTransactions,
 		"Total transactions have not increased! (%v -> %v)",
-		initial.TotalTransactions,
-		final.TotalTransactions,
+		initial.TotalTransactions, final.TotalTransactions,
 	)
-	assert.GreaterOrEqualf(
-		t,
+	assert.GreaterOrEqualf(t,
 		final.EpochNumber,
 		initial.EpochNumber,
 		"Epoch number has decreased! (%v -> %v)",
-		initial.EpochNumber,
-		final.EpochNumber,
+		initial.EpochNumber, final.EpochNumber,
+	)
+	assert.GreaterOrEqualf(t,
+		final.EpochFirstSlot,
+		initial.EpochFirstSlot,
+		"Epoch first slot has decreased! (%v -> %v)",
+		initial.EpochFirstSlot, final.EpochFirstSlot,
+	)
+	assert.GreaterOrEqualf(t,
+		final.EpochLastSlot,
+		initial.EpochLastSlot,
+		"Epoch last slot has decreased! (%v -> %v)",
+		initial.EpochLastSlot, final.EpochLastSlot,
+	)
+	assert.Greaterf(t,
+		final.BlockHeight,
+		initial.BlockHeight,
+		"Block height has decreased! (%v -> %v)",
+		initial.BlockHeight, final.BlockHeight,
 	)
 }
 
-func TestSolanaCollector_WatchSlots_Static(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+func TestSlotWatcher_WatchSlots_Static(t *testing.T) {
+	// TODO: is this test necessary? If not - remove, else, could definitely do with a clean.
 
-	config := newTestConfig(true)
-	collector := NewSolanaCollector(&staticRPCClient{}, config)
-	watcher := NewSlotWatcher(&staticRPCClient{}, config)
+	ctx := context.Background()
+
+	simulator, client := NewSimulator(t, 35)
+	watcher := NewSlotWatcher(client, newTestConfig(simulator, true))
 	// reset metrics before running tests:
 	watcher.LeaderSlotsMetric.Reset()
 	watcher.LeaderSlotsByEpochMetric.Reset()
 
-	prometheus.NewPedanticRegistry().MustRegister(collector)
-
 	go watcher.WatchSlots(ctx)
 
 	// make sure inflation rewards are collected:
-	err := watcher.fetchAndEmitInflationRewards(ctx, staticEpochInfo.Epoch)
+	epochInfo, err := client.GetEpochInfo(ctx, rpc.CommitmentFinalized)
+	assert.NoError(t, err)
+	err = watcher.fetchAndEmitInflationRewards(ctx, epochInfo.Epoch)
 	assert.NoError(t, err)
 	time.Sleep(1 * time.Second)
 
-	firstSlot, lastSlot := GetEpochBounds(&staticEpochInfo)
 	type testCase struct {
 		expectedValue float64
 		metric        prometheus.Gauge
 	}
+
+	// epoch info tests:
+	firstSlot, lastSlot := GetEpochBounds(epochInfo)
 	tests := []testCase{
-		{expectedValue: float64(staticEpochInfo.AbsoluteSlot), metric: watcher.SlotHeightMetric},
-		{expectedValue: float64(staticEpochInfo.TransactionCount), metric: watcher.TotalTransactionsMetric},
-		{expectedValue: float64(staticEpochInfo.Epoch), metric: watcher.EpochNumberMetric},
+		{expectedValue: float64(epochInfo.AbsoluteSlot), metric: watcher.SlotHeightMetric},
+		{expectedValue: float64(epochInfo.TransactionCount), metric: watcher.TotalTransactionsMetric},
+		{expectedValue: float64(epochInfo.Epoch), metric: watcher.EpochNumberMetric},
 		{expectedValue: float64(firstSlot), metric: watcher.EpochFirstSlotMetric},
 		{expectedValue: float64(lastSlot), metric: watcher.EpochLastSlotMetric},
 	}
 
 	// add inflation reward tests:
-	for i, rewardInfo := range staticInflationRewards {
-		epoch := fmt.Sprintf("%v", staticEpochInfo.Epoch)
-		test := testCase{
-			expectedValue: float64(rewardInfo.Amount) / float64(rpc.LamportsInSol),
-			metric:        watcher.InflationRewardsMetric.WithLabelValues(votekeys[i], epoch),
-		}
-		tests = append(tests, test)
+	inflationRewards, err := client.GetInflationReward(ctx, rpc.CommitmentFinalized, simulator.Votekeys, 2)
+	assert.NoError(t, err)
+	for i, rewardInfo := range inflationRewards {
+		epoch := fmt.Sprintf("%v", epochInfo.Epoch)
+		tests = append(
+			tests,
+			testCase{
+				expectedValue: float64(rewardInfo.Amount) / float64(rpc.LamportsInSol),
+				metric:        watcher.InflationRewardsMetric.WithLabelValues(simulator.Votekeys[i], epoch),
+			},
+		)
 	}
 
 	for _, testCase := range tests {
@@ -137,46 +143,26 @@ func TestSolanaCollector_WatchSlots_Static(t *testing.T) {
 			assert.Equal(t, testCase.expectedValue, testutil.ToFloat64(testCase.metric))
 		})
 	}
-
-	metrics := map[string]*prometheus.CounterVec{
-		"solana_leader_slots_total":    watcher.LeaderSlotsMetric,
-		"solana_leader_slots_by_epoch": watcher.LeaderSlotsByEpochMetric,
-	}
-	statuses := []string{"valid", "skipped"}
-	for name, metric := range metrics {
-		// subtest for each metric:
-		t.Run(name, func(t *testing.T) {
-			for _, status := range statuses {
-				// sub subtest for each status (as each one requires a different calc)
-				t.Run(status, func(t *testing.T) {
-					for _, identity := range identities {
-						testBlockProductionMetric(t, watcher, metric, identity, status)
-					}
-				})
-			}
-		})
-	}
 }
 
-func TestSolanaCollector_WatchSlots_Dynamic(t *testing.T) {
+func TestSlotWatcher_WatchSlots_Dynamic(t *testing.T) {
+	// TODO: figure out how to get rid of the error logs that happen when this test closes.
+	//  This is presumably due to the context cancelling mid-execution of a WatchSlots() iteration
+
 	// create clients:
-	client := newDynamicRPCClient()
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	config := newTestConfig(true)
-	collector := NewSolanaCollector(client, config)
-	watcher := NewSlotWatcher(client, config)
+	simulator, client := NewSimulator(t, 23)
+	watcher := NewSlotWatcher(client, newTestConfig(simulator, true))
 	// reset metrics before running tests:
 	watcher.LeaderSlotsMetric.Reset()
 	watcher.LeaderSlotsByEpochMetric.Reset()
-	prometheus.NewPedanticRegistry().MustRegister(collector)
 
 	// start client/collector and wait a bit:
-
-	go client.Run(ctx)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go watcher.WatchSlots(ctx)
 	time.Sleep(time.Second)
 
-	go watcher.WatchSlots(ctx)
+	go simulator.Run(ctx)
 	time.Sleep(time.Second)
 
 	initial := getSlotMetricValues(watcher)
@@ -192,34 +178,87 @@ func TestSolanaCollector_WatchSlots_Dynamic(t *testing.T) {
 		assertSlotMetricsChangeCorrectly(t, initial, final)
 
 		// sense check to make sure the exporter is not "ahead" of the client (due to double counting or whatever)
-		assert.LessOrEqualf(
-			t,
+		assert.LessOrEqualf(t,
 			int(final.SlotHeight),
-			client.Slot,
-			"Exporter slot (%v) ahead of client slot (%v)!",
-			int(final.SlotHeight),
-			client.Slot,
+			simulator.Slot,
+			"Exporter slot (%v) ahead of simulator slot (%v)!",
+			int(final.SlotHeight), simulator.Slot,
 		)
-		assert.LessOrEqualf(
-			t,
+		assert.LessOrEqualf(t,
 			int(final.TotalTransactions),
-			client.TransactionCount,
-			"Exporter transaction count (%v) ahead of client transaction count (%v)!",
-			int(final.TotalTransactions),
-			client.TransactionCount,
+			simulator.TransactionCount,
+			"Exporter transaction count (%v) ahead of simulator transaction count (%v)!",
+			int(final.TotalTransactions), simulator.TransactionCount,
 		)
-		assert.LessOrEqualf(
-			t,
+		assert.LessOrEqualf(t,
 			int(final.EpochNumber),
-			client.Epoch,
-			"Exporter epoch (%v) ahead of client epoch (%v)!",
-			int(final.EpochNumber),
-			client.Epoch,
+			simulator.Epoch,
+			"Exporter epoch (%v) ahead of simulator epoch (%v)!",
+			int(final.EpochNumber), simulator.Epoch,
 		)
+
+		// check block sizes (should always be the same due to simulator design:
+		for _, nodekey := range simulator.Nodekeys {
+			assert.Equalf(t,
+				float64(2),
+				testutil.ToFloat64(watcher.BlockSizeMetric.WithLabelValues(nodekey, TransactionTypeNonVote)),
+				"Incorrect %s block size for %s",
+				TransactionTypeNonVote, nodekey,
+			)
+			assert.Equalf(t,
+				float64(3),
+				testutil.ToFloat64(watcher.BlockSizeMetric.WithLabelValues(nodekey, TransactionTypeVote)),
+				"Incorrect %s block size for %s",
+				TransactionTypeVote, nodekey,
+			)
+		}
 
 		// check if epoch changed
 		if final.EpochNumber > initial.EpochNumber {
 			epochChanged = true
+
+			// run some tests for the previous epoch:
+			leaderSlotsPerEpoch := simulator.EpochSize / len(simulator.Nodekeys)
+			for i, nodekey := range simulator.Nodekeys {
+				// leader slots per epoch:
+				assert.Equalf(t,
+					float64(leaderSlotsPerEpoch*3/4),
+					testutil.ToFloat64(
+						watcher.LeaderSlotsByEpochMetric.WithLabelValues(nodekey, toString(initial.EpochNumber), StatusValid),
+					),
+					"Incorrect %s leader slots for %s at epoch %v",
+					StatusValid, nodekey, initial.EpochNumber,
+				)
+				assert.Equalf(t,
+					float64(leaderSlotsPerEpoch*1/4),
+					testutil.ToFloat64(
+						watcher.LeaderSlotsByEpochMetric.WithLabelValues(nodekey, toString(initial.EpochNumber), StatusSkipped),
+					),
+					"Incorrect %s leader slots for %s at epoch %v",
+					StatusSkipped, nodekey, initial.EpochNumber,
+				)
+
+				// inflation rewards:
+				votekey := simulator.Votekeys[i]
+				assert.Equalf(t,
+					float64(simulator.InflationRewardLamports)/rpc.LamportsInSol,
+					testutil.ToFloat64(
+						watcher.InflationRewardsMetric.WithLabelValues(votekey, toString(initial.EpochNumber)),
+					),
+					"Incorrect inflation reward for %s at epoch %v",
+					votekey, initial.EpochNumber,
+				)
+
+				// fee rewards:
+				assert.Equalf(t,
+					float64(simulator.FeeRewardLamports*leaderSlotsPerEpoch*3/4)/rpc.LamportsInSol,
+					testutil.ToFloat64(
+						watcher.FeeRewardsMetric.WithLabelValues(nodekey, toString(initial.EpochNumber)),
+					),
+					"Incorrect fee reward for %s at epoch %v",
+					nodekey, initial.EpochNumber,
+				)
+			}
 		}
 
 		// make current final the new initial (for next iteration)
