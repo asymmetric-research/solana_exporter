@@ -10,7 +10,6 @@ import (
 	"io"
 	"net/http"
 	"slices"
-	"sync"
 	"time"
 )
 
@@ -20,10 +19,6 @@ type (
 		RpcUrl      string
 		HttpTimeout time.Duration
 		logger      *zap.SugaredLogger
-
-		// for grindiness tracking
-		usage int64
-		mu    sync.RWMutex
 	}
 
 	Request struct {
@@ -52,18 +47,6 @@ const (
 
 func NewRPCClient(rpcAddr string, httpTimeout time.Duration) *Client {
 	return &Client{HttpClient: http.Client{}, RpcUrl: rpcAddr, HttpTimeout: httpTimeout, logger: slog.Get()}
-}
-
-func (c *Client) addUsage(usage int64) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.usage += usage
-}
-
-func (c *Client) GetUsage() int64 {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	return c.usage
 }
 
 func getResponse[T any](
@@ -98,8 +81,7 @@ func getResponse[T any](
 	if err != nil {
 		return fmt.Errorf("error processing %s rpc call: %w", method, err)
 	}
-	// add usage + debug log response:
-	client.addUsage(int64(len(body)))
+	// debug log response:
 	logger.Debugf("%s response: %v", method, string(body))
 
 	// unmarshal the response into the predicted format
