@@ -32,17 +32,18 @@ type SlotWatcher struct {
 	leaderSchedule map[string][]int64
 
 	// prometheus:
-	TotalTransactionsMetric  prometheus.Gauge
-	SlotHeightMetric         prometheus.Gauge
-	EpochNumberMetric        prometheus.Gauge
-	EpochFirstSlotMetric     prometheus.Gauge
-	EpochLastSlotMetric      prometheus.Gauge
-	LeaderSlotsMetric        *prometheus.CounterVec
-	LeaderSlotsByEpochMetric *prometheus.CounterVec
-	InflationRewardsMetric   *prometheus.CounterVec
-	FeeRewardsMetric         *prometheus.CounterVec
-	BlockSizeMetric          *prometheus.GaugeVec
-	BlockHeightMetric        prometheus.Gauge
+	TotalTransactionsMetric   prometheus.Gauge
+	SlotHeightMetric          prometheus.Gauge
+	EpochNumberMetric         prometheus.Gauge
+	EpochFirstSlotMetric      prometheus.Gauge
+	EpochLastSlotMetric       prometheus.Gauge
+	LeaderSlotsMetric         *prometheus.CounterVec
+	LeaderSlotsByEpochMetric  *prometheus.CounterVec
+	ClusterSlotsByEpochMetric *prometheus.CounterVec
+	InflationRewardsMetric    *prometheus.CounterVec
+	FeeRewardsMetric          *prometheus.CounterVec
+	BlockSizeMetric           *prometheus.GaugeVec
+	BlockHeightMetric         prometheus.Gauge
 }
 
 func NewSlotWatcher(client *rpc.Client, config *ExporterConfig) *SlotWatcher {
@@ -93,6 +94,16 @@ func NewSlotWatcher(client *rpc.Client, config *ExporterConfig) *SlotWatcher {
 				),
 			},
 			[]string{NodekeyLabel, EpochLabel, SkipStatusLabel},
+		),
+		ClusterSlotsByEpochMetric: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "solana_cluster_slots_by_epoch_total",
+				Help: fmt.Sprintf(
+					"Number of slots processed by the cluster, grouped by %s ('%s' or '%s'), and %s",
+					SkipStatusLabel, StatusValid, StatusSkipped, EpochLabel,
+				),
+			},
+			[]string{EpochLabel, SkipStatusLabel},
 		),
 		InflationRewardsMetric: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
@@ -320,11 +331,15 @@ func (c *SlotWatcher) fetchAndEmitBlockProduction(ctx context.Context, startSlot
 		c.LeaderSlotsMetric.WithLabelValues(address, StatusValid).Add(valid)
 		c.LeaderSlotsMetric.WithLabelValues(address, StatusSkipped).Add(skipped)
 
+		epochStr := toString(c.currentEpoch)
 		if slices.Contains(c.config.NodeKeys, address) || c.config.ComprehensiveSlotTracking {
-			epochStr := toString(c.currentEpoch)
 			c.LeaderSlotsByEpochMetric.WithLabelValues(address, epochStr, StatusValid).Add(valid)
 			c.LeaderSlotsByEpochMetric.WithLabelValues(address, epochStr, StatusSkipped).Add(skipped)
 		}
+
+		// additionally, track block production for the whole cluster:
+		c.ClusterSlotsByEpochMetric.WithLabelValues(epochStr, StatusValid).Add(valid)
+		c.ClusterSlotsByEpochMetric.WithLabelValues(epochStr, StatusSkipped).Add(skipped)
 	}
 
 	c.logger.Debugf("Fetched block production in [%v -> %v]", startSlot, endSlot)

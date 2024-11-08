@@ -61,29 +61,30 @@ The exporter is configured via the following command line arguments:
 
 The table below describes all the metrics collected by the `solana-exporter`:
 
-| Metric                              | Description                                                                              | Labels                        |
-|-------------------------------------|------------------------------------------------------------------------------------------|-------------------------------|
-| `solana_validator_active_stake`     | Active stake per validator.                                                              | `votekey`, `nodekey`          |
-| `solana_validator_last_vote`        | Last voted-on slot per validator.                                                        | `votekey`, `nodekey`          |
-| `solana_validator_root_slot`        | Root slot per validator.                                                                 | `votekey`, `nodekey`          |
-| `solana_validator_delinquent`       | Whether a validator is delinquent.                                                       | `votekey`, `nodekey`          |
-| `solana_account_balance`            | Solana account balances.                                                                 | `address`                     |
-| `solana_node_version`               | Node version of solana.*                                                                 | `version`                     |
-| `solana_node_is_healthy`            | Whether the node is healthy.*                                                            | N/A                           |
-| `solana_node_num_slots_behind`      | The number of slots that the node is behind the latest cluster confirmed slot.*          | N/A                           |
-| `solana_node_minimum_ledger_slot`   | The lowest slot that the node has information about in its ledger.*                      | N/A                           |
-| `solana_node_first_available_block` | The slot of the lowest confirmed block that has not been purged from the node's ledger.* | N/A                           |
-| `solana_node_total_transactions`    | Total number of transactions processed without error since genesis.*                     | N/A                           |
-| `solana_node_slot_height`           | The current slot number.*                                                                | N/A                           |
-| `solana_node_epoch_number`          | The current epoch number.*                                                               | N/A                           |
-| `solana_node_epoch_first_slot`      | Current epoch's first slot \[inclusive\].*                                               | N/A                           |
-| `solana_node_epoch_last_slot`       | Current epoch's last slot \[inclusive\].*                                                | N/A                           |
-| `solana_node_leader_slots`          | Number of slots processed.                                                               | `status`, `nodekey`           |
-| `solana_node_leader_slots_by_epoch` | Number of slots processed.                                                               | `status`, `nodekey`, `epoch`  |
-| `solana_node_inflation_rewards`     | Inflation reward earned.                                                                 | `votekey`, `epoch`            |
-| `solana_node_fee_rewards`           | Transaction fee rewards earned.                                                          | `nodekey`, `epoch`            |
-| `solana_node_block_size`            | Number of transactions per block.                                                        | `nodekey`, `transaction_type` |
-| `solana_node_block_height`          | The current block height of the node.*                                                   | N/A                           |
+| Metric                                         | Description                                                                              | Labels                        |
+|------------------------------------------------|------------------------------------------------------------------------------------------|-------------------------------|
+| `solana_validator_active_stake`                | Active stake per validator.                                                              | `votekey`, `nodekey`          |
+| `solana_validator_last_vote`                   | Last voted-on slot per validator.                                                        | `votekey`, `nodekey`          |
+| `solana_validator_root_slot`                   | Root slot per validator.                                                                 | `votekey`, `nodekey`          |
+| `solana_validator_delinquent`                  | Whether a validator is delinquent.                                                       | `votekey`, `nodekey`          |
+| `solana_account_balance`                       | Solana account balances.                                                                 | `address`                     |
+| `solana_node_version`                          | Node version of solana.*                                                                 | `version`                     |
+| `solana_node_is_healthy`                       | Whether the node is healthy.*                                                            | N/A                           |
+| `solana_node_num_slots_behind`                 | The number of slots that the node is behind the latest cluster confirmed slot.*          | N/A                           |
+| `solana_node_minimum_ledger_slot`              | The lowest slot that the node has information about in its ledger.*                      | N/A                           |
+| `solana_node_first_available_block`            | The slot of the lowest confirmed block that has not been purged from the node's ledger.* | N/A                           |
+| `solana_node_transactions_total`               | Total number of transactions processed without error since genesis.*                     | N/A                           |
+| `solana_node_slot_height`                      | The current slot number.*                                                                | N/A                           |
+| `solana_node_epoch_number`                     | The current epoch number.*                                                               | N/A                           |
+| `solana_node_epoch_first_slot`                 | Current epoch's first slot \[inclusive\].*                                               | N/A                           |
+| `solana_node_epoch_last_slot`                  | Current epoch's last slot \[inclusive\].*                                                | N/A                           |
+| `solana_validator_leader_slots_total`          | Number of slots processed.                                                               | `status`, `nodekey`           |
+| `solana_validator_leader_slots_by_epoch_total` | Number of slots processed per validator.                                                 | `status`, `nodekey`, `epoch`  |
+| `solana_cluster_slots_by_epoch_total`          | Number of slots processed by the cluster.                                                | `status`, `epoch`             |
+| `solana_validator_inflation_rewards`           | Inflation reward earned.                                                                 | `votekey`, `epoch`            |
+| `solana_validator_fee_rewards`                 | Transaction fee rewards earned.                                                          | `nodekey`, `epoch`            |
+| `solana_validator_block_size`                  | Number of transactions per block.                                                        | `nodekey`, `transaction_type` |
+| `solana_node_block_height`                     | The current block height of the node.*                                                   | N/A                           |
 
 ***NOTE***: An `*` in the description indicates that the metric **is** tracked in `-light-mode`.
 
