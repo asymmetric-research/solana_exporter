@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"slices"
+	"sync"
 	"time"
 )
 
@@ -19,6 +20,10 @@ type (
 		RpcUrl      string
 		HttpTimeout time.Duration
 		logger      *zap.SugaredLogger
+
+		// for grindiness tracking
+		usage int64
+		mu    sync.RWMutex
 	}
 
 	Request struct {
@@ -30,10 +35,6 @@ type (
 
 	Commitment string
 )
-
-func (c Commitment) MarshalJSON() ([]byte, error) {
-	return json.Marshal(map[string]string{"commitment": string(c)})
-}
 
 const (
 	// LamportsInSol is the number of lamports in 1 SOL (a billion)
@@ -51,6 +52,18 @@ const (
 
 func NewRPCClient(rpcAddr string, httpTimeout time.Duration) *Client {
 	return &Client{HttpClient: http.Client{}, RpcUrl: rpcAddr, HttpTimeout: httpTimeout, logger: slog.Get()}
+}
+
+func (c *Client) addUsage(usage int64) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.usage += usage
+}
+
+func (c *Client) GetUsage() int64 {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.usage
 }
 
 func getResponse[T any](
@@ -85,7 +98,8 @@ func getResponse[T any](
 	if err != nil {
 		return fmt.Errorf("error processing %s rpc call: %w", method, err)
 	}
-	// log response:
+	// add usage + debug log response:
+	client.addUsage(int64(len(body)))
 	logger.Debugf("%s response: %v", method, string(body))
 
 	// unmarshal the response into the predicted format
@@ -105,7 +119,8 @@ func getResponse[T any](
 // See API docs: https://solana.com/docs/rpc/http/getepochinfo
 func (c *Client) GetEpochInfo(ctx context.Context, commitment Commitment) (*EpochInfo, error) {
 	var resp Response[EpochInfo]
-	if err := getResponse(ctx, c, "getEpochInfo", []any{commitment}, &resp); err != nil {
+	config := map[string]string{"commitment": string(commitment)}
+	if err := getResponse(ctx, c, "getEpochInfo", []any{config}, &resp); err != nil {
 		return nil, err
 	}
 	return &resp.Result, nil

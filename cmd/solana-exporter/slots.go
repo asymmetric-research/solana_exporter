@@ -381,8 +381,9 @@ func (c *SlotWatcher) fetchAndEmitSingleBlockInfo(
 		return err
 	}
 
+	foundFeeReward := false
 	for _, reward := range block.Rewards {
-		if reward.RewardType == "fee" {
+		if strings.ToLower(reward.RewardType) == "fee" {
 			// make sure we haven't made a logic issue or something:
 			assertf(
 				reward.Pubkey == nodekey,
@@ -390,9 +391,14 @@ func (c *SlotWatcher) fetchAndEmitSingleBlockInfo(
 				nodekey,
 				reward.Pubkey,
 			)
-			amount := float64(reward.Lamports) / float64(rpc.LamportsInSol)
+			amount := float64(reward.Lamports) / rpc.LamportsInSol
 			c.FeeRewardsMetric.WithLabelValues(nodekey, toString(epoch)).Add(amount)
+			foundFeeReward = true
 		}
+	}
+
+	if !foundFeeReward {
+		c.logger.Errorf("No fee reward for slot %d", slot)
 	}
 
 	// track block size:
@@ -424,7 +430,7 @@ func (c *SlotWatcher) fetchAndEmitInflationRewards(ctx context.Context, epoch in
 
 	for i, rewardInfo := range rewardInfos {
 		address := c.config.VoteKeys[i]
-		reward := float64(rewardInfo.Amount) / float64(rpc.LamportsInSol)
+		reward := float64(rewardInfo.Amount) / rpc.LamportsInSol
 		c.InflationRewardsMetric.WithLabelValues(address, toString(epoch)).Add(reward)
 	}
 	c.logger.Infof("Fetched inflation reward for epoch %v.", epoch)
