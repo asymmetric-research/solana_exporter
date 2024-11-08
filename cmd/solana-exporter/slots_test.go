@@ -7,7 +7,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
-	"regexp"
 	"testing"
 	"time"
 )
@@ -19,22 +18,6 @@ type slotMetricValues struct {
 	EpochFirstSlot    float64
 	EpochLastSlot     float64
 	BlockHeight       float64
-}
-
-// extractName takes a Prometheus descriptor and returns its name
-func extractName(desc *prometheus.Desc) string {
-	// Get the string representation of the descriptor
-	descString := desc.String()
-	// Use regex to extract the metric name and help message from the descriptor string
-	reName := regexp.MustCompile(`fqName: "([^"]+)"`)
-	nameMatch := reName.FindStringSubmatch(descString)
-
-	var name string
-	if len(nameMatch) > 1 {
-		name = nameMatch[1]
-	}
-
-	return name
 }
 
 func getSlotMetricValues(watcher *SlotWatcher) slotMetricValues {
@@ -217,25 +200,40 @@ func TestSlotWatcher_WatchSlots_Dynamic(t *testing.T) {
 		if final.EpochNumber > initial.EpochNumber {
 			epochChanged = true
 
-			// run some tests for the previous epoch:
+			// run some tests for the previous epoch, starting with cluster as a whole:
+			epochStr := toString(initial.EpochNumber)
+			assert.Equalf(t,
+				float64(simulator.EpochSize*3/4),
+				testutil.ToFloat64(watcher.ClusterSlotsByEpochMetric.WithLabelValues(epochStr, StatusValid)),
+				"Incorrect %s cluster slots at epoch %s",
+				StatusValid, epochStr,
+			)
+			assert.Equalf(t,
+				float64(simulator.EpochSize*1/4),
+				testutil.ToFloat64(watcher.ClusterSlotsByEpochMetric.WithLabelValues(epochStr, StatusSkipped)),
+				"Incorrect %s cluster slots at epoch %s",
+				StatusSkipped, epochStr,
+			)
+
+			// now test per validator:
 			leaderSlotsPerEpoch := simulator.EpochSize / len(simulator.Nodekeys)
 			for i, nodekey := range simulator.Nodekeys {
 				// leader slots per epoch:
 				assert.Equalf(t,
 					float64(leaderSlotsPerEpoch*3/4),
 					testutil.ToFloat64(
-						watcher.LeaderSlotsByEpochMetric.WithLabelValues(nodekey, toString(initial.EpochNumber), StatusValid),
+						watcher.LeaderSlotsByEpochMetric.WithLabelValues(nodekey, epochStr, StatusValid),
 					),
-					"Incorrect %s leader slots for %s at epoch %v",
-					StatusValid, nodekey, initial.EpochNumber,
+					"Incorrect %s leader slots for %s at epoch %s",
+					StatusValid, nodekey, epochStr,
 				)
 				assert.Equalf(t,
 					float64(leaderSlotsPerEpoch*1/4),
 					testutil.ToFloat64(
-						watcher.LeaderSlotsByEpochMetric.WithLabelValues(nodekey, toString(initial.EpochNumber), StatusSkipped),
+						watcher.LeaderSlotsByEpochMetric.WithLabelValues(nodekey, epochStr, StatusSkipped),
 					),
-					"Incorrect %s leader slots for %s at epoch %v",
-					StatusSkipped, nodekey, initial.EpochNumber,
+					"Incorrect %s leader slots for %s at epoch %s",
+					StatusSkipped, nodekey, epochStr,
 				)
 
 				// inflation rewards:
@@ -243,20 +241,20 @@ func TestSlotWatcher_WatchSlots_Dynamic(t *testing.T) {
 				assert.Equalf(t,
 					float64(simulator.InflationRewardLamports)/rpc.LamportsInSol,
 					testutil.ToFloat64(
-						watcher.InflationRewardsMetric.WithLabelValues(votekey, toString(initial.EpochNumber)),
+						watcher.InflationRewardsMetric.WithLabelValues(votekey, epochStr),
 					),
-					"Incorrect inflation reward for %s at epoch %v",
-					votekey, initial.EpochNumber,
+					"Incorrect inflation reward for %s at epoch %s",
+					votekey, epochStr,
 				)
 
 				// fee rewards:
 				assert.Equalf(t,
 					float64(simulator.FeeRewardLamports*leaderSlotsPerEpoch*3/4)/rpc.LamportsInSol,
 					testutil.ToFloat64(
-						watcher.FeeRewardsMetric.WithLabelValues(nodekey, toString(initial.EpochNumber)),
+						watcher.FeeRewardsMetric.WithLabelValues(nodekey, epochStr),
 					),
-					"Incorrect fee reward for %s at epoch %v",
-					nodekey, initial.EpochNumber,
+					"Incorrect fee reward for %s at epoch %s",
+					nodekey, epochStr,
 				)
 			}
 		}

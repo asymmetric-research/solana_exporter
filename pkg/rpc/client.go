@@ -31,10 +31,6 @@ type (
 	Commitment string
 )
 
-func (c Commitment) MarshalJSON() ([]byte, error) {
-	return json.Marshal(map[string]string{"commitment": string(c)})
-}
-
 const (
 	// LamportsInSol is the number of lamports in 1 SOL (a billion)
 	LamportsInSol = 1_000_000_000
@@ -85,7 +81,7 @@ func getResponse[T any](
 	if err != nil {
 		return fmt.Errorf("error processing %s rpc call: %w", method, err)
 	}
-	// log response:
+	// debug log response:
 	logger.Debugf("%s response: %v", method, string(body))
 
 	// unmarshal the response into the predicted format
@@ -105,7 +101,8 @@ func getResponse[T any](
 // See API docs: https://solana.com/docs/rpc/http/getepochinfo
 func (c *Client) GetEpochInfo(ctx context.Context, commitment Commitment) (*EpochInfo, error) {
 	var resp Response[EpochInfo]
-	if err := getResponse(ctx, c, "getEpochInfo", []any{commitment}, &resp); err != nil {
+	config := map[string]string{"commitment": string(commitment)}
+	if err := getResponse(ctx, c, "getEpochInfo", []any{config}, &resp); err != nil {
 		return nil, err
 	}
 	return &resp.Result, nil

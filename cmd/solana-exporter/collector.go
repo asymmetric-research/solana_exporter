@@ -22,9 +22,6 @@ const (
 	StatusSkipped = "skipped"
 	StatusValid   = "valid"
 
-	StateCurrent    = "current"
-	StateDelinquent = "delinquent"
-
 	TransactionTypeVote    = "vote"
 	TransactionTypeNonVote = "non_vote"
 )
