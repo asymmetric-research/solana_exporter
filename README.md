@@ -17,6 +17,8 @@ solana-exporter \
   -monitor-block-sizes
 ```
 
+![Solana Exporter Dashboard Sample](assets/solana-dashboard-screenshot.png)
+
 ## Installation
 ### Build
 

@@ -1,6 +1,3 @@
-# for prometheus:
-.prometheus
-
 # builds:
 .builds
 /solana-exporter

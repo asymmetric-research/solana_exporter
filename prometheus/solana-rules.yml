@@ -1,0 +1,22 @@
+groups:
+  - name: solana_recording_rules
+    interval: 30s
+    rules:
+      - record: solana:cluster_epoch_skip_rate
+        expr: |-
+          sum by (hostname, epoch) (solana_cluster_slots_by_epoch_total{app="solana",status="skipped"}) / sum by (hostname, epoch) (solana_cluster_slots_by_epoch_total{app="solana"})
+      - record: solana:validator_epoch_skip_rate
+        expr: |-
+          sum by (hostname, epoch, nodekey) (solana_validator_leader_slots_by_epoch_total{app="solana",status="skipped"}) / sum by (hostname, epoch, nodekey) (solana_validator_leader_slots_by_epoch_total{app="solana"})
+      - record: solana:cluster_hour_skip_rate
+        expr: |-
+          sum by (hostname) (increase(solana_validator_leader_slots_total{app="solana",status="skipped"}[1h])) / sum by (hostname) (increase(solana_validator_leader_slots_total{app="solana"}[1h]))
+      - record: solana:cluster_day_skip_rate
+        expr: |-
+          sum by (hostname) (increase(solana_validator_leader_slots_total{app="solana",status="skipped"}[1d])) / sum by (hostname) (increase(solana_validator_leader_slots_total{app="solana"}[1d]))
+      - record: solana:validator_hour_skip_rate
+        expr: |-
+          sum by (hostname, nodekey) (increase(solana_validator_leader_slots_total{app="solana",status="skipped"}[1h])) / sum by (hostname, nodekey) (increase(solana_validator_leader_slots_total{app="solana"}[1h]))
+      - record: solana:validator_day_skip_rate
+        expr: |-
+          sum by (hostname, nodekey) (increase(solana_validator_leader_slots_total{app="solana",status="skipped"}[1d])) / sum by (hostname, nodekey) (increase(solana_validator_leader_slots_total{app="solana"}[1d]))
