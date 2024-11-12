@@ -141,6 +141,7 @@ func NewSlotWatcher(client *rpc.Client, config *ExporterConfig) *SlotWatcher {
 		watcher.EpochLastSlotMetric,
 		watcher.LeaderSlotsMetric,
 		watcher.LeaderSlotsByEpochMetric,
+		watcher.ClusterSlotsByEpochMetric,
 		watcher.InflationRewardsMetric,
 		watcher.FeeRewardsMetric,
 		watcher.BlockSizeMetric,
