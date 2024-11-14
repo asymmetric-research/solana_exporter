@@ -121,9 +121,9 @@ func TestMockServer_getVoteAccounts(t *testing.T) {
 		nil,
 		nil,
 		map[string]MockValidatorInfo{
-			"aaa": {"AAA", 1, 2, false},
-			"bbb": {"BBB", 3, 4, false},
-			"ccc": {"CCC", 5, 6, true},
+			"aaa": {"AAA", 1, 2, false, 10},
+			"bbb": {"BBB", 3, 4, false, 11},
+			"ccc": {"CCC", 5, 6, true, 12},
 		},
 	)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -138,11 +138,11 @@ func TestMockServer_getVoteAccounts(t *testing.T) {
 	assert.Equal(t,
 		VoteAccounts{
 			Current: []VoteAccount{
-				{1, 2, "aaa", 0, "AAA"},
-				{3, 4, "bbb", 0, "BBB"},
+				{1, 2, "aaa", 10, "AAA"},
+				{3, 4, "bbb", 11, "BBB"},
 			},
 			Delinquent: []VoteAccount{
-				{5, 6, "ccc", 0, "CCC"},
+				{5, 6, "ccc", 12, "CCC"},
 			},
 		},
 		*voteAccounts,
