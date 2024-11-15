@@ -33,6 +33,8 @@ type (
 		Votekeys                []string
 		FeeRewardLamports       int
 		InflationRewardLamports int
+		LastVoteDistances       map[string]int
+		RootSlotDistances       map[string]int
 	}
 )
 
@@ -86,6 +88,8 @@ func NewSimulator(t *testing.T, slot int) (*Simulator, *rpc.Client) {
 		Votekeys:                votekeys,
 		InflationRewardLamports: inflationRewardLamports,
 		FeeRewardLamports:       feeRewardLamports,
+		LastVoteDistances:       map[string]int{"aaa": 1, "bbb": 2, "ccc": 3},
+		RootSlotDistances:       map[string]int{"aaa": 4, "bbb": 5, "ccc": 6},
 	}
 	simulator.PopulateSlot(0)
 	if slot > 0 {
@@ -144,7 +148,8 @@ func (c *Simulator) PopulateSlot(slot int) {
 		for _, nodekey := range c.Nodekeys {
 			transactions = append(transactions, []string{nodekey, strings.ToUpper(nodekey), VoteProgram})
 			info := c.Server.GetValidatorInfo(nodekey)
-			info.LastVote = slot
+			info.LastVote = max(0, slot-c.LastVoteDistances[nodekey])
+			info.RootSlot = max(0, slot-c.RootSlotDistances[nodekey])
 			c.Server.SetOpt(rpc.ValidatorInfoOpt, nodekey, info)
 		}
 
@@ -199,6 +204,7 @@ func newTestConfig(simulator *Simulator, fast bool) *ExporterConfig {
 		nil,
 		true,
 		true,
+		true,
 		false,
 		pace,
 	}
@@ -218,20 +224,33 @@ func TestSolanaCollector(t *testing.T) {
 			NewLV(stake, "bbb", "BBB"),
 			NewLV(stake, "ccc", "CCC"),
 		),
+		collector.ClusterActiveStake.makeCollectionTest(
+			NewLV(3 * stake),
+		),
 		collector.ValidatorLastVote.makeCollectionTest(
-			NewLV(34, "aaa", "AAA"),
-			NewLV(34, "bbb", "BBB"),
-			NewLV(34, "ccc", "CCC"),
+			NewLV(33, "aaa", "AAA"),
+			NewLV(32, "bbb", "BBB"),
+			NewLV(31, "ccc", "CCC"),
+		),
+		collector.ClusterLastVote.makeCollectionTest(
+			NewLV(33),
 		),
 		collector.ValidatorRootSlot.makeCollectionTest(
-			NewLV(0, "aaa", "AAA"),
-			NewLV(0, "bbb", "BBB"),
-			NewLV(0, "ccc", "CCC"),
+			NewLV(30, "aaa", "AAA"),
+			NewLV(29, "bbb", "BBB"),
+			NewLV(28, "ccc", "CCC"),
+		),
+		collector.ClusterRootSlot.makeCollectionTest(
+			NewLV(30),
 		),
 		collector.ValidatorDelinquent.makeCollectionTest(
 			NewLV(0, "aaa", "AAA"),
 			NewLV(0, "bbb", "BBB"),
 			NewLV(0, "ccc", "CCC"),
+		),
+		collector.ClusterValidatorCount.makeCollectionTest(
+			NewLV(3, StateCurrent),
+			NewLV(0, StateDelinquent),
 		),
 		collector.NodeVersion.makeCollectionTest(
 			NewLV(1, "v1.0.0"),
@@ -258,6 +277,7 @@ func TestSolanaCollector(t *testing.T) {
 		),
 	}
 
+	fmt.Println(testCases[1].ExpectedResponse)
 	for _, test := range testCases {
 		t.Run(test.Name, func(t *testing.T) {
 			err := testutil.CollectAndCompare(collector, bytes.NewBufferString(test.ExpectedResponse), test.Name)

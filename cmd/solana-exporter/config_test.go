@@ -10,60 +10,64 @@ import (
 func TestNewExporterConfig(t *testing.T) {
 	simulator, _ := NewSimulator(t, 35)
 	tests := []struct {
-		name                      string
-		httpTimeout               time.Duration
-		rpcUrl                    string
-		listenAddress             string
-		nodeKeys                  []string
-		balanceAddresses          []string
-		comprehensiveSlotTracking bool
-		monitorBlockSizes         bool
-		lightMode                 bool
-		slotPace                  time.Duration
-		wantErr                   bool
-		expectedVoteKeys          []string
+		name                             string
+		httpTimeout                      time.Duration
+		rpcUrl                           string
+		listenAddress                    string
+		nodeKeys                         []string
+		balanceAddresses                 []string
+		comprehensiveSlotTracking        bool
+		comprehensiveVoteAccountTracking bool
+		monitorBlockSizes                bool
+		lightMode                        bool
+		slotPace                         time.Duration
+		wantErr                          bool
+		expectedVoteKeys                 []string
 	}{
 		{
-			name:                      "valid configuration",
-			httpTimeout:               60 * time.Second,
-			rpcUrl:                    simulator.Server.URL(),
-			listenAddress:             ":8080",
-			nodeKeys:                  simulator.Nodekeys,
-			balanceAddresses:          []string{"xxx", "yyy", "zzz"},
-			comprehensiveSlotTracking: false,
-			monitorBlockSizes:         false,
-			lightMode:                 false,
-			slotPace:                  time.Second,
-			wantErr:                   false,
-			expectedVoteKeys:          simulator.Votekeys,
+			name:                             "valid configuration",
+			httpTimeout:                      60 * time.Second,
+			rpcUrl:                           simulator.Server.URL(),
+			listenAddress:                    ":8080",
+			nodeKeys:                         simulator.Nodekeys,
+			balanceAddresses:                 []string{"xxx", "yyy", "zzz"},
+			comprehensiveSlotTracking:        false,
+			comprehensiveVoteAccountTracking: false,
+			monitorBlockSizes:                false,
+			lightMode:                        false,
+			slotPace:                         time.Second,
+			wantErr:                          false,
+			expectedVoteKeys:                 simulator.Votekeys,
 		},
 		{
-			name:                      "light mode with incompatible options",
-			httpTimeout:               60 * time.Second,
-			rpcUrl:                    simulator.Server.URL(),
-			listenAddress:             ":8080",
-			nodeKeys:                  simulator.Nodekeys,
-			balanceAddresses:          []string{"xxx", "yyy", "zzz"},
-			comprehensiveSlotTracking: false,
-			monitorBlockSizes:         false,
-			lightMode:                 true,
-			slotPace:                  time.Second,
-			wantErr:                   true,
-			expectedVoteKeys:          nil,
+			name:                             "light mode with incompatible options",
+			httpTimeout:                      60 * time.Second,
+			rpcUrl:                           simulator.Server.URL(),
+			listenAddress:                    ":8080",
+			nodeKeys:                         simulator.Nodekeys,
+			balanceAddresses:                 []string{"xxx", "yyy", "zzz"},
+			comprehensiveSlotTracking:        false,
+			comprehensiveVoteAccountTracking: false,
+			monitorBlockSizes:                false,
+			lightMode:                        true,
+			slotPace:                         time.Second,
+			wantErr:                          true,
+			expectedVoteKeys:                 nil,
 		},
 		{
-			name:                      "empty node keys",
-			httpTimeout:               60 * time.Second,
-			rpcUrl:                    simulator.Server.URL(),
-			listenAddress:             ":8080",
-			nodeKeys:                  []string{},
-			balanceAddresses:          []string{"xxx", "yyy", "zzz"},
-			comprehensiveSlotTracking: false,
-			monitorBlockSizes:         false,
-			lightMode:                 false,
-			slotPace:                  time.Second,
-			wantErr:                   false,
-			expectedVoteKeys:          []string{},
+			name:                             "empty node keys",
+			httpTimeout:                      60 * time.Second,
+			rpcUrl:                           simulator.Server.URL(),
+			listenAddress:                    ":8080",
+			nodeKeys:                         []string{},
+			balanceAddresses:                 []string{"xxx", "yyy", "zzz"},
+			comprehensiveSlotTracking:        false,
+			comprehensiveVoteAccountTracking: false,
+			monitorBlockSizes:                false,
+			lightMode:                        false,
+			slotPace:                         time.Second,
+			wantErr:                          false,
+			expectedVoteKeys:                 []string{},
 		},
 	}
 
@@ -77,6 +81,7 @@ func TestNewExporterConfig(t *testing.T) {
 				tt.nodeKeys,
 				tt.balanceAddresses,
 				tt.comprehensiveSlotTracking,
+				tt.comprehensiveVoteAccountTracking,
 				tt.monitorBlockSizes,
 				tt.lightMode,
 				tt.slotPace,
