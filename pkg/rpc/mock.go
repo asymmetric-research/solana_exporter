@@ -54,6 +54,7 @@ type (
 		Stake      int
 		LastVote   int
 		Delinquent bool
+		RootSlot   int
 	}
 )
 
@@ -244,7 +245,7 @@ func (s *MockServer) getResult(method string, params ...any) (any, *RPCError) {
 				"activatedStake": int64(info.Stake),
 				"lastVote":       info.LastVote,
 				"nodePubkey":     nodekey,
-				"rootSlot":       0,
+				"rootSlot":       info.RootSlot,
 				"votePubkey":     info.Votekey,
 			}
 			if info.Delinquent {

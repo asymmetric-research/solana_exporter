@@ -8,10 +8,12 @@ import (
 	"github.com/asymmetric-research/solana-exporter/pkg/slog"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
+	"slices"
 )
 
 const (
 	SkipStatusLabel      = "status"
+	StateLabel           = "state"
 	NodekeyLabel         = "nodekey"
 	VotekeyLabel         = "votekey"
 	VersionLabel         = "version"
@@ -21,6 +23,9 @@ const (
 
 	StatusSkipped = "skipped"
 	StatusValid   = "valid"
+
+	StateCurrent    = "current"
+	StateDelinquent = "delinquent"
 
 	TransactionTypeVote    = "vote"
 	TransactionTypeNonVote = "non_vote"
@@ -34,9 +39,13 @@ type SolanaCollector struct {
 
 	/// descriptors:
 	ValidatorActiveStake    *GaugeDesc
+	ClusterActiveStake      *GaugeDesc
 	ValidatorLastVote       *GaugeDesc
+	ClusterLastVote         *GaugeDesc
 	ValidatorRootSlot       *GaugeDesc
+	ClusterRootSlot         *GaugeDesc
 	ValidatorDelinquent     *GaugeDesc
+	ClusterValidatorCount   *GaugeDesc
 	AccountBalances         *GaugeDesc
 	NodeVersion             *GaugeDesc
 	NodeIsHealthy           *GaugeDesc
@@ -55,20 +64,40 @@ func NewSolanaCollector(client *rpc.Client, config *ExporterConfig) *SolanaColle
 			fmt.Sprintf("Active stake (in SOL) per validator (represented by %s and %s)", VotekeyLabel, NodekeyLabel),
 			VotekeyLabel, NodekeyLabel,
 		),
+		ClusterActiveStake: NewGaugeDesc(
+			"solana_cluster_active_stake",
+			"Total active stake (in SOL) of the cluster",
+		),
 		ValidatorLastVote: NewGaugeDesc(
 			"solana_validator_last_vote",
 			fmt.Sprintf("Last voted-on slot per validator (represented by %s and %s)", VotekeyLabel, NodekeyLabel),
 			VotekeyLabel, NodekeyLabel,
+		),
+		ClusterLastVote: NewGaugeDesc(
+			"solana_cluster_last_vote",
+			"Most recent voted-on slot of the cluster",
 		),
 		ValidatorRootSlot: NewGaugeDesc(
 			"solana_validator_root_slot",
 			fmt.Sprintf("Root slot per validator (represented by %s and %s)", VotekeyLabel, NodekeyLabel),
 			VotekeyLabel, NodekeyLabel,
 		),
+		ClusterRootSlot: NewGaugeDesc(
+			"solana_cluster_root_slot",
+			"Max root slot of the cluster",
+		),
 		ValidatorDelinquent: NewGaugeDesc(
 			"solana_validator_delinquent",
 			fmt.Sprintf("Whether a validator (represented by %s and %s) is delinquent", VotekeyLabel, NodekeyLabel),
 			VotekeyLabel, NodekeyLabel,
+		),
+		ClusterValidatorCount: NewGaugeDesc(
+			"solana_cluster_validator_count",
+			fmt.Sprintf(
+				"Total number of validators in the cluster, grouped by %s ('%s' or '%s')",
+				StateLabel, StateCurrent, StateDelinquent,
+			),
+			StateLabel,
 		),
 		AccountBalances: NewGaugeDesc(
 			"solana_account_balance",
@@ -103,9 +132,13 @@ func NewSolanaCollector(client *rpc.Client, config *ExporterConfig) *SolanaColle
 func (c *SolanaCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.NodeVersion.Desc
 	ch <- c.ValidatorActiveStake.Desc
+	ch <- c.ClusterActiveStake.Desc
 	ch <- c.ValidatorLastVote.Desc
+	ch <- c.ClusterLastVote.Desc
 	ch <- c.ValidatorRootSlot.Desc
+	ch <- c.ClusterRootSlot.Desc
 	ch <- c.ValidatorDelinquent.Desc
+	ch <- c.ClusterValidatorCount.Desc
 	ch <- c.AccountBalances.Desc
 	ch <- c.NodeIsHealthy.Desc
 	ch <- c.NodeNumSlotsBehind.Desc
@@ -123,25 +156,57 @@ func (c *SolanaCollector) collectVoteAccounts(ctx context.Context, ch chan<- pro
 	if err != nil {
 		c.logger.Errorf("failed to get vote accounts: %v", err)
 		ch <- c.ValidatorActiveStake.NewInvalidMetric(err)
+		ch <- c.ClusterActiveStake.NewInvalidMetric(err)
 		ch <- c.ValidatorLastVote.NewInvalidMetric(err)
+		ch <- c.ClusterLastVote.NewInvalidMetric(err)
 		ch <- c.ValidatorRootSlot.NewInvalidMetric(err)
+		ch <- c.ClusterRootSlot.NewInvalidMetric(err)
 		ch <- c.ValidatorDelinquent.NewInvalidMetric(err)
+		ch <- c.ClusterValidatorCount.NewInvalidMetric(err)
 		return
 	}
 
+	var (
+		totalStake  float64
+		maxLastVote float64
+		maxRootSlot float64
+	)
 	for _, account := range append(voteAccounts.Current, voteAccounts.Delinquent...) {
 		accounts := []string{account.VotePubkey, account.NodePubkey}
-		ch <- c.ValidatorActiveStake.MustNewConstMetric(float64(account.ActivatedStake)/rpc.LamportsInSol, accounts...)
-		ch <- c.ValidatorLastVote.MustNewConstMetric(float64(account.LastVote), accounts...)
-		ch <- c.ValidatorRootSlot.MustNewConstMetric(float64(account.RootSlot), accounts...)
+		stake, lastVote, rootSlot :=
+			float64(account.ActivatedStake)/rpc.LamportsInSol,
+			float64(account.LastVote),
+			float64(account.RootSlot)
+
+		if slices.Contains(c.config.NodeKeys, account.NodePubkey) || c.config.ComprehensiveVoteAccountTracking {
+			ch <- c.ValidatorActiveStake.MustNewConstMetric(stake, accounts...)
+			ch <- c.ValidatorLastVote.MustNewConstMetric(lastVote, accounts...)
+			ch <- c.ValidatorRootSlot.MustNewConstMetric(rootSlot, accounts...)
+		}
+
+		totalStake += stake
+		maxLastVote = max(maxLastVote, lastVote)
+		maxRootSlot = max(maxRootSlot, rootSlot)
 	}
 
-	for _, account := range voteAccounts.Current {
-		ch <- c.ValidatorDelinquent.MustNewConstMetric(0, account.VotePubkey, account.NodePubkey)
+	{
+		for _, account := range voteAccounts.Current {
+			if slices.Contains(c.config.NodeKeys, account.NodePubkey) || c.config.ComprehensiveVoteAccountTracking {
+				ch <- c.ValidatorDelinquent.MustNewConstMetric(0, account.VotePubkey, account.NodePubkey)
+			}
+		}
+		for _, account := range voteAccounts.Delinquent {
+			if slices.Contains(c.config.NodeKeys, account.NodePubkey) || c.config.ComprehensiveVoteAccountTracking {
+				ch <- c.ValidatorDelinquent.MustNewConstMetric(1, account.VotePubkey, account.NodePubkey)
+			}
+		}
 	}
-	for _, account := range voteAccounts.Delinquent {
-		ch <- c.ValidatorDelinquent.MustNewConstMetric(1, account.VotePubkey, account.NodePubkey)
-	}
+
+	ch <- c.ClusterActiveStake.MustNewConstMetric(totalStake)
+	ch <- c.ClusterLastVote.MustNewConstMetric(maxLastVote)
+	ch <- c.ClusterRootSlot.MustNewConstMetric(maxRootSlot)
+	ch <- c.ClusterValidatorCount.MustNewConstMetric(float64(len(voteAccounts.Current)), StateCurrent)
+	ch <- c.ClusterValidatorCount.MustNewConstMetric(float64(len(voteAccounts.Delinquent)), StateDelinquent)
 
 	c.logger.Info("Vote accounts collected.")
 }
