@@ -21,6 +21,10 @@ for metric descriptions):
 * `solana_validator_fee_rewards` (<u><strong>[@johnstonematt](https://github.com/johnstonematt)</strong></u>)
 * `solana_validator_block_size` (<u><strong>[@johnstonematt](https://github.com/johnstonematt)</strong></u>)
 * `solana_node_block_height` (<u><strong>[@GranderStark](https://github.com/GranderStark)</strong></u>)
+* `solana_cluster_active_stake` (<u><strong>[@johnstonematt](https://github.com/johnstonematt)</strong></u>)
+* `solana_cluster_last_vote` (<u><strong>[@johnstonematt](https://github.com/johnstonematt)</strong></u>)
+* `solana_cluster_root_slot` (<u><strong>[@johnstonematt](https://github.com/johnstonematt)</strong></u>)
+* `solana_cluster_validator_count` (<u><strong>[@johnstonematt](https://github.com/johnstonematt)</strong></u>)
 
 #### Renamed Metrics
 
@@ -36,17 +40,13 @@ The table below contains all metrics renamed in `v3.0.0` (<u><strong>[@johnstone
 | `solana_confirmed_epoch_last_slot`    | `solana_node_epoch_last_slot`                  |
 | `solana_leader_slots_total`           | `solana_validator_leader_slots_total`          |
 | `solana_leader_slots_by_epoch`        | `solana_validator_leader_slots_by_epoch_total` |
+| `solana_active_validators`            | `solana_cluster_validator_count`               |
 
 Metrics were renamed to:
 * Remove commitment levels from metric names.
 * Standardise naming conventions:
   * `solana_validator_*`: Validator-specific metrics which are trackable from any RPC node (i.e., active stake).
   * `solana_node_*`: Node-specific metrics which are not trackable from other nodes (i.e., node health).
-
-#### Removed Metrics
-
-The following metrics were removed (<u><strong>[@johnstonematt](https://github.com/johnstonematt)</strong></u>):
-* `solana_active_validators`: This is redundant as it is simply a `count()` on `solana_validator_delinquent`.
 
 #### Label Updates
 
@@ -66,6 +66,7 @@ for parameter descriptions) (<u><strong>[@johnstonematt](https://github.com/john
  * `-slot-pace`
  * `-light-mode`
  * `-http-timeout`
+ * `-comprehensive-vote-account-tracking`
 
 #### Renamed Config Parameters
 
