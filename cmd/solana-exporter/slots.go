@@ -31,6 +31,9 @@ type SlotWatcher struct {
 
 	leaderSchedule map[string][]int64
 
+	// for tracking which metrics we have and deleting them accordingly:
+	nodekeyTracker *EpochTrackedValidators
+
 	// prometheus:
 	TotalTransactionsMetric   prometheus.Gauge
 	SlotHeightMetric          prometheus.Gauge
@@ -49,9 +52,10 @@ type SlotWatcher struct {
 func NewSlotWatcher(client *rpc.Client, config *ExporterConfig) *SlotWatcher {
 	logger := slog.Get()
 	watcher := SlotWatcher{
-		client: client,
-		logger: logger,
-		config: config,
+		client:         client,
+		logger:         logger,
+		config:         config,
+		nodekeyTracker: NewEpochTrackedValidators(),
 		// metrics:
 		TotalTransactionsMetric: prometheus.NewGauge(prometheus.GaugeOpts{
 			// even though this isn't a counter, it is supposed to act as one,
@@ -201,13 +205,6 @@ func (c *SlotWatcher) WatchSlots(ctx context.Context) {
 			}
 
 			if epochInfo.Epoch > c.currentEpoch {
-				// fetch inflation rewards for vote accounts:
-				if len(c.config.VoteKeys) > 0 {
-					err = c.fetchAndEmitInflationRewards(ctx, c.currentEpoch)
-					if err != nil {
-						c.logger.Errorf("Failed to emit inflation rewards, bailing out: %v", err)
-					}
-				}
 				c.closeCurrentEpoch(ctx, epochInfo)
 			}
 
@@ -271,11 +268,50 @@ func (c *SlotWatcher) trackEpoch(ctx context.Context, epoch *rpc.EpochInfo) {
 	c.leaderSchedule = leaderSchedule
 }
 
+// cleanEpoch deletes old epoch-labelled metrics which are no longer being updated due to an epoch change.
+func (c *SlotWatcher) cleanEpoch(epoch int64) {
+	c.logger.Infof(
+		"Waiting %vs before cleaning epoch %d...",
+		c.config.EpochCleanupTime.Seconds(), epoch,
+	)
+	time.Sleep(c.config.EpochCleanupTime)
+
+	c.logger.Infof("Cleaning epoch %d", epoch)
+	epochStr := toString(epoch)
+	// rewards:
+	for i, nodekey := range c.config.NodeKeys {
+		c.deleteMetricLabelValues(c.FeeRewardsMetric, "fee-rewards", nodekey, epochStr)
+		c.deleteMetricLabelValues(c.InflationRewardsMetric, "inflation-rewards", c.config.VoteKeys[i], epochStr)
+	}
+	// slots:
+	var trackedNodekeys []string
+	trackedNodekeys, err := c.nodekeyTracker.GetTrackedValidators(epoch)
+	if err != nil {
+		c.logger.Errorf("Failed to get tracked validators, bailing out: %v", err)
+	}
+	for _, status := range []string{StatusValid, StatusSkipped} {
+		c.deleteMetricLabelValues(c.ClusterSlotsByEpochMetric, "cluster-slots-by-epoch", epochStr, status)
+		for _, nodekey := range trackedNodekeys {
+			c.deleteMetricLabelValues(c.LeaderSlotsByEpochMetric, "leader-slots-by-epoch", nodekey, epochStr, status)
+		}
+	}
+	c.logger.Infof("Finished cleaning epoch %d", epoch)
+}
+
 // closeCurrentEpoch is called when an epoch change-over happens, and we need to make sure we track the last
 // remaining slots in the "current" epoch before we start tracking the new one.
 func (c *SlotWatcher) closeCurrentEpoch(ctx context.Context, newEpoch *rpc.EpochInfo) {
 	c.logger.Infof("Closing current epoch %v, moving into epoch %v", c.currentEpoch, newEpoch.Epoch)
+	// fetch inflation rewards for epoch we about to close:
+	if len(c.config.VoteKeys) > 0 {
+		err := c.fetchAndEmitInflationRewards(ctx, c.currentEpoch)
+		if err != nil {
+			c.logger.Errorf("Failed to emit inflation rewards, bailing out: %v", err)
+		}
+	}
+
 	c.moveSlotWatermark(ctx, c.lastSlot)
+	go c.cleanEpoch(c.currentEpoch)
 	c.trackEpoch(ctx, newEpoch)
 }
 
@@ -325,6 +361,10 @@ func (c *SlotWatcher) fetchAndEmitBlockProduction(ctx context.Context, startSlot
 	}
 
 	// emit the metrics:
+	var (
+		epochStr = toString(c.currentEpoch)
+		nodekeys []string
+	)
 	for address, production := range blockProduction.ByIdentity {
 		valid := float64(production.BlocksProduced)
 		skipped := float64(production.LeaderSlots - production.BlocksProduced)
@@ -332,16 +372,19 @@ func (c *SlotWatcher) fetchAndEmitBlockProduction(ctx context.Context, startSlot
 		c.LeaderSlotsMetric.WithLabelValues(address, StatusValid).Add(valid)
 		c.LeaderSlotsMetric.WithLabelValues(address, StatusSkipped).Add(skipped)
 
-		epochStr := toString(c.currentEpoch)
 		if slices.Contains(c.config.NodeKeys, address) || c.config.ComprehensiveSlotTracking {
 			c.LeaderSlotsByEpochMetric.WithLabelValues(address, epochStr, StatusValid).Add(valid)
 			c.LeaderSlotsByEpochMetric.WithLabelValues(address, epochStr, StatusSkipped).Add(skipped)
+			nodekeys = append(nodekeys, address)
 		}
 
 		// additionally, track block production for the whole cluster:
 		c.ClusterSlotsByEpochMetric.WithLabelValues(epochStr, StatusValid).Add(valid)
 		c.ClusterSlotsByEpochMetric.WithLabelValues(epochStr, StatusSkipped).Add(skipped)
 	}
+
+	// update tracked nodekeys:
+	c.nodekeyTracker.AddTrackedNodekeys(c.currentEpoch, nodekeys)
 
 	c.logger.Debugf("Fetched block production in [%v -> %v]", startSlot, endSlot)
 }
@@ -451,4 +494,12 @@ func (c *SlotWatcher) fetchAndEmitInflationRewards(ctx context.Context, epoch in
 	}
 	c.logger.Infof("Fetched inflation reward for epoch %v.", epoch)
 	return nil
+}
+
+func (c *SlotWatcher) deleteMetricLabelValues(metric *prometheus.CounterVec, name string, lvs ...string) {
+	c.logger.Infof("deleting %v with lv %v", name, lvs)
+	ok := metric.DeleteLabelValues(lvs...)
+	if !ok {
+		c.logger.Errorf("Failed to delete %s with label values %v", name, lvs)
+	}
 }

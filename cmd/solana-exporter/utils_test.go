@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"github.com/asymmetric-research/solana-exporter/pkg/rpc"
 	"github.com/stretchr/testify/assert"
+	"sort"
 	"testing"
 )
 
@@ -102,4 +103,52 @@ func TestCountVoteTransactions(t *testing.T) {
 	// https://explorer.solana.com/block/297609329
 	assert.Equal(t, 1048, voteCount)
 	assert.Equal(t, 446, len(block.Transactions)-voteCount)
+}
+
+func TestEpochTrackedValidators_GetTrackedValidators(t *testing.T) {
+	etv := EpochTrackedValidators{
+		trackedNodekeys: map[int64]map[string]struct{}{
+			1: {"a": struct{}{}, "b": struct{}{}},
+			2: {"c": struct{}{}, "d": struct{}{}},
+		},
+	}
+	t.Run(
+		"simple_get",
+		func(t *testing.T) {
+			nodekeys, err := etv.GetTrackedValidators(1)
+			assert.NoError(t, err)
+			sort.Strings(nodekeys)
+			assert.Equal(t, []string{"a", "b"}, nodekeys)
+		},
+	)
+	t.Run(
+		"second-get",
+		func(t *testing.T) {
+			nodekeys, err := etv.GetTrackedValidators(2)
+			assert.NoError(t, err)
+			sort.Strings(nodekeys)
+			assert.Equal(t, []string{"c", "d"}, nodekeys)
+		},
+	)
+	t.Run(
+		"failed-get",
+		func(t *testing.T) {
+			_, err := etv.GetTrackedValidators(1)
+			assert.Error(t, err)
+		},
+	)
+
+}
+
+func TestEpochTrackedValidators_AddTrackedValidators(t *testing.T) {
+	etv := NewEpochTrackedValidators()
+	etv.AddTrackedNodekeys(1, []string{"a", "b"})
+	etv.AddTrackedNodekeys(2, []string{"c", "d"})
+	assert.Equal(t,
+		map[int64]map[string]struct{}{
+			1: {"a": struct{}{}, "b": struct{}{}},
+			2: {"c": struct{}{}, "d": struct{}{}},
+		},
+		etv.trackedNodekeys,
+	)
 }

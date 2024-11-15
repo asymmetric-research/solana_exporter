@@ -21,6 +21,7 @@ func TestNewExporterConfig(t *testing.T) {
 		monitorBlockSizes                bool
 		lightMode                        bool
 		slotPace                         time.Duration
+		epochCleanupTime                 time.Duration
 		wantErr                          bool
 		expectedVoteKeys                 []string
 	}{
@@ -36,6 +37,7 @@ func TestNewExporterConfig(t *testing.T) {
 			monitorBlockSizes:                false,
 			lightMode:                        false,
 			slotPace:                         time.Second,
+			epochCleanupTime:                 60 * time.Second,
 			wantErr:                          false,
 			expectedVoteKeys:                 simulator.Votekeys,
 		},
@@ -51,6 +53,7 @@ func TestNewExporterConfig(t *testing.T) {
 			monitorBlockSizes:                false,
 			lightMode:                        true,
 			slotPace:                         time.Second,
+			epochCleanupTime:                 60 * time.Second,
 			wantErr:                          true,
 			expectedVoteKeys:                 nil,
 		},
@@ -66,6 +69,7 @@ func TestNewExporterConfig(t *testing.T) {
 			monitorBlockSizes:                false,
 			lightMode:                        false,
 			slotPace:                         time.Second,
+			epochCleanupTime:                 60 * time.Second,
 			wantErr:                          false,
 			expectedVoteKeys:                 []string{},
 		},
@@ -85,6 +89,7 @@ func TestNewExporterConfig(t *testing.T) {
 				tt.monitorBlockSizes,
 				tt.lightMode,
 				tt.slotPace,
+				tt.epochCleanupTime,
 			)
 
 			// Check error expectation
@@ -101,9 +106,11 @@ func TestNewExporterConfig(t *testing.T) {
 			assert.Equal(t, tt.listenAddress, config.ListenAddress)
 			assert.Equal(t, tt.nodeKeys, config.NodeKeys)
 			assert.Equal(t, tt.balanceAddresses, config.BalanceAddresses)
-			assert.Equal(t, tt.comprehensiveSlotTracking, config.MonitorBlockSizes)
+			assert.Equal(t, tt.comprehensiveSlotTracking, config.ComprehensiveSlotTracking)
+			assert.Equal(t, tt.comprehensiveVoteAccountTracking, config.ComprehensiveVoteAccountTracking)
 			assert.Equal(t, tt.lightMode, config.LightMode)
 			assert.Equal(t, tt.slotPace, config.SlotPace)
+			assert.Equal(t, tt.epochCleanupTime, config.EpochCleanupTime)
 			assert.Equal(t, tt.monitorBlockSizes, config.MonitorBlockSizes)
 			assert.Equal(t, tt.expectedVoteKeys, config.VoteKeys)
 		})
