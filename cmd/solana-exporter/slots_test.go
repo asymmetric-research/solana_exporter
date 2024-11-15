@@ -266,3 +266,59 @@ func TestSlotWatcher_WatchSlots_Dynamic(t *testing.T) {
 	// epoch should have changed somewhere
 	assert.Truef(t, epochChanged, "Epoch has not changed!")
 }
+
+func TestSlotWatcher_cleanUpEpoch(t *testing.T) {
+	// create clients:
+	simulator, client := NewSimulator(t, 23)
+	// set the cleanup time to 0 such that epochs are instantly cleaned up.
+	config := newTestConfig(simulator, true)
+	config.EpochCleanupTime = time.Duration(0)
+	watcher := NewSlotWatcher(client, config)
+	// reset metrics before running tests:
+	watcher.LeaderSlotsMetric.Reset()
+	watcher.LeaderSlotsByEpochMetric.Reset()
+
+	// start client/collector and wait a bit:
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go watcher.WatchSlots(ctx)
+	time.Sleep(time.Second)
+
+	go simulator.Run(ctx)
+	time.Sleep(time.Second)
+
+	var (
+		initialEpoch = testutil.ToFloat64(watcher.EpochNumberMetric)
+		currentEpoch float64
+	)
+	for {
+		time.Sleep(10 * time.Millisecond)
+		currentEpoch = testutil.ToFloat64(watcher.EpochNumberMetric)
+		if currentEpoch > initialEpoch {
+			break
+		}
+	}
+
+	time.Sleep(time.Second)
+	epochStr := toString(int(currentEpoch - 1))
+
+	// essentially we want all the counters for the old epoch to now be nil:
+	counters := []prometheus.Counter{
+		// cluster slots:
+		watcher.ClusterSlotsByEpochMetric.WithLabelValues(epochStr, StatusValid),
+		watcher.ClusterSlotsByEpochMetric.WithLabelValues(epochStr, StatusSkipped),
+	}
+	for i, nodekey := range simulator.Nodekeys {
+		// rewards:
+		counters = append(counters, watcher.FeeRewardsMetric.WithLabelValues(nodekey, epochStr))
+		counters = append(counters, watcher.InflationRewardsMetric.WithLabelValues(simulator.Votekeys[i], epochStr))
+		// validator leader slots:
+		counters = append(counters, watcher.LeaderSlotsByEpochMetric.WithLabelValues(nodekey, epochStr, StatusValid))
+		counters = append(counters, watcher.LeaderSlotsByEpochMetric.WithLabelValues(nodekey, epochStr, StatusSkipped))
+	}
+
+	var expected float64
+	for _, counter := range counters {
+		assert.Equal(t, expected, testutil.ToFloat64(counter))
+	}
+}

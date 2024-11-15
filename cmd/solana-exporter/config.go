@@ -24,6 +24,7 @@ type (
 		MonitorBlockSizes                bool
 		LightMode                        bool
 		SlotPace                         time.Duration
+		EpochCleanupTime                 time.Duration
 	}
 )
 
@@ -48,6 +49,7 @@ func NewExporterConfig(
 	monitorBlockSizes bool,
 	lightMode bool,
 	slotPace time.Duration,
+	epochCleanupTime time.Duration,
 ) (*ExporterConfig, error) {
 	logger := slog.Get()
 	logger.Infow(
@@ -61,6 +63,8 @@ func NewExporterConfig(
 		"comprehensiveVoteAccountTracking", comprehensiveVoteAccountTracking,
 		"monitorBlockSizes", monitorBlockSizes,
 		"lightMode", lightMode,
+		"slotPace", slotPace,
+		"epochCleanupTime", epochCleanupTime,
 	)
 	if lightMode {
 		if comprehensiveSlotTracking {
@@ -105,6 +109,7 @@ func NewExporterConfig(
 		MonitorBlockSizes:                monitorBlockSizes,
 		LightMode:                        lightMode,
 		SlotPace:                         slotPace,
+		EpochCleanupTime:                 epochCleanupTime,
 	}
 	return &config, nil
 }
@@ -121,6 +126,7 @@ func NewExporterConfigFromCLI(ctx context.Context) (*ExporterConfig, error) {
 		monitorBlockSizes                bool
 		lightMode                        bool
 		slotPace                         int
+		epochCleanupTime                 int
 	)
 	flag.IntVar(
 		&httpTimeout,
@@ -185,7 +191,13 @@ func NewExporterConfigFromCLI(ctx context.Context) (*ExporterConfig, error) {
 		&slotPace,
 		"slot-pace",
 		1,
-		"This is the time between slot-watching metric collections, defaults to 1s.",
+		"This is the time (in seconds) between slot-watching metric collections, defaults to 1s.",
+	)
+	flag.IntVar(
+		&epochCleanupTime,
+		"epoch-cleanup-time",
+		60,
+		"The time (in seconds) to wait for end-of-epoch metrics to be scraped before cleaning, defaults to 60s",
 	)
 	flag.Parse()
 
@@ -201,6 +213,7 @@ func NewExporterConfigFromCLI(ctx context.Context) (*ExporterConfig, error) {
 		monitorBlockSizes,
 		lightMode,
 		time.Duration(slotPace)*time.Second,
+		time.Duration(epochCleanupTime)*time.Second,
 	)
 	if err != nil {
 		return nil, err

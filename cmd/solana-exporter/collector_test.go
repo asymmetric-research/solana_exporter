@@ -207,6 +207,7 @@ func newTestConfig(simulator *Simulator, fast bool) *ExporterConfig {
 		true,
 		false,
 		pace,
+		time.Second * time.Duration(60),
 	}
 	return &config
 }
@@ -277,7 +278,6 @@ func TestSolanaCollector(t *testing.T) {
 		),
 	}
 
-	fmt.Println(testCases[1].ExpectedResponse)
 	for _, test := range testCases {
 		t.Run(test.Name, func(t *testing.T) {
 			err := testutil.CollectAndCompare(collector, bytes.NewBufferString(test.ExpectedResponse), test.Name)

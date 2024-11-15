@@ -7,9 +7,52 @@ import (
 	"github.com/asymmetric-research/solana-exporter/pkg/rpc"
 	"github.com/asymmetric-research/solana-exporter/pkg/slog"
 	"slices"
+	"sync"
 )
 
 const VoteProgram = "Vote111111111111111111111111111111111111111"
+
+type EpochTrackedValidators struct {
+	trackedNodekeys map[int64]map[string]struct{}
+	mu              sync.RWMutex
+}
+
+func NewEpochTrackedValidators() *EpochTrackedValidators {
+	return &EpochTrackedValidators{
+		trackedNodekeys: make(map[int64]map[string]struct{}),
+	}
+}
+
+func (c *EpochTrackedValidators) GetTrackedValidators(epoch int64) ([]string, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	// get and delete from tracked map:
+	epochNodekeys, ok := c.trackedNodekeys[epoch]
+	if !ok {
+		return nil, fmt.Errorf("epoch %v not tracked", epoch)
+	}
+	delete(c.trackedNodekeys, epoch)
+
+	// convert to array:
+	var nodekeys []string
+	for nodekey := range epochNodekeys {
+		nodekeys = append(nodekeys, nodekey)
+	}
+	return nodekeys, nil
+}
+
+func (c *EpochTrackedValidators) AddTrackedNodekeys(epoch int64, nodekeys []string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	epochNodekeys, ok := c.trackedNodekeys[epoch]
+	if !ok {
+		epochNodekeys = make(map[string]struct{})
+	}
+	for _, nodekey := range nodekeys {
+		epochNodekeys[nodekey] = struct{}{}
+	}
+	c.trackedNodekeys[epoch] = epochNodekeys
+}
 
 func assertf(condition bool, format string, args ...any) {
 	logger := slog.Get()
