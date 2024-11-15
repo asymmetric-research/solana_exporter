@@ -1,4 +1,4 @@
-# Solana Exporter v3.0.0
+# v3.0.0
 
 ## Key Changes
 
@@ -9,7 +9,7 @@ and more configurability.
 ### Metric Updates
 #### New Metrics
 
-Below is a list of newly added metrics (see the [README](https://github.com/asymmetric-research/solana-exporter/blob/master/README.md) 
+Below is a list of newly added metrics (see the [README](README.md) 
 for metric descriptions):
 
 * `solana_account_balance` (<u><strong>[@johnstonematt](https://github.com/johnstonematt)</strong></u>)
@@ -56,7 +56,7 @@ The following labels were renamed (<u><strong>[@johnstonematt](https://github.co
 ### Config Updates
 #### New Config Parameters
 
-Below is a list of newly added config parameters (see the [README](https://github.com/asymmetric-research/solana-exporter/blob/master/README.md) 
+Below is a list of newly added config parameters (see the [README](README.md) 
 for parameter descriptions) (<u><strong>[@johnstonematt](https://github.com/johnstonematt)</strong></u>):
 
  * `-balance-address`
