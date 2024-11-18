@@ -1,0 +1,68 @@
+name: Build Docker Image
+
+on:
+  workflow_call:
+    inputs:
+      image_name:
+        type: string
+        default: solana-exporter
+      tags:
+        required: true
+        type: string
+      commit_sha:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🛎 Checkout
+        uses: actions/checkout@v4
+
+      - name: 📥 Download binaries from artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: rust-binary
+
+      - name: ⚙️ Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: 👷 Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 🔖 Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}/${{ inputs.image_name }}
+          tags: ${{ inputs.tags }}
+
+      - name: ➡️🦑 Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 📅 Get current build datetime
+        id: build-datetime
+        run: echo BUILD_DATETIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ") >> $GITHUB_OUTPUT
+
+      - name: 🏗 🐳 ⬆️ Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          pull: true
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            BUILD_DATETIME=${{ steps.build-datetime.outputs.BUILD_DATETIME }}
+            VCS_REF=${{ inputs.commit_sha }}

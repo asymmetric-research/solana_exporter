@@ -1,0 +1,16 @@
+name: CI Tag Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+
+jobs:
+  build-docker:
+    uses: ./.github/workflows/_docker_build.yml
+    with:
+      image_name: solana-exporter
+      tags: |
+        type=semver,pattern={{version}}
+      commit_sha: ${{ github.sha }}
+    secrets: inherit

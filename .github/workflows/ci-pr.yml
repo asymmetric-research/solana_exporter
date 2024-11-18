@@ -1,0 +1,17 @@
+name: CI Pull Request
+
+on:
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  build-docker:
+    uses: ./.github/workflows/_docker_build.yml
+    with:
+      image_name: solana-exporter
+      tags: |
+        type=raw,value=pr-${{ github.event.pull_request.number }}
+        type=raw,value=pr-${{ github.event.pull_request.head.sha }}
+      commit_sha: ${{ github.sha }}
+    secrets: inherit
